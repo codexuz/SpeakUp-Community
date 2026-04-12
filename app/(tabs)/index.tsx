@@ -1,10 +1,11 @@
+import { TG } from '@/constants/theme';
 import { fetchTestsWithQuestions, Test } from '@/lib/data';
 import { useAuth } from '@/store/auth';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { BookOpen, Feather, PlayCircle, RefreshCw } from 'lucide-react-native';
+import { BarChart3, BookOpen, ChevronRight, Mic } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function HomeScreen() {
   const { user } = useAuth();
@@ -30,45 +31,62 @@ export default function HomeScreen() {
 
   if (user?.role === 'teacher') {
     return (
-      <View style={styles.teacherContainer}>
-        <LinearGradient colors={['#0f172a', '#1e293b']} style={StyleSheet.absoluteFillObject} />
-        
-        <View style={styles.teacherIconBox}>
-           <Feather size={48} color="#f59e0b" strokeWidth={1.5} />
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>SpeakUp</Text>
         </View>
-
-        <Text style={styles.teacherTitle}>Welcome, Teacher {user.fullName}</Text>
-        <Text style={styles.teacherSubtitle}>Head over to Submissions to grade students.</Text>
-        
-        <TouchableOpacity 
-            style={styles.primaryButton} 
-            activeOpacity={0.8}
+        <View style={styles.teacherContainer}>
+          <View style={styles.teacherAvatar}>
+            <Text style={styles.teacherAvatarText}>{user.fullName?.charAt(0) || 'T'}</Text>
+          </View>
+          <Text style={styles.teacherGreeting}>Welcome, {user.fullName}</Text>
+          <Text style={styles.teacherSubtitle}>Review student submissions and manage your groups</Text>
+          
+          <TouchableOpacity 
+            style={styles.actionCard}
+            activeOpacity={0.7}
             onPress={() => router.push('/(tabs)/responses')}
-        >
-          <Text style={styles.primaryButtonText}>VIEW SUBMISSIONS</Text>
-        </TouchableOpacity>
-      </View>
+          >
+            <View style={[styles.actionIcon, { backgroundColor: TG.accentLight }]}>
+              <Mic size={22} color={TG.accent} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.actionTitle}>Pending Reviews</Text>
+              <Text style={styles.actionDesc}>Grade student speaking submissions</Text>
+            </View>
+            <ChevronRight size={20} color={TG.textHint} />
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.actionCard}
+            activeOpacity={0.7}
+            onPress={() => router.push('/(tabs)/groups')}
+          >
+            <View style={[styles.actionIcon, { backgroundColor: TG.greenLight }]}>
+              <BarChart3 size={22} color={TG.green} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.actionTitle}>My Groups</Text>
+              <Text style={styles.actionDesc}>Manage groups and view analytics</Text>
+            </View>
+            <ChevronRight size={20} color={TG.textHint} />
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <LinearGradient colors={['#0f172a', '#1e293b']} style={StyleSheet.absoluteFillObject} />
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>SpeakUp</Text>
+      </View>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <View style={styles.headerRow}>
-            <View>
-              <Text style={styles.greeting}>Hello, {user?.fullName}</Text>
-              <Text style={styles.subGreeting}>Ready for your IELTS practice?</Text>
-            </View>
-            <TouchableOpacity onPress={loadTests} style={styles.refreshBtn} activeOpacity={0.7}>
-              <RefreshCw size={24} color="#3b82f6" />
-            </TouchableOpacity>
-          </View>
-        </View>
+        <Text style={styles.greeting}>Hello, {user?.fullName} 👋</Text>
+        <Text style={styles.subGreeting}>Choose a test to practice your speaking</Text>
 
         {loading ? (
-          <ActivityIndicator size="large" color="#3b82f6" style={{ marginTop: 60 }} />
+          <ActivityIndicator size="large" color={TG.accent} style={{ marginTop: 60 }} />
         ) : tests.length === 0 ? (
           <Text style={styles.emptyText}>No tests available yet.</Text>
         ) : (
@@ -77,128 +95,108 @@ export default function HomeScreen() {
             const firstQuestion = questions[0];
 
             return (
-              <View key={test.id} style={styles.testSection}>
-                <TouchableOpacity 
-                    style={styles.testCard} 
-                    activeOpacity={0.8}
-                    onPress={() => {
-                        if (firstQuestion) {
-                            router.push(`/speaking/${firstQuestion.id}`);
-                        } else {
-                            Alert.alert('No Questions', 'This test does not have any questions yet.');
-                        }
-                    }}
-                >
-                    <View style={styles.testCardInner}>
-                        <View style={styles.testIconWrapper}>
-                            <BookOpen size={30} color="#10b981" strokeWidth={2} />
-                        </View>
-                        <View style={styles.testInfo}>
-                            <Text style={styles.testTitle}>{test.title}</Text>
-                            <Text style={styles.testSubTitle}>{questions.length} questions included</Text>
-                        </View>
-                        <View style={styles.chevronWrapper}>
-                            <PlayCircle size={28} color="#3b82f6" />
-                        </View>
-                    </View>
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity 
+                key={test.id} 
+                style={styles.testCard}
+                activeOpacity={0.7}
+                onPress={() => {
+                  if (firstQuestion) {
+                    router.push(`/speaking/${firstQuestion.id}`);
+                  } else {
+                    Alert.alert('No Questions', 'This test does not have any questions yet.');
+                  }
+                }}
+              >
+                <View style={[styles.testIcon, { backgroundColor: TG.accentLight }]}>
+                  <BookOpen size={22} color={TG.accent} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.testTitle}>{test.title}</Text>
+                  <Text style={styles.testSub}>{questions.length} questions</Text>
+                </View>
+                <ChevronRight size={20} color={TG.textHint} />
+              </TouchableOpacity>
             );
           })
         )}
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  scrollContent: { padding: 16, paddingBottom: 100 },
-  header: { marginBottom: 24, paddingTop: 30 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  greeting: { fontSize: 24, fontWeight: '800', color: '#f8fafc', marginBottom: 4 },
-  subGreeting: { fontSize: 14, color: '#94a3b8', fontWeight: '500' },
-  
-  refreshBtn: { 
-      padding: 10, 
-      backgroundColor: 'rgba(59, 130, 246, 0.1)', 
-      borderRadius: 14, 
-      borderWidth: 2, 
-      borderColor: 'rgba(59, 130, 246, 0.3)' 
+  safeArea: { flex: 1, backgroundColor: TG.bg },
+  header: {
+    backgroundColor: TG.headerBg,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
   },
-  emptyText: { color: '#94a3b8', textAlign: 'center', marginTop: 40, fontSize: 16, fontWeight: '600' },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: TG.textWhite,
+  },
+  scrollContent: { paddingBottom: 100 },
 
-  testSection: { marginBottom: 16 },
-  
+  greeting: { fontSize: 22, fontWeight: '700', color: TG.textPrimary, paddingHorizontal: 16, paddingTop: 20 },
+  subGreeting: { fontSize: 14, color: TG.textSecondary, paddingHorizontal: 16, marginBottom: 20, marginTop: 4 },
+
+  emptyText: { color: TG.textSecondary, textAlign: 'center', marginTop: 40, fontSize: 15 },
+
   testCard: {
-      backgroundColor: '#1e293b',
-      borderRadius: 20,
-      padding: 16,
-      borderWidth: 2,
-      borderColor: '#334155',
-      borderBottomWidth: 4,
-      elevation: 2,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.1,
-      shadowRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: TG.bg,
+    borderBottomWidth: 0.5,
+    borderBottomColor: TG.separatorLight,
+    gap: 14,
   },
-  testCardInner: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
+  testIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  testIconWrapper: {
-      width: 48,
-      height: 48,
-      backgroundColor: 'rgba(16, 185, 129, 0.15)',
-      borderRadius: 14,
-      borderWidth: 2,
-      borderColor: 'rgba(16, 185, 129, 0.3)',
-      borderBottomWidth: 3,
-      justifyContent: 'center',
-      alignItems: 'center',
-  },
-  testInfo: {
-      flex: 1,
-  },
-  testTitle: { fontSize: 18, fontWeight: '800', color: '#fff', marginBottom: 2 },
-  testSubTitle: { fontSize: 13, color: '#94a3b8', fontWeight: '600' },
-  chevronWrapper: {
-      padding: 2,
-  },
+  testTitle: { fontSize: 16, fontWeight: '600', color: TG.textPrimary, marginBottom: 2 },
+  testSub: { fontSize: 13, color: TG.textSecondary },
 
-  teacherContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
-  teacherIconBox: {
-      marginBottom: 24,
-      width: 90,
-      height: 90,
-      borderRadius: 45,
-      backgroundColor: '#1e293b',
-      justifyContent: 'center',
-      alignItems: 'center',
-      borderWidth: 3,
-      borderColor: '#334155',
-      borderBottomWidth: 5
+  teacherContainer: { flex: 1, alignItems: 'center', paddingHorizontal: 24, paddingTop: 40 },
+  teacherAvatar: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: TG.accent,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
   },
-  teacherTitle: { fontSize: 24, fontWeight: '800', color: '#fff', marginBottom: 8, textAlign: 'center' },
-  teacherSubtitle: { fontSize: 16, color: '#94a3b8', marginBottom: 32, textAlign: 'center', lineHeight: 24 },
-  
-  primaryButton: { 
-      backgroundColor: '#3b82f6', 
-      borderRadius: 14, 
-      paddingVertical: 16, 
-      paddingHorizontal: 24,
-      alignItems: 'center',
-      borderBottomWidth: 4,
-      borderColor: '#2563eb',
-      width: '100%'
+  teacherAvatarText: { fontSize: 30, fontWeight: '700', color: TG.textWhite },
+  teacherGreeting: { fontSize: 22, fontWeight: '700', color: TG.textPrimary, marginBottom: 6 },
+  teacherSubtitle: { fontSize: 14, color: TG.textSecondary, textAlign: 'center', marginBottom: 32, lineHeight: 20 },
+
+  actionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    backgroundColor: TG.bg,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 0.5,
+    borderColor: TG.separator,
+    gap: 14,
+    marginBottom: 10,
   },
-  primaryButtonText: { 
-      color: '#fff', 
-      fontSize: 16, 
-      fontWeight: '800', 
-      textTransform: 'uppercase', 
-      letterSpacing: 1 
+  actionIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
+  actionTitle: { fontSize: 16, fontWeight: '600', color: TG.textPrimary, marginBottom: 2 },
+  actionDesc: { fontSize: 13, color: TG.textSecondary },
 });

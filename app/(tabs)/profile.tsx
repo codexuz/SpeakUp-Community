@@ -1,133 +1,141 @@
+import { TG } from '@/constants/theme';
 import { useAuth } from '@/store/auth';
-import { LinearGradient } from 'expo-linear-gradient';
-import { LogOut, MapPin, User as UserIcon } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
+import { ChevronRight, LogOut, MapPin, Monitor, Settings, User as UserIcon } from 'lucide-react-native';
 import React from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
+  const router = useRouter();
 
   return (
-    <View style={styles.container}>
-      <LinearGradient colors={['#0f172a', '#1e293b']} style={StyleSheet.absoluteFillObject} />
-      
+    <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
-        <View style={styles.avatarWrapper}>
-            <Image 
-            source={{ uri: user?.avatarUrl || 'https://i.ibb.co/68vS1zZ/default-avatar.png' }} 
-            style={styles.avatar} 
-            />
+        <Text style={styles.headerTitle}>Profile</Text>
+      </View>
+
+      <View style={styles.profileSection}>
+        <Image
+          source={{ uri: user?.avatarUrl || 'https://i.ibb.co/68vS1zZ/default-avatar.png' }}
+          style={styles.avatar}
+        />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.name}>{user?.fullName}</Text>
+          <Text style={styles.username}>@{user?.username}</Text>
         </View>
-        <Text style={styles.name}>{user?.fullName}</Text>
-        <View style={styles.roleBadge}>
-            <Text style={styles.role}>{user?.role?.toUpperCase()}</Text>
+        <View style={[styles.roleBadge, user?.role === 'teacher' && styles.teacherBadge]}>
+          <Text style={[styles.roleText, user?.role === 'teacher' && styles.teacherText]}>{user?.role}</Text>
         </View>
       </View>
 
-      <View style={styles.content}>
-        <View style={styles.infoCard}>
-          <View style={styles.infoIconBox}>
-             <MapPin size={20} color="#10b981" />
-          </View>
-          <View>
-              <Text style={styles.infoLabel}>REGION</Text>
-              <Text style={styles.infoValue}>{user?.region || 'N/A'}</Text>
-          </View>
+      <View style={styles.divider} />
+
+      <View style={styles.section}>
+        <View style={styles.infoRow}>
+          <MapPin size={18} color={TG.textSecondary} />
+          <Text style={styles.infoLabel}>Region</Text>
+          <Text style={styles.infoValue}>{user?.region || 'Not set'}</Text>
         </View>
-        
-        <View style={styles.infoCard}>
-          <View style={[styles.infoIconBox, { borderColor: 'rgba(139, 92, 246, 0.3)', backgroundColor: 'rgba(139, 92, 246, 0.1)' }]}>
-             <UserIcon size={20} color="#8b5cf6" />
-          </View>
-          <View>
-              <Text style={styles.infoLabel}>GENDER</Text>
-              <Text style={styles.infoValue}>{user?.gender || 'N/A'}</Text>
-          </View>
+        <View style={styles.infoRow}>
+          <UserIcon size={18} color={TG.textSecondary} />
+          <Text style={styles.infoLabel}>Gender</Text>
+          <Text style={styles.infoValue}>{user?.gender || 'Not set'}</Text>
         </View>
       </View>
 
-      <View style={styles.footer}>
-        <TouchableOpacity style={styles.logoutBtn} onPress={logout} activeOpacity={0.8}>
-          <LogOut size={24} color="#ef4444" />
-          <Text style={styles.logoutText}>LOG OUT</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+      <View style={styles.divider} />
+
+      <TouchableOpacity style={styles.menuRow} activeOpacity={0.7}>
+        <Settings size={18} color={TG.textSecondary} />
+        <Text style={styles.menuText}>Settings</Text>
+        <ChevronRight size={18} color={TG.textHint} style={{ marginLeft: 'auto' }} />
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.menuRow} activeOpacity={0.7} onPress={() => router.push('/sessions' as any)}>
+        <Monitor size={18} color={TG.textSecondary} />
+        <Text style={styles.menuText}>Active Sessions</Text>
+        <ChevronRight size={18} color={TG.textHint} style={{ marginLeft: 'auto' }} />
+      </TouchableOpacity>
+
+      <View style={{ flex: 1 }} />
+
+      <TouchableOpacity style={styles.logoutRow} onPress={logout} activeOpacity={0.7}>
+        <LogOut size={18} color={TG.red} />
+        <Text style={styles.logoutText}>Log Out</Text>
+      </TouchableOpacity>
+
+      <View style={{ height: 40 }} />
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: { alignItems: 'center', paddingTop: 60, paddingBottom: 40 },
-  
-  avatarWrapper: {
-      width: 120,
-      height: 120,
-      borderRadius: 60,
-      backgroundColor: '#1e293b',
-      padding: 4,
-      borderWidth: 4,
-      borderColor: '#3b82f6',
-      borderBottomWidth: 8,
-      marginBottom: 20
+  safeArea: { flex: 1, backgroundColor: TG.bgSecondary },
+  header: { backgroundColor: TG.headerBg, paddingHorizontal: 16, paddingVertical: 14 },
+  headerTitle: { fontSize: 20, fontWeight: '700', color: TG.textWhite },
+
+  profileSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: TG.bg,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    gap: 14,
   },
-  avatar: { 
-      width: '100%', 
-      height: '100%', 
-      borderRadius: 60,
-      backgroundColor: '#334155'
+  avatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: TG.bgSecondary,
   },
-  name: { fontSize: 28, fontWeight: '800', color: '#f8fafc', marginBottom: 8 },
-  
+  name: { fontSize: 18, fontWeight: '700', color: TG.textPrimary, marginBottom: 2 },
+  username: { fontSize: 14, color: TG.textSecondary },
   roleBadge: {
-      backgroundColor: 'rgba(59, 130, 246, 0.15)',
-      paddingHorizontal: 16,
-      paddingVertical: 6,
-      borderRadius: 20,
-      borderWidth: 2,
-      borderColor: 'rgba(59, 130, 246, 0.3)'
+    backgroundColor: TG.accentLight,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
   },
-  role: { fontSize: 14, color: '#3b82f6', fontWeight: '800', letterSpacing: 1.5 },
-  
-  content: { padding: 24, gap: 16 },
-  
-  infoCard: { 
-      backgroundColor: '#1e293b', 
-      padding: 20, 
-      borderRadius: 20, 
-      borderWidth: 2, 
-      borderColor: '#334155', 
-      borderBottomWidth: 5,
-      flexDirection: 'row', 
-      alignItems: 'center',
-      gap: 16
+  roleText: { fontSize: 12, fontWeight: '600', color: TG.accent, textTransform: 'capitalize' },
+  teacherBadge: { backgroundColor: TG.greenLight },
+  teacherText: { color: TG.green },
+
+  divider: { height: 8, backgroundColor: TG.bgSecondary },
+
+  section: { backgroundColor: TG.bg },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: TG.separatorLight,
   },
-  infoIconBox: {
-      width: 48,
-      height: 48,
-      borderRadius: 16,
-      backgroundColor: 'rgba(16, 185, 129, 0.1)',
-      borderWidth: 2,
-      borderColor: 'rgba(16, 185, 129, 0.3)',
-      justifyContent: 'center',
-      alignItems: 'center'
+  infoLabel: { fontSize: 15, color: TG.textPrimary, flex: 1 },
+  infoValue: { fontSize: 15, color: TG.textSecondary },
+
+  menuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: TG.bg,
+    gap: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: TG.separatorLight,
   },
-  infoLabel: { color: '#94a3b8', fontSize: 12, fontWeight: '800', letterSpacing: 1, marginBottom: 4 },
-  infoValue: { color: '#f8fafc', fontSize: 18, fontWeight: '700' },
-  
-  footer: { padding: 24, marginTop: 'auto', paddingBottom: 100 },
-  
-  logoutBtn: { 
-      backgroundColor: 'rgba(239, 68, 68, 0.1)', 
-      padding: 20, 
-      borderRadius: 16, 
-      flexDirection: 'row', 
-      justifyContent: 'center', 
-      alignItems: 'center', 
-      gap: 12, 
-      borderWidth: 2, 
-      borderColor: 'rgba(239, 68, 68, 0.3)',
-      borderBottomWidth: 5
+  menuText: { fontSize: 15, color: TG.textPrimary },
+
+  logoutRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: TG.bg,
+    gap: 12,
   },
-  logoutText: { color: '#ef4444', fontSize: 18, fontWeight: '800', letterSpacing: 1 }
+  logoutText: { fontSize: 15, color: TG.red, fontWeight: '500' },
 });

@@ -1,3 +1,4 @@
+import { TG } from '@/constants/theme';
 import { useSyncManager } from '@/lib/sync';
 import { Tabs } from 'expo-router';
 import { Globe, Home, List, User, Users } from 'lucide-react-native';
@@ -10,49 +11,62 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: '#3b82f6',
-        tabBarInactiveTintColor: '#64748b',
-        tabBarShowLabel: false,
+        tabBarActiveTintColor: TG.tabActive,
+        tabBarInactiveTintColor: TG.tabInactive,
+        tabBarShowLabel: true,
+        tabBarLabelStyle: {
+          fontSize: 10,
+          fontWeight: '600',
+          marginTop: -2,
+        },
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: '#0f172a',
-          borderTopWidth: 2,
-          borderTopColor: '#1e293b',
-          height: Platform.OS === 'ios' ? 88 : 68,
-          paddingBottom: Platform.OS === 'ios' ? 28 : 12,
-          paddingTop: 12,
-          // elevation 0 for android to remove stock shadow, so it matches iOS flat
-          elevation: 0,
+          backgroundColor: TG.tabBg,
+          borderTopWidth: 0.5,
+          borderTopColor: TG.separator,
+          height: Platform.OS === 'ios' ? 84 : 60,
+          paddingBottom: Platform.OS === 'ios' ? 24 : 8,
+          paddingTop: 6,
+          elevation: 8,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.06,
+          shadowRadius: 4,
         },
       }}>
       <Tabs.Screen
         name="index"
         options={{
-          tabBarIcon: ({ color }) => <Home size={28} color={color} strokeWidth={2.5} />,
+          title: 'Home',
+          tabBarIcon: ({ color, size }) => <Home size={size ?? 24} color={color} strokeWidth={1.8} />,
         }}
       />
       <Tabs.Screen
         name="groups"
         options={{
-          tabBarIcon: ({ color }) => <Users size={28} color={color} strokeWidth={2.5} />,
+          title: 'Groups',
+          tabBarIcon: ({ color, size }) => <Users size={size ?? 24} color={color} strokeWidth={1.8} />,
         }}
       />
       <Tabs.Screen
         name="community"
         options={{
-          tabBarIcon: ({ color }) => <Globe size={28} color={color} strokeWidth={2.5} />,
+          title: 'Feed',
+          tabBarIcon: ({ color, size }) => <Globe size={size ?? 24} color={color} strokeWidth={1.8} />,
         }}
       />
       <Tabs.Screen
         name="responses"
         options={{
-          tabBarIcon: ({ color }) => <List size={28} color={color} strokeWidth={2.5} />
+          title: 'My Work',
+          tabBarIcon: ({ color, size }) => <List size={size ?? 24} color={color} strokeWidth={1.8} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          tabBarIcon: ({ color }) => <User size={28} color={color} strokeWidth={2.5} />,
+          title: 'Profile',
+          tabBarIcon: ({ color, size }) => <User size={size ?? 24} color={color} strokeWidth={1.8} />,
         }}
       />
     </Tabs>

@@ -8,7 +8,7 @@ const minioClient = new Client({
   secretKey: process.env.MINIO_SECRET_KEY || 'minioadmin',
 });
 
-const BUCKET = process.env.MINIO_BUCKET || 'speakup-audio';
+const BUCKET = process.env.MINIO_BUCKET || 'speakup-community';
 
 export async function ensureBucket(): Promise<void> {
   const exists = await minioClient.bucketExists(BUCKET);
@@ -29,17 +29,7 @@ export async function uploadAudio(
 }
 
 export function getAudioUrl(fileName: string): string {
-  const protocol = process.env.MINIO_USE_SSL === 'true' ? 'https' : 'http';
-  const endpoint = process.env.MINIO_ENDPOINT || 'localhost';
-  const port = process.env.MINIO_PORT || '9000';
-  return `${protocol}://${endpoint}:${port}/${BUCKET}/${fileName}`;
-}
-
-export async function getPresignedUrl(
-  fileName: string,
-  expirySeconds = 3600,
-): Promise<string> {
-  return minioClient.presignedGetObject(BUCKET, fileName, expirySeconds);
+  return `https://0c274cbb-6ce5-45fb-8540-ad2b7912cd23.srvstatic.uz/${fileName}`;
 }
 
 export async function deleteAudio(fileName: string): Promise<void> {

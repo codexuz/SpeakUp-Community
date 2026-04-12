@@ -1,20 +1,23 @@
-import { fetchCommunitySubmissions, gradeSubmission } from '@/lib/groups';
+import { TG } from '@/constants/theme';
+import { apiFetchCommunityFeed, apiLikeSpeaking, apiPostReview, apiUnlikeSpeaking } from '@/lib/api';
 import { useAuth } from '@/store/auth';
 import { useFocusEffect } from '@react-navigation/native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Award, MessageSquare, RefreshCw, Star, User } from 'lucide-react-native';
+import { Flame, Heart, MessageCircle, Star, TrendingUp } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    FlatList,
     Modal,
-    ScrollView,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
     View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+type Strategy = 'latest' | 'trending' | 'top';
 
 export default function CommunityScreen() {
   const { user } = useAuth();
@@ -22,165 +25,190 @@ export default function CommunityScreen() {
 
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'pending' | 'graded'>('all');
+  const [strategy, setStrategy] = useState<Strategy>('latest');
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
-  // Grade modal
-  const [gradeModal, setGradeModal] = useState(false);
+  const [reviewModal, setReviewModal] = useState(false);
   const [selectedSub, setSelectedSub] = useState<any>(null);
   const [score, setScore] = useState('');
   const [feedback, setFeedback] = useState('');
-  const [grading, setGrading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  const loadSubmissions = async () => {
-    setLoading(true);
+  const loadFeed = async (s: Strategy = strategy, p = 1, append = false) => {
+    if (p === 1) setLoading(true);
+    else setLoadingMore(true);
     try {
-      const data = await fetchCommunitySubmissions();
-      setSubmissions(data);
+      const result = await apiFetchCommunityFeed(s, p);
+      const items = result.data || [];
+      if (append) {
+        setSubmissions(prev => [...prev, ...items]);
+      } else {
+        setSubmissions(items);
+      }
+      setHasMore(p < result.pagination.totalPages);
+      setPage(p);
     } catch (e) {
-      console.error('Failed to load community', e);
+      console.error('Failed to load community feed', e);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
 
   useFocusEffect(
     useCallback(() => {
-      loadSubmissions();
-    }, [])
+      loadFeed(strategy, 1);
+    }, [strategy])
   );
 
-  const filtered = submissions.filter((s) => {
-    if (filter === 'pending') return s.teacher_score === null || s.teacher_score === undefined;
-    if (filter === 'graded') return s.teacher_score !== null && s.teacher_score !== undefined;
-    return true;
-  });
-
-  // For students, show only their own
-  const displayed = !isTeacher ? filtered.filter((s) => s.student_id === user?.id) : filtered;
-
-  const openGradeModal = (sub: any) => {
-    setSelectedSub(sub);
-    setScore(sub.teacher_score?.toString() || '');
-    setFeedback(sub.teacher_feedback || '');
-    setGradeModal(true);
+  const changeStrategy = (s: Strategy) => {
+    setStrategy(s);
+    setPage(1);
+    setHasMore(true);
   };
 
-  const handleGrade = async () => {
+  const loadMore = () => {
+    if (!loadingMore && hasMore) {
+      loadFeed(strategy, page + 1, true);
+    }
+  };
+
+  const toggleLike = async (item: any) => {
+    try {
+      if (item.isLiked) {
+        await apiUnlikeSpeaking(item.id);
+        setSubmissions(prev => prev.map(s => s.id === item.id ? { ...s, isLiked: false, likes: (s.likes || 1) - 1 } : s));
+      } else {
+        await apiLikeSpeaking(item.id);
+        setSubmissions(prev => prev.map(s => s.id === item.id ? { ...s, isLiked: true, likes: (s.likes || 0) + 1 } : s));
+      }
+    } catch (e: any) {
+      console.warn('Like error', e.message);
+    }
+  };
+
+  const openReviewModal = (sub: any) => {
+    setSelectedSub(sub);
+    setScore('');
+    setFeedback('');
+    setReviewModal(true);
+  };
+
+  const handleReview = async () => {
     if (!selectedSub || !score) return;
     const numScore = parseInt(score, 10);
     if (isNaN(numScore) || numScore < 0 || numScore > 9) {
       Alert.alert('Invalid', 'Score must be between 0 and 9');
       return;
     }
-    setGrading(true);
+    setSubmitting(true);
     try {
-      await gradeSubmission(selectedSub.id, numScore, feedback);
-      setGradeModal(false);
-      loadSubmissions();
+      await apiPostReview(selectedSub.id, numScore, feedback);
+      setReviewModal(false);
+      loadFeed(strategy, 1);
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally {
-      setGrading(false);
+      setSubmitting(false);
     }
   };
 
-  return (
-    <View style={styles.container}>
-      <LinearGradient colors={['#0f172a', '#1e293b']} style={StyleSheet.absoluteFillObject} />
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.headerRow}>
-          <Text style={styles.title}>Community</Text>
-          <TouchableOpacity onPress={loadSubmissions} style={styles.refreshBtn} activeOpacity={0.7}>
-            <RefreshCw size={22} color="#3b82f6" />
-          </TouchableOpacity>
+  const renderItem = ({ item }: { item: any }) => (
+    <View style={styles.card}>
+      <View style={styles.cardHeader}>
+        <View style={styles.avatar}>
+          <Text style={styles.avatarText}>{(item.student?.fullName || '?').charAt(0)}</Text>
         </View>
-
-        <Text style={styles.subtitle}>
-          {isTeacher ? 'All student submissions across the platform' : 'Your submissions and scores'}
-        </Text>
-
-        {/* Filter Tabs */}
-        <View style={styles.filterRow}>
-          {(['all', 'pending', 'graded'] as const).map((f) => (
-            <TouchableOpacity
-              key={f}
-              style={[styles.filterTab, filter === f && styles.filterTabActive]}
-              activeOpacity={0.8}
-              onPress={() => setFilter(f)}
-            >
-              <Text style={[styles.filterText, filter === f && styles.filterTextActive]}>
-                {f.toUpperCase()}
-              </Text>
-            </TouchableOpacity>
-          ))}
+        <View style={{ flex: 1 }}>
+          <Text style={styles.userName}>{item.student?.fullName || 'Unknown'}</Text>
+          <Text style={styles.userHandle}>@{item.student?.username || '?'}</Text>
         </View>
-
-        {loading ? (
-          <ActivityIndicator size="large" color="#3b82f6" style={{ marginTop: 60 }} />
-        ) : displayed.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Award size={48} color="#334155" style={{ marginBottom: 16 }} />
-            <Text style={styles.emptyText}>No submissions found</Text>
+        {item.scoreAvg != null && (
+          <View style={styles.scorePill}>
+            <Star size={12} color={TG.orange} fill={TG.orange} />
+            <Text style={styles.scoreText}>{item.scoreAvg.toFixed(1)}</Text>
           </View>
-        ) : (
-          displayed.map((sub) => (
-            <View key={sub.id} style={styles.card}>
-              <View style={styles.cardTop}>
-                <View style={styles.avatarCircle}>
-                  <User size={20} color="#8b5cf6" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.studentName}>{sub.student?.fullName || 'Unknown'}</Text>
-                  <Text style={styles.studentHandle}>@{sub.student?.username || '?'}</Text>
-                </View>
-                {sub.teacher_score !== null && sub.teacher_score !== undefined ? (
-                  <View style={styles.scoreBadge}>
-                    <Star size={14} color="#f59e0b" fill="#f59e0b" />
-                    <Text style={styles.scoreBadgeText}>{sub.teacher_score}</Text>
-                  </View>
-                ) : (
-                  <View style={styles.pendingBadge}>
-                    <Text style={styles.pendingBadgeText}>PENDING</Text>
-                  </View>
-                )}
-              </View>
-
-              <Text style={styles.questionText} numberOfLines={2}>
-                {sub.question?.q_text || 'Unknown Question'}
-              </Text>
-
-              {sub.teacher_feedback ? (
-                <View style={styles.feedbackBox}>
-                  <Text style={styles.feedbackLabel}>FEEDBACK</Text>
-                  <Text style={styles.feedbackText}>{sub.teacher_feedback}</Text>
-                </View>
-              ) : null}
-
-              {isTeacher && (
-                <TouchableOpacity
-                  style={styles.gradeBtn}
-                  activeOpacity={0.8}
-                  onPress={() => openGradeModal(sub)}
-                >
-                  <MessageSquare size={18} color="#fff" />
-                  <Text style={styles.gradeBtnText}>
-                    {sub.teacher_score !== null && sub.teacher_score !== undefined ? 'UPDATE GRADE' : 'GRADE'}
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          ))
         )}
-      </ScrollView>
+      </View>
 
-      {/* Grade Modal */}
-      <Modal visible={gradeModal} animationType="slide" transparent>
+      <Text style={styles.questionText} numberOfLines={3}>
+        {item.question?.qText || ''}
+      </Text>
+
+      <View style={styles.cardActions}>
+        <TouchableOpacity style={styles.actionBtn} activeOpacity={0.6} onPress={() => toggleLike(item)}>
+          <Heart size={18} color={item.isLiked ? TG.red : TG.textHint} fill={item.isLiked ? TG.red : 'none'} />
+          <Text style={[styles.actionText, item.isLiked && { color: TG.red }]}>{item.likes || 0}</Text>
+        </TouchableOpacity>
+        <View style={styles.actionBtn}>
+          <MessageCircle size={18} color={TG.textHint} />
+          <Text style={styles.actionText}>{item.commentsCount || 0}</Text>
+        </View>
+        {isTeacher && (
+          <TouchableOpacity style={styles.reviewBtn} activeOpacity={0.7} onPress={() => openReviewModal(item)}>
+            <Text style={styles.reviewBtnText}>Review</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
+
+  const strategies: { key: Strategy; label: string; icon: React.ReactNode }[] = [
+    { key: 'latest', label: 'Latest', icon: <MessageCircle size={14} color={strategy === 'latest' ? TG.textWhite : TG.textSecondary} /> },
+    { key: 'trending', label: 'Trending', icon: <Flame size={14} color={strategy === 'trending' ? TG.textWhite : TG.textSecondary} /> },
+    { key: 'top', label: 'Top', icon: <TrendingUp size={14} color={strategy === 'top' ? TG.textWhite : TG.textSecondary} /> },
+  ];
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Community</Text>
+      </View>
+
+      <View style={styles.tabBar}>
+        {strategies.map(s => (
+          <TouchableOpacity
+            key={s.key}
+            style={[styles.tab, strategy === s.key && styles.tabActive]}
+            activeOpacity={0.7}
+            onPress={() => changeStrategy(s.key)}
+          >
+            {s.icon}
+            <Text style={[styles.tabText, strategy === s.key && styles.tabTextActive]}>{s.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {loading ? (
+        <ActivityIndicator size="large" color={TG.accent} style={{ marginTop: 60 }} />
+      ) : (
+        <FlatList
+          data={submissions}
+          keyExtractor={item => item.id}
+          renderItem={renderItem}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.3}
+          ListFooterComponent={loadingMore ? <ActivityIndicator color={TG.accent} style={{ paddingVertical: 16 }} /> : null}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <MessageCircle size={40} color={TG.separator} />
+              <Text style={styles.emptyText}>No submissions yet</Text>
+            </View>
+          }
+        />
+      )}
+
+      <Modal visible={reviewModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Grade Submission</Text>
+            <Text style={styles.modalTitle}>Review Submission</Text>
             {selectedSub && (
               <Text style={styles.modalSubtitle} numberOfLines={2}>
-                {selectedSub.student?.fullName} — {selectedSub.question?.q_text}
+                {selectedSub.student?.fullName} - {selectedSub.question?.qText}
               </Text>
             )}
             <Text style={styles.inputLabel}>Score (0-9)</Text>
@@ -191,7 +219,7 @@ export default function CommunityScreen() {
               keyboardType="number-pad"
               maxLength={1}
               placeholder="0-9"
-              placeholderTextColor="#64748b"
+              placeholderTextColor={TG.textHint}
             />
             <Text style={styles.inputLabel}>Feedback</Text>
             <TextInput
@@ -200,185 +228,70 @@ export default function CommunityScreen() {
               onChangeText={setFeedback}
               multiline
               numberOfLines={4}
-              placeholder="Write feedback for the student..."
-              placeholderTextColor="#64748b"
+              placeholder="Write helpful feedback..."
+              placeholderTextColor={TG.textHint}
               textAlignVertical="top"
             />
             <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.cancelBtn}
-                activeOpacity={0.8}
-                onPress={() => setGradeModal(false)}
-              >
-                <Text style={styles.cancelBtnText}>CANCEL</Text>
+              <TouchableOpacity style={styles.cancelBtn} activeOpacity={0.7} onPress={() => setReviewModal(false)}>
+                <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.submitBtn, (!score || grading) && { opacity: 0.5 }]}
-                activeOpacity={0.8}
-                onPress={handleGrade}
-                disabled={!score || grading}
+                style={[styles.submitBtn, (!score || submitting) && { opacity: 0.5 }]}
+                activeOpacity={0.7}
+                onPress={handleReview}
+                disabled={!score || submitting}
               >
-                {grading ? (
+                {submitting ? (
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
-                  <Text style={styles.submitBtnText}>SUBMIT</Text>
+                  <Text style={styles.submitBtnText}>Submit</Text>
                 )}
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  content: { padding: 24, paddingTop: 40, paddingBottom: 100 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  title: { fontSize: 28, fontWeight: '800', color: '#fff' },
-  subtitle: { fontSize: 14, color: '#94a3b8', fontWeight: '500', marginBottom: 20 },
-  refreshBtn: {
-    padding: 10,
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor: 'rgba(59, 130, 246, 0.3)',
-  },
-
-  filterRow: { flexDirection: 'row', gap: 8, marginBottom: 20 },
-  filterTab: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: '#1e293b',
-    borderWidth: 2,
-    borderColor: '#334155',
-  },
-  filterTabActive: { backgroundColor: '#3b82f6', borderColor: '#2563eb', borderBottomWidth: 4 },
-  filterText: { fontSize: 12, fontWeight: '800', color: '#64748b', letterSpacing: 1 },
-  filterTextActive: { color: '#fff' },
-
-  card: {
-    backgroundColor: '#1e293b',
-    borderRadius: 20,
-    padding: 18,
-    marginBottom: 14,
-    borderWidth: 2,
-    borderColor: '#334155',
-    borderBottomWidth: 5,
-  },
-  cardTop: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
-  avatarCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(139, 92, 246, 0.15)',
-    borderWidth: 2,
-    borderColor: 'rgba(139, 92, 246, 0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  studentName: { fontSize: 16, fontWeight: '700', color: '#f8fafc' },
-  studentHandle: { fontSize: 12, color: '#64748b', fontWeight: '500' },
-
-  scoreBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: 'rgba(245, 158, 11, 0.3)',
-  },
-  scoreBadgeText: { fontSize: 16, fontWeight: '800', color: '#f59e0b' },
-  pendingBadge: {
-    backgroundColor: 'rgba(59, 130, 246, 0.15)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: 'rgba(59, 130, 246, 0.3)',
-  },
-  pendingBadgeText: { fontSize: 11, fontWeight: '800', color: '#3b82f6', letterSpacing: 1 },
-
-  questionText: { fontSize: 15, color: '#cbd5e1', fontWeight: '500', lineHeight: 22, marginBottom: 12 },
-
-  feedbackBox: {
-    padding: 14,
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-    marginBottom: 14,
-  },
-  feedbackLabel: { fontSize: 11, fontWeight: '800', color: '#10b981', letterSpacing: 1, marginBottom: 4 },
-  feedbackText: { fontSize: 14, color: '#cbd5e1', lineHeight: 20 },
-
-  gradeBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#10b981',
-    paddingVertical: 14,
-    borderRadius: 14,
-    borderBottomWidth: 4,
-    borderColor: '#059669',
-  },
-  gradeBtnText: { color: '#fff', fontWeight: '800', fontSize: 14, letterSpacing: 0.5 },
-
-  emptyContainer: { alignItems: 'center', marginTop: 80 },
-  emptyText: { color: '#94a3b8', fontSize: 16, fontWeight: '600' },
-
-  // Modal
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
-  modalContent: {
-    backgroundColor: '#1e293b',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    borderWidth: 2,
-    borderColor: '#334155',
-    borderBottomWidth: 0,
-  },
-  modalTitle: { fontSize: 22, fontWeight: '800', color: '#fff', marginBottom: 4 },
-  modalSubtitle: { fontSize: 14, color: '#94a3b8', marginBottom: 20, lineHeight: 20 },
-  inputLabel: { fontSize: 13, color: '#94a3b8', fontWeight: '700', marginBottom: 6, letterSpacing: 0.5, textTransform: 'uppercase' },
-  input: {
-    backgroundColor: '#0f172a',
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    color: '#fff',
-    borderWidth: 2,
-    borderColor: '#334155',
-    marginBottom: 16,
-  },
-  textArea: { minHeight: 100 },
-  modalActions: { flexDirection: 'row', gap: 12, marginTop: 4 },
-  cancelBtn: {
-    flex: 1,
-    paddingVertical: 16,
-    alignItems: 'center',
-    borderRadius: 14,
-    backgroundColor: '#0f172a',
-    borderWidth: 2,
-    borderColor: '#334155',
-    borderBottomWidth: 4,
-  },
-  cancelBtnText: { color: '#94a3b8', fontWeight: '800', letterSpacing: 0.5 },
-  submitBtn: {
-    flex: 1,
-    paddingVertical: 16,
-    alignItems: 'center',
-    borderRadius: 14,
-    backgroundColor: '#10b981',
-    borderBottomWidth: 4,
-    borderColor: '#059669',
-  },
-  submitBtnText: { color: '#fff', fontWeight: '800', letterSpacing: 0.5 },
+  safeArea: { flex: 1, backgroundColor: TG.bgSecondary },
+  header: { backgroundColor: TG.headerBg, paddingHorizontal: 16, paddingVertical: 14 },
+  headerTitle: { fontSize: 20, fontWeight: '700', color: TG.textWhite },
+  tabBar: { flexDirection: 'row', backgroundColor: TG.bg, paddingHorizontal: 12, paddingVertical: 8, gap: 8, borderBottomWidth: 0.5, borderBottomColor: TG.separator },
+  tab: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 16, backgroundColor: TG.bgSecondary },
+  tabActive: { backgroundColor: TG.accent },
+  tabText: { fontSize: 13, fontWeight: '600', color: TG.textSecondary },
+  tabTextActive: { color: TG.textWhite },
+  listContent: { paddingBottom: 100 },
+  card: { backgroundColor: TG.bg, paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: TG.separatorLight },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
+  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: TG.accentLight, justifyContent: 'center', alignItems: 'center' },
+  avatarText: { fontSize: 16, fontWeight: '700', color: TG.accent },
+  userName: { fontSize: 15, fontWeight: '600', color: TG.textPrimary },
+  userHandle: { fontSize: 12, color: TG.textSecondary },
+  scorePill: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: TG.orangeLight, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 },
+  scoreText: { fontSize: 13, fontWeight: '700', color: TG.orange },
+  questionText: { fontSize: 15, color: TG.textPrimary, lineHeight: 21, marginBottom: 10 },
+  cardActions: { flexDirection: 'row', alignItems: 'center', gap: 20 },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  actionText: { fontSize: 13, color: TG.textHint, fontWeight: '500' },
+  reviewBtn: { marginLeft: 'auto', backgroundColor: TG.accent, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 14 },
+  reviewBtnText: { fontSize: 13, fontWeight: '600', color: TG.textWhite },
+  emptyContainer: { alignItems: 'center', marginTop: 80, gap: 12 },
+  emptyText: { color: TG.textSecondary, fontSize: 15 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: TG.bg, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20 },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: TG.textPrimary, marginBottom: 4 },
+  modalSubtitle: { fontSize: 13, color: TG.textSecondary, marginBottom: 16, lineHeight: 18 },
+  inputLabel: { fontSize: 13, color: TG.textSecondary, fontWeight: '600', marginBottom: 6 },
+  input: { backgroundColor: TG.bgSecondary, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: TG.textPrimary, borderWidth: 0.5, borderColor: TG.separator, marginBottom: 12 },
+  textArea: { minHeight: 80 },
+  modalActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  cancelBtn: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 10, backgroundColor: TG.bgSecondary },
+  cancelBtnText: { color: TG.textSecondary, fontWeight: '600' },
+  submitBtn: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 10, backgroundColor: TG.accent },
+  submitBtnText: { color: TG.textWhite, fontWeight: '600' },
 });

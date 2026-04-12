@@ -35,6 +35,7 @@ function RootNavigator() {
         <Stack.Screen name="group/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="group/create" options={{ headerShown: false }} />
         <Stack.Screen name="group/join" options={{ headerShown: false }} />
+        <Stack.Screen name="sessions" options={{ headerShown: false }} />
       </Stack>
       {!isAuthenticated && !inAuthGroup && <Redirect href="/(auth)/login" />}
       {isAuthenticated && inAuthGroup && <Redirect href="/(tabs)" />}

@@ -1,90 +1,124 @@
+import { TG } from '@/constants/theme';
+import { apiPostReview } from '@/lib/api';
 import {
-    deleteGroup,
-    fetchGroupById,
-    fetchGroupMembers,
-    fetchGroupSubmissions,
-    gradeSubmission,
-    Group,
-    GroupMember,
-    leaveGroup,
-    regenerateReferralCode,
-    removeStudentFromGroup,
+  approveJoinRequest,
+  deleteGroup,
+  fetchGroupById,
+  fetchGroupMembers,
+  fetchGroupSubmissions,
+  fetchJoinRequests,
+  Group,
+  GroupMember,
+  JoinRequest,
+  leaveGroup,
+  regenerateReferralCode,
+  rejectJoinRequest,
 } from '@/lib/groups';
 import { useAuth } from '@/store/auth';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
-    ArrowLeft,
-    Award,
-    ClipboardCopy,
-    Edit2,
-    Hash,
-    LogOut,
-    MessageSquare,
-    RefreshCw,
-    Star,
-    Trash2,
-    UserMinus,
-    Users,
+  ArrowLeft,
+  Award,
+  Check,
+  ClipboardCopy,
+  Edit2,
+  Hash,
+  LogOut,
+  RefreshCw,
+  Star,
+  Trash2,
+  UserMinus,
+  Users,
+  X,
 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Clipboard,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Clipboard,
+  FlatList,
+  Modal,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+type Tab = 'members' | 'submissions' | 'requests';
 
 export default function GroupDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
   const router = useRouter();
-  const isTeacher = user?.role === 'teacher';
 
   const [group, setGroup] = useState<Group | null>(null);
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [submissions, setSubmissions] = useState<any[]>([]);
+  const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'members' | 'submissions'>('members');
+  const [activeTab, setActiveTab] = useState<Tab>('members');
+  const [subPage, setSubPage] = useState(1);
+  const [hasMoreSubs, setHasMoreSubs] = useState(true);
 
-  // Grading modal
-  const [gradeModal, setGradeModal] = useState(false);
-  const [selectedSubmission, setSelectedSubmission] = useState<any>(null);
+  // Review modal
+  const [reviewModal, setReviewModal] = useState(false);
+  const [selectedSub, setSelectedSub] = useState<any>(null);
   const [score, setScore] = useState('');
   const [feedback, setFeedback] = useState('');
-  const [grading, setGrading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  const myRole = group?.myRole;
+  const isOwnerOrTeacher = myRole === 'owner' || myRole === 'teacher';
 
   const loadData = useCallback(async () => {
     if (!id) return;
     setLoading(true);
     try {
-      const [g, m, s] = await Promise.all([
+      const [g, m] = await Promise.all([
         fetchGroupById(id),
         fetchGroupMembers(id),
-        isTeacher ? fetchGroupSubmissions(id) : Promise.resolve([]),
       ]);
       setGroup(g);
       setMembers(m);
-      setSubmissions(s);
+
+      if (g?.myRole === 'owner' || g?.myRole === 'teacher') {
+        const [sResult, jrs] = await Promise.all([
+          fetchGroupSubmissions(id, 1),
+          fetchJoinRequests(id),
+        ]);
+        setSubmissions(sResult?.data || []);
+        setHasMoreSubs(1 < (sResult?.pagination?.totalPages ?? 1));
+        setSubPage(1);
+        setJoinRequests(jrs);
+      }
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
-  }, [id, isTeacher]);
+  }, [id]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
+  const loadMoreSubs = async () => {
+    if (!hasMoreSubs || !id) return;
+    const next = subPage + 1;
+    try {
+      const result = await fetchGroupSubmissions(id, next);
+      setSubmissions(prev => [...prev, ...(result?.data || [])]);
+      setHasMoreSubs(next < (result?.pagination?.totalPages ?? 1));
+      setSubPage(next);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const handleDelete = () => {
-    Alert.alert('Delete Group', 'This will remove the group and all members. Continue?', [
+    Alert.alert('Delete Group', 'This will permanently remove the group. Continue?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
@@ -104,7 +138,7 @@ export default function GroupDetailScreen() {
   const handleRegenCode = async () => {
     try {
       const newCode = await regenerateReferralCode(id!);
-      setGroup((prev) => (prev ? { ...prev, referral_code: newCode } : prev));
+      setGroup(prev => (prev ? { ...prev, referralCode: newCode } : prev));
       Alert.alert('Done', `New referral code: ${newCode}`);
     } catch (e: any) {
       Alert.alert('Error', e.message);
@@ -112,8 +146,8 @@ export default function GroupDetailScreen() {
   };
 
   const handleCopyCode = () => {
-    if (group?.referral_code) {
-      Clipboard.setString(group.referral_code);
+    if (group?.referralCode) {
+      Clipboard.setString(group.referralCode);
       Alert.alert('Copied!', 'Referral code copied to clipboard.');
     }
   };
@@ -126,7 +160,7 @@ export default function GroupDetailScreen() {
         style: 'destructive',
         onPress: async () => {
           try {
-            await leaveGroup(id!, user!.id);
+            await leaveGroup(id!);
             router.back();
           } catch (e: any) {
             Alert.alert('Error', e.message);
@@ -136,363 +170,430 @@ export default function GroupDetailScreen() {
     ]);
   };
 
-  const handleRemoveMember = (member: GroupMember) => {
-    Alert.alert('Remove Member', `Remove ${member.student?.fullName} from the group?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await removeStudentFromGroup(id!, member.student_id);
-            loadData();
-          } catch (e: any) {
-            Alert.alert('Error', e.message);
-          }
-        },
-      },
-    ]);
+  const handleApprove = async (req: JoinRequest) => {
+    try {
+      await approveJoinRequest(id!, req.id);
+      setJoinRequests(prev => prev.filter(r => r.id !== req.id));
+      loadData();
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    }
   };
 
-  const openGradeModal = (sub: any) => {
-    setSelectedSubmission(sub);
-    setScore(sub.teacher_score?.toString() || '');
-    setFeedback(sub.teacher_feedback || '');
-    setGradeModal(true);
+  const handleReject = async (req: JoinRequest) => {
+    try {
+      await rejectJoinRequest(id!, req.id);
+      setJoinRequests(prev => prev.filter(r => r.id !== req.id));
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    }
   };
 
-  const handleGrade = async () => {
-    if (!selectedSubmission || !score) return;
+  const openReviewModal = (sub: any) => {
+    setSelectedSub(sub);
+    setScore(sub.scoreAvg?.toString() || '');
+    setFeedback('');
+    setReviewModal(true);
+  };
+
+  const handleReview = async () => {
+    if (!selectedSub || !score) return;
     const numScore = parseInt(score, 10);
     if (isNaN(numScore) || numScore < 0 || numScore > 9) {
       Alert.alert('Invalid', 'Score must be between 0 and 9');
       return;
     }
-    setGrading(true);
+    setSubmitting(true);
     try {
-      await gradeSubmission(selectedSubmission.id, numScore, feedback);
-      setGradeModal(false);
+      await apiPostReview(selectedSub.id, numScore, feedback);
+      setReviewModal(false);
       loadData();
     } catch (e: any) {
       Alert.alert('Error', e.message);
     } finally {
-      setGrading(false);
+      setSubmitting(false);
     }
+  };
+
+  const roleBadge = (role: string) => {
+    const color = role === 'owner' ? TG.purple : role === 'teacher' ? TG.accent : TG.green;
+    const bg = role === 'owner' ? TG.purpleLight : role === 'teacher' ? TG.accentLight : TG.greenLight;
+    return (
+      <View style={[styles.badge, { backgroundColor: bg }]}>
+        <Text style={[styles.badgeText, { color }]}>{role}</Text>
+      </View>
+    );
   };
 
   if (loading) {
     return (
-      <View style={styles.loaderContainer}>
-        <LinearGradient colors={['#0f172a', '#1e293b']} style={StyleSheet.absoluteFillObject} />
-        <ActivityIndicator size="large" color="#3b82f6" />
-      </View>
+      <SafeAreaView style={[styles.safeArea, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={TG.accent} />
+      </SafeAreaView>
     );
   }
 
   if (!group) {
     return (
-      <View style={styles.loaderContainer}>
-        <LinearGradient colors={['#0f172a', '#1e293b']} style={StyleSheet.absoluteFillObject} />
-        <Text style={{ color: '#94a3b8', fontSize: 18 }}>Group not found</Text>
-      </View>
+      <SafeAreaView style={[styles.safeArea, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={{ color: TG.textSecondary, fontSize: 16 }}>Group not found</Text>
+      </SafeAreaView>
     );
   }
 
-  return (
-    <View style={styles.container}>
-      <LinearGradient colors={['#0f172a', '#1e293b']} style={StyleSheet.absoluteFillObject} />
+  const tabs: { key: Tab; label: string; icon: any; count?: number }[] = [
+    { key: 'members', label: 'Members', icon: Users },
+    ...(isOwnerOrTeacher
+      ? [
+          { key: 'submissions' as Tab, label: 'Submissions', icon: Award },
+          { key: 'requests' as Tab, label: 'Requests', icon: Users, count: joinRequests.length },
+        ]
+      : []),
+  ];
 
+  return (
+    <SafeAreaView style={styles.safeArea}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
-          <ArrowLeft size={24} color="#fff" />
+          <ArrowLeft size={22} color={TG.textWhite} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle} numberOfLines={1}>{group.name}</Text>
           <Text style={styles.headerSub}>{members.length} members</Text>
         </View>
-        {isTeacher && (
+        {myRole === 'owner' && (
           <View style={styles.headerActions}>
             <TouchableOpacity
               onPress={() => router.push(`/group/create?editId=${id}&name=${encodeURIComponent(group.name)}&description=${encodeURIComponent(group.description || '')}` as any)}
               style={styles.headerIconBtn}
               activeOpacity={0.7}
             >
-              <Edit2 size={20} color="#3b82f6" />
+              <Edit2 size={18} color={TG.textWhite} />
             </TouchableOpacity>
             <TouchableOpacity onPress={handleDelete} style={styles.headerIconBtn} activeOpacity={0.7}>
-              <Trash2 size={20} color="#ef4444" />
+              <Trash2 size={18} color={TG.red} />
             </TouchableOpacity>
           </View>
         )}
       </View>
 
-      {/* Referral Code Section */}
-      <View style={styles.codeSection}>
-        <View style={styles.codeBox}>
-          <Hash size={18} color="#8b5cf6" />
-          <Text style={styles.codeLabel}>Referral Code</Text>
-          <Text style={styles.codeValue}>{group.referral_code}</Text>
-          <TouchableOpacity onPress={handleCopyCode} activeOpacity={0.7}>
-            <ClipboardCopy size={20} color="#64748b" />
+      {/* Referral Code Bar */}
+      <View style={styles.codeBar}>
+        <Hash size={16} color={TG.purple} />
+        <Text style={styles.codeLabel}>Code</Text>
+        <Text style={styles.codeValue}>{group.referralCode}</Text>
+        <TouchableOpacity onPress={handleCopyCode} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <ClipboardCopy size={18} color={TG.textSecondary} />
+        </TouchableOpacity>
+        {isOwnerOrTeacher && (
+          <TouchableOpacity onPress={handleRegenCode} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <RefreshCw size={18} color={TG.orange} />
           </TouchableOpacity>
-          {isTeacher && (
-            <TouchableOpacity onPress={handleRegenCode} activeOpacity={0.7}>
-              <RefreshCw size={20} color="#f59e0b" />
-            </TouchableOpacity>
-          )}
-        </View>
+        )}
       </View>
 
       {/* Tabs */}
       <View style={styles.tabRow}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'members' && styles.tabActive]}
-          onPress={() => setActiveTab('members')}
-          activeOpacity={0.8}
-        >
-          <Users size={18} color={activeTab === 'members' ? '#fff' : '#64748b'} />
-          <Text style={[styles.tabText, activeTab === 'members' && styles.tabTextActive]}>Members</Text>
-        </TouchableOpacity>
-        {isTeacher && (
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'submissions' && styles.tabActive]}
-            onPress={() => setActiveTab('submissions')}
-            activeOpacity={0.8}
-          >
-            <Award size={18} color={activeTab === 'submissions' ? '#fff' : '#64748b'} />
-            <Text style={[styles.tabText, activeTab === 'submissions' && styles.tabTextActive]}>Submissions</Text>
-          </TouchableOpacity>
-        )}
+        {tabs.map(t => {
+          const active = activeTab === t.key;
+          return (
+            <TouchableOpacity
+              key={t.key}
+              style={[styles.tab, active && styles.tabActive]}
+              onPress={() => setActiveTab(t.key)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.tabText, active && styles.tabTextActive]}>
+                {t.label}{t.count ? ` (${t.count})` : ''}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
+      <View style={styles.tabLine} />
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {activeTab === 'members' ? (
-          <>
-            {members.length === 0 ? (
-              <View style={styles.emptyContainer}>
-                <Users size={40} color="#334155" />
-                <Text style={styles.emptyText}>No members yet</Text>
+      {/* Content */}
+      {activeTab === 'members' && (
+        <FlatList
+          data={members}
+          keyExtractor={(m) => m.id}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          ItemSeparatorComponent={() => <View style={[styles.sep, { marginLeft: 68 }]} />}
+          renderItem={({ item: m }) => (
+            <View style={styles.memberRow}>
+              <View style={styles.memberAvatar}>
+                <Text style={styles.memberAvatarText}>
+                  {(m.user?.fullName || '?').charAt(0).toUpperCase()}
+                </Text>
               </View>
-            ) : (
-              members.map((m) => (
-                <View key={m.id} style={styles.memberCard}>
-                  <View style={styles.memberAvatar}>
-                    <Text style={styles.memberAvatarText}>
-                      {(m.student?.fullName || '?').charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.memberName}>{m.student?.fullName}</Text>
-                    <Text style={styles.memberUsername}>@{m.student?.username}</Text>
-                  </View>
-                  {isTeacher && (
-                    <TouchableOpacity onPress={() => handleRemoveMember(m)} style={styles.removeBtn} activeOpacity={0.7}>
-                      <UserMinus size={18} color="#ef4444" />
-                    </TouchableOpacity>
-                  )}
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                  <Text style={styles.memberName}>{m.user?.fullName}</Text>
+                  {roleBadge(m.role)}
                 </View>
-              ))
-            )}
-            {!isTeacher && (
-              <TouchableOpacity style={styles.leaveBtn} activeOpacity={0.8} onPress={handleLeave}>
-                <LogOut size={20} color="#ef4444" />
-                <Text style={styles.leaveBtnText}>LEAVE GROUP</Text>
+                <Text style={styles.memberUsername}>@{m.user?.username}</Text>
+              </View>
+              {isOwnerOrTeacher && m.userId !== user?.id && m.role === 'student' && (
+                <TouchableOpacity
+                  onPress={() => {
+                    Alert.alert('Remove', `Remove ${m.user?.fullName}?`, [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Remove', style: 'destructive', onPress: () => {/* TODO: add remove API */} },
+                    ]);
+                  }}
+                  style={styles.removeBtn}
+                  activeOpacity={0.7}
+                >
+                  <UserMinus size={16} color={TG.red} />
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+          ListFooterComponent={
+            !isOwnerOrTeacher ? (
+              <TouchableOpacity style={styles.leaveBtn} activeOpacity={0.7} onPress={handleLeave}>
+                <LogOut size={18} color={TG.red} />
+                <Text style={styles.leaveBtnText}>Leave Group</Text>
               </TouchableOpacity>
-            )}
-          </>
-        ) : (
-          <>
-            {submissions.length === 0 ? (
-              <View style={styles.emptyContainer}>
-                <Award size={40} color="#334155" />
-                <Text style={styles.emptyText}>No submissions yet</Text>
-              </View>
-            ) : (
-              submissions.map((sub) => (
-                <View key={sub.id} style={styles.subCard}>
-                  <View style={styles.subHeader}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.subStudent}>{sub.student?.fullName || 'Unknown'}</Text>
-                      <Text style={styles.subQuestion} numberOfLines={2}>
-                        {sub.question?.q_text || 'Unknown Question'}
-                      </Text>
-                    </View>
-                    {sub.teacher_score !== null && sub.teacher_score !== undefined ? (
-                      <View style={styles.scoreBadge}>
-                        <Star size={14} color="#f59e0b" fill="#f59e0b" />
-                        <Text style={styles.scoreBadgeText}>{sub.teacher_score}</Text>
-                      </View>
-                    ) : (
-                      <View style={styles.pendingBadge}>
-                        <Text style={styles.pendingBadgeText}>PENDING</Text>
-                      </View>
-                    )}
-                  </View>
-                  <TouchableOpacity
-                    style={styles.gradeBtn}
-                    activeOpacity={0.8}
-                    onPress={() => openGradeModal(sub)}
-                  >
-                    <MessageSquare size={18} color="#fff" />
-                    <Text style={styles.gradeBtnText}>
-                      {sub.teacher_score !== null && sub.teacher_score !== undefined ? 'UPDATE GRADE' : 'GRADE'}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              ))
-            )}
-          </>
-        )}
-      </ScrollView>
+            ) : null
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Users size={40} color={TG.separator} />
+              <Text style={styles.emptyText}>No members yet</Text>
+            </View>
+          }
+        />
+      )}
 
-      {/* Grade Modal */}
-      <Modal visible={gradeModal} animationType="slide" transparent>
+      {activeTab === 'submissions' && (
+        <FlatList
+          data={submissions}
+          keyExtractor={(s) => s.id}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          onEndReached={loadMoreSubs}
+          onEndReachedThreshold={0.3}
+          ItemSeparatorComponent={() => <View style={styles.sep} />}
+          renderItem={({ item: sub }) => (
+            <View style={styles.subCard}>
+              <View style={styles.subHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.subStudent}>{sub.user?.fullName || 'Unknown'}</Text>
+                  <Text style={styles.subQuestion} numberOfLines={2}>
+                    {sub.question?.q_text || 'Unknown Question'}
+                  </Text>
+                </View>
+                {sub.scoreAvg != null ? (
+                  <View style={styles.scoreBadge}>
+                    <Star size={13} color={TG.orange} fill={TG.orange} />
+                    <Text style={styles.scoreBadgeText}>{Number(sub.scoreAvg).toFixed(1)}</Text>
+                  </View>
+                ) : (
+                  <View style={styles.pendingBadge}>
+                    <Text style={styles.pendingBadgeText}>NEW</Text>
+                  </View>
+                )}
+              </View>
+              <TouchableOpacity
+                style={styles.reviewBtn}
+                activeOpacity={0.7}
+                onPress={() => openReviewModal(sub)}
+              >
+                <Text style={styles.reviewBtnText}>Review</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Award size={40} color={TG.separator} />
+              <Text style={styles.emptyText}>No submissions yet</Text>
+            </View>
+          }
+        />
+      )}
+
+      {activeTab === 'requests' && (
+        <FlatList
+          data={joinRequests}
+          keyExtractor={(r) => r.id}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          ItemSeparatorComponent={() => <View style={[styles.sep, { marginLeft: 68 }]} />}
+          renderItem={({ item: req }) => (
+            <View style={styles.memberRow}>
+              <View style={[styles.memberAvatar, { backgroundColor: TG.orangeLight }]}>
+                <Text style={[styles.memberAvatarText, { color: TG.orange }]}>
+                  {(req.user?.fullName || '?').charAt(0).toUpperCase()}
+                </Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.memberName}>{req.user?.fullName}</Text>
+                <Text style={styles.memberUsername}>@{req.user?.username}</Text>
+                {req.message && <Text style={styles.requestMsg} numberOfLines={2}>{req.message}</Text>}
+              </View>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TouchableOpacity
+                  style={[styles.actionCircle, { backgroundColor: TG.greenLight }]}
+                  onPress={() => handleApprove(req)}
+                  activeOpacity={0.7}
+                >
+                  <Check size={18} color={TG.green} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.actionCircle, { backgroundColor: TG.redLight }]}
+                  onPress={() => handleReject(req)}
+                  activeOpacity={0.7}
+                >
+                  <X size={18} color={TG.red} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Users size={40} color={TG.separator} />
+              <Text style={styles.emptyText}>No pending requests</Text>
+            </View>
+          }
+        />
+      )}
+
+      {/* Review Modal */}
+      <Modal visible={reviewModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Grade Submission</Text>
-            {selectedSubmission && (
+            <Text style={styles.modalTitle}>Review Submission</Text>
+            {selectedSub && (
               <Text style={styles.modalSubtitle} numberOfLines={2}>
-                {selectedSubmission.question?.q_text}
+                {selectedSub.question?.q_text}
               </Text>
             )}
             <Text style={styles.inputLabel}>Score (0-9)</Text>
             <TextInput
-              style={styles.input}
+              style={styles.modalInput}
               value={score}
               onChangeText={setScore}
               keyboardType="number-pad"
               maxLength={1}
               placeholder="0-9"
-              placeholderTextColor="#64748b"
+              placeholderTextColor={TG.textHint}
             />
             <Text style={styles.inputLabel}>Feedback</Text>
             <TextInput
-              style={[styles.input, styles.textArea]}
+              style={[styles.modalInput, styles.textArea]}
               value={feedback}
               onChangeText={setFeedback}
               multiline
               numberOfLines={4}
-              placeholder="Write feedback for the student..."
-              placeholderTextColor="#64748b"
+              placeholder="Write feedback..."
+              placeholderTextColor={TG.textHint}
               textAlignVertical="top"
             />
             <View style={styles.modalActions}>
               <TouchableOpacity
                 style={styles.cancelBtn}
-                activeOpacity={0.8}
-                onPress={() => setGradeModal(false)}
+                activeOpacity={0.7}
+                onPress={() => setReviewModal(false)}
               >
-                <Text style={styles.cancelBtnText}>CANCEL</Text>
+                <Text style={styles.cancelBtnText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.submitBtn, (!score || grading) && { opacity: 0.5 }]}
-                activeOpacity={0.8}
-                onPress={handleGrade}
-                disabled={!score || grading}
+                style={[styles.submitBtn, (!score || submitting) && { opacity: 0.5 }]}
+                activeOpacity={0.7}
+                onPress={handleReview}
+                disabled={!score || submitting}
               >
-                {grading ? (
-                  <ActivityIndicator size="small" color="#fff" />
+                {submitting ? (
+                  <ActivityIndicator size="small" color={TG.textWhite} />
                 ) : (
-                  <Text style={styles.submitBtnText}>SUBMIT</Text>
+                  <Text style={styles.submitBtnText}>Submit</Text>
                 )}
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  loaderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  safeArea: { flex: 1, backgroundColor: TG.bg },
 
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 16,
+    backgroundColor: TG.headerBg,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     gap: 12,
   },
-  backBtn: { padding: 8, backgroundColor: '#1e293b', borderRadius: 12, borderWidth: 2, borderColor: '#334155' },
-  headerTitle: { fontSize: 22, fontWeight: '800', color: '#fff' },
-  headerSub: { fontSize: 13, color: '#64748b', fontWeight: '600' },
-  headerActions: { flexDirection: 'row', gap: 8 },
-  headerIconBtn: {
-    padding: 10,
-    backgroundColor: '#1e293b',
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#334155',
-  },
+  backBtn: { padding: 4 },
+  headerTitle: { fontSize: 17, fontWeight: '700', color: TG.textWhite },
+  headerSub: { fontSize: 13, color: 'rgba(255,255,255,0.7)' },
+  headerActions: { flexDirection: 'row', gap: 12 },
+  headerIconBtn: { padding: 4 },
 
-  codeSection: { paddingHorizontal: 20, marginBottom: 16 },
-  codeBox: {
+  codeBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    backgroundColor: '#1e293b',
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 2,
-    borderColor: '#334155',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: TG.bgSecondary,
+    borderBottomWidth: 0.5,
+    borderBottomColor: TG.separator,
   },
-  codeLabel: { fontSize: 13, color: '#94a3b8', fontWeight: '600' },
-  codeValue: { fontSize: 18, fontWeight: '800', color: '#8b5cf6', letterSpacing: 2, flex: 1, textAlign: 'right', marginRight: 4 },
+  codeLabel: { fontSize: 13, color: TG.textSecondary, fontWeight: '500' },
+  codeValue: { fontSize: 15, fontWeight: '700', color: TG.purple, letterSpacing: 2, flex: 1, textAlign: 'right', marginRight: 4 },
 
-  tabRow: { flexDirection: 'row', paddingHorizontal: 20, gap: 10, marginBottom: 8 },
-  tab: {
-    flex: 1,
+  tabRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 4, paddingTop: 8 },
+  tab: { paddingVertical: 10, paddingHorizontal: 16 },
+  tabActive: { borderBottomWidth: 2, borderBottomColor: TG.accent },
+  tabText: { fontSize: 14, fontWeight: '600', color: TG.textSecondary },
+  tabTextActive: { color: TG.accent },
+  tabLine: { height: 0.5, backgroundColor: TG.separator },
+
+  listContent: { paddingBottom: 100 },
+  sep: { height: 0.5, backgroundColor: TG.separator },
+
+  memberRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
+    gap: 12,
+    paddingHorizontal: 16,
     paddingVertical: 12,
-    borderRadius: 14,
-    backgroundColor: '#1e293b',
-    borderWidth: 2,
-    borderColor: '#334155',
-  },
-  tabActive: { backgroundColor: '#8b5cf6', borderColor: '#7c3aed', borderBottomWidth: 4 },
-  tabText: { fontWeight: '700', fontSize: 14, color: '#64748b' },
-  tabTextActive: { color: '#fff' },
-
-  scrollContent: { padding: 20, paddingBottom: 100 },
-
-  memberCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: '#1e293b',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 10,
-    borderWidth: 2,
-    borderColor: '#334155',
-    borderBottomWidth: 4,
   },
   memberAvatar: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(139, 92, 246, 0.2)',
-    borderWidth: 2,
-    borderColor: 'rgba(139, 92, 246, 0.4)',
+    backgroundColor: TG.accentLight,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  memberAvatarText: { fontSize: 18, fontWeight: '800', color: '#8b5cf6' },
-  memberName: { fontSize: 16, fontWeight: '700', color: '#f8fafc' },
-  memberUsername: { fontSize: 13, color: '#64748b', fontWeight: '500' },
+  memberAvatarText: { fontSize: 18, fontWeight: '700', color: TG.accent },
+  memberName: { fontSize: 15, fontWeight: '600', color: TG.textPrimary },
+  memberUsername: { fontSize: 13, color: TG.textSecondary },
+  requestMsg: { fontSize: 13, color: TG.textSecondary, marginTop: 2, fontStyle: 'italic' },
   removeBtn: {
-    padding: 10,
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
+    padding: 8,
+    backgroundColor: TG.redLight,
+    borderRadius: 20,
+  },
+
+  badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
+  badgeText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase' },
+
+  actionCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 
   leaveBtn: {
@@ -500,115 +601,91 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    marginTop: 20,
-    paddingVertical: 16,
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
-    borderBottomWidth: 4,
+    margin: 16,
+    paddingVertical: 14,
+    backgroundColor: TG.redLight,
+    borderRadius: 12,
   },
-  leaveBtnText: { color: '#ef4444', fontWeight: '800', fontSize: 15, letterSpacing: 0.5 },
+  leaveBtnText: { color: TG.red, fontWeight: '600', fontSize: 15 },
 
   subCard: {
-    backgroundColor: '#1e293b',
-    borderRadius: 18,
-    padding: 18,
-    marginBottom: 14,
-    borderWidth: 2,
-    borderColor: '#334155',
-    borderBottomWidth: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
   },
-  subHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 14 },
-  subStudent: { fontSize: 16, fontWeight: '800', color: '#8b5cf6', marginBottom: 4 },
-  subQuestion: { fontSize: 15, color: '#cbd5e1', fontWeight: '500', lineHeight: 22 },
+  subHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10 },
+  subStudent: { fontSize: 15, fontWeight: '600', color: TG.accent, marginBottom: 2 },
+  subQuestion: { fontSize: 14, color: TG.textSecondary, lineHeight: 20 },
   scoreBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: 'rgba(245, 158, 11, 0.3)',
+    backgroundColor: TG.orangeLight,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
-  scoreBadgeText: { fontSize: 16, fontWeight: '800', color: '#f59e0b' },
+  scoreBadgeText: { fontSize: 14, fontWeight: '700', color: TG.orange },
   pendingBadge: {
-    backgroundColor: 'rgba(59, 130, 246, 0.15)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: 'rgba(59, 130, 246, 0.3)',
+    backgroundColor: TG.accentLight,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
-  pendingBadgeText: { fontSize: 11, fontWeight: '800', color: '#3b82f6', letterSpacing: 1 },
-  gradeBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#10b981',
-    paddingVertical: 14,
-    borderRadius: 14,
-    borderBottomWidth: 4,
-    borderColor: '#059669',
+  pendingBadgeText: { fontSize: 11, fontWeight: '700', color: TG.accent },
+  reviewBtn: {
+    alignSelf: 'flex-start',
+    backgroundColor: TG.accent,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
   },
-  gradeBtnText: { color: '#fff', fontWeight: '800', fontSize: 14, letterSpacing: 0.5 },
+  reviewBtnText: { color: TG.textWhite, fontWeight: '600', fontSize: 14 },
+
+  emptyContainer: { alignItems: 'center', marginTop: 60, gap: 12 },
+  emptyText: { color: TG.textSecondary, fontSize: 15 },
 
   // Modal
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
+    backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#1e293b',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    backgroundColor: TG.bg,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     padding: 24,
-    borderWidth: 2,
-    borderColor: '#334155',
-    borderBottomWidth: 0,
   },
-  modalTitle: { fontSize: 22, fontWeight: '800', color: '#fff', marginBottom: 4 },
-  modalSubtitle: { fontSize: 14, color: '#94a3b8', marginBottom: 20, lineHeight: 20 },
-  inputLabel: { fontSize: 13, color: '#94a3b8', fontWeight: '700', marginBottom: 6, letterSpacing: 0.5, textTransform: 'uppercase' },
-  input: {
-    backgroundColor: '#0f172a',
-    borderRadius: 14,
+  modalTitle: { fontSize: 18, fontWeight: '700', color: TG.textPrimary, marginBottom: 4 },
+  modalSubtitle: { fontSize: 14, color: TG.textSecondary, marginBottom: 20, lineHeight: 20 },
+  inputLabel: { fontSize: 13, color: TG.textSecondary, fontWeight: '600', marginBottom: 6 },
+  modalInput: {
+    backgroundColor: TG.bgSecondary,
+    borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: '#fff',
-    borderWidth: 2,
-    borderColor: '#334155',
+    color: TG.textPrimary,
+    borderWidth: 0.5,
+    borderColor: TG.separator,
     marginBottom: 16,
   },
   textArea: { minHeight: 100 },
   modalActions: { flexDirection: 'row', gap: 12, marginTop: 4 },
   cancelBtn: {
     flex: 1,
-    paddingVertical: 16,
+    paddingVertical: 14,
     alignItems: 'center',
-    borderRadius: 14,
-    backgroundColor: '#0f172a',
-    borderWidth: 2,
-    borderColor: '#334155',
-    borderBottomWidth: 4,
+    borderRadius: 12,
+    backgroundColor: TG.bgSecondary,
   },
-  cancelBtnText: { color: '#94a3b8', fontWeight: '800', letterSpacing: 0.5 },
+  cancelBtnText: { color: TG.textSecondary, fontWeight: '600' },
   submitBtn: {
     flex: 1,
-    paddingVertical: 16,
+    paddingVertical: 14,
     alignItems: 'center',
-    borderRadius: 14,
-    backgroundColor: '#10b981',
-    borderBottomWidth: 4,
-    borderColor: '#059669',
+    borderRadius: 12,
+    backgroundColor: TG.accent,
   },
-  submitBtnText: { color: '#fff', fontWeight: '800', letterSpacing: 0.5 },
-
-  emptyContainer: { alignItems: 'center', marginTop: 60, gap: 12 },
-  emptyText: { color: '#94a3b8', fontSize: 16, fontWeight: '600' },
+  submitBtnText: { color: TG.textWhite, fontWeight: '600' },
 });

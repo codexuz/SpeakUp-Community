@@ -1,8 +1,8 @@
+import { TG } from '@/constants/theme';
 import { apiLogin } from '@/lib/api';
 import { useAuth } from '@/store/auth';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { Lock, LogIn, User } from 'lucide-react-native';
+import { MessageCircle } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -44,91 +44,75 @@ export default function LoginScreen() {
   const isButtonDisabled = !username || !password || loading;
 
   return (
-    <LinearGradient colors={['#0f172a', '#1e293b']} style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <KeyboardAvoidingView 
-          style={{ flex: 1 }} 
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    <SafeAreaView style={styles.safeArea}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          <ScrollView 
-             contentContainerStyle={styles.content}
-             keyboardShouldPersistTaps="handled"
-             showsVerticalScrollIndicator={false}
+          <View style={styles.iconContainer}>
+            <MessageCircle size={44} color={TG.accent} strokeWidth={1.5} />
+          </View>
+          <Text style={styles.title}>SpeakUp</Text>
+          <Text style={styles.subtitle}>Sign in to continue your IELTS journey</Text>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Username</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g. johndoe"
+              placeholderTextColor={TG.textHint}
+              autoCapitalize="none"
+              value={username}
+              onChangeText={setUsername}
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Password</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter your password"
+              placeholderTextColor={TG.textHint}
+              secureTextEntry
+              value={password}
+              onChangeText={setPassword}
+            />
+          </View>
+
+          <TouchableOpacity
+            style={[styles.primaryButton, isButtonDisabled && styles.primaryButtonDisabled]}
+            onPress={handleLogin}
+            disabled={isButtonDisabled}
+            activeOpacity={0.7}
           >
-            <View style={styles.iconContainer}>
-               <LogIn size={48} color="#3b82f6" strokeWidth={1.5} />
-            </View>
-            <Text style={styles.title}>Welcome Back!</Text>
-            <Text style={styles.subtitle}>Sign in to continue your IELTS journey</Text>
+            {loading ? (
+              <ActivityIndicator color={TG.textWhite} />
+            ) : (
+              <Text style={styles.primaryButtonText}>Sign In</Text>
+            )}
+          </TouchableOpacity>
 
-            <View style={styles.inputGroup}>
-              <View style={styles.labelRow}>
-                  <User size={18} color="#94a3b8" />
-                  <Text style={styles.label}>Username</Text>
-              </View>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g. johndoe"
-                placeholderTextColor="#64748b"
-                autoCapitalize="none"
-                value={username}
-                onChangeText={setUsername}
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <View style={styles.labelRow}>
-                  <Lock size={18} color="#94a3b8" />
-                  <Text style={styles.label}>Password</Text>
-              </View>
-              <TextInput
-                style={styles.input}
-                placeholder="••••••••"
-                placeholderTextColor="#64748b"
-                secureTextEntry
-                value={password}
-                onChangeText={setPassword}
-              />
-            </View>
-
-            <View style={{ marginTop: 24 }}>
-                <TouchableOpacity
-                    style={[
-                        styles.primaryButton, 
-                        isButtonDisabled && styles.primaryButtonDisabled,
-                        !isButtonDisabled && styles.successButton
-                    ]}
-                    onPress={handleLogin}
-                    disabled={isButtonDisabled}
-                    activeOpacity={0.8}
-                >
-                    {loading ? (
-                       <ActivityIndicator color="#fff" />
-                    ) : (
-                       <Text style={styles.primaryButtonText}>Sign In</Text>
-                    )}
-                </TouchableOpacity>
-            </View>
-
-            <View style={styles.signupContainer}>
-              <Text style={styles.signupText}>Don&apos;t have an account? </Text>
-              <TouchableOpacity onPress={() => router.push('/(auth)/register')} activeOpacity={0.7}>
-                <Text style={styles.signupLink}>CREATE ACCOUNT</Text>
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </SafeAreaView>
-    </LinearGradient>
+          <View style={styles.signupContainer}>
+            <Text style={styles.signupText}>Don&apos;t have an account? </Text>
+            <TouchableOpacity onPress={() => router.push('/(auth)/register')} activeOpacity={0.7}>
+              <Text style={styles.signupLink}>Sign Up</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
   safeArea: {
     flex: 1,
+    backgroundColor: TG.bg,
   },
   content: {
     flexGrow: 1,
@@ -136,104 +120,74 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   iconContainer: {
-      alignSelf: 'center',
-      marginBottom: 24,
-      width: 96,
-      height: 96,
-      borderRadius: 48,
-      backgroundColor: '#1e293b',
-      justifyContent: 'center',
-      alignItems: 'center',
-      borderWidth: 2,
-      borderColor: '#334155'
+    alignSelf: 'center',
+    marginBottom: 16,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: TG.accentLight,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   title: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: '#f8fafc',
-    marginBottom: 8,
-    textAlign: 'center'
+    fontSize: 28,
+    fontWeight: '700',
+    color: TG.textPrimary,
+    marginBottom: 6,
+    textAlign: 'center',
   },
   subtitle: {
-    fontSize: 16,
-    color: '#94a3b8',
-    marginBottom: 40,
-    textAlign: 'center'
+    fontSize: 15,
+    color: TG.textSecondary,
+    marginBottom: 36,
+    textAlign: 'center',
   },
-  
   inputGroup: {
-      marginBottom: 20
+    marginBottom: 16,
   },
-  labelRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      marginBottom: 8,
-      marginLeft: 4,
+  label: {
+    color: TG.textSecondary,
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 6,
+    marginLeft: 4,
   },
-  label: { 
-      color: '#94a3b8', 
-      fontSize: 14, 
-      fontWeight: '700', 
-      textTransform: 'uppercase' 
-  },
-  
   input: {
-    backgroundColor: '#1e293b',
-    borderWidth: 2,
-    borderColor: '#334155',
-    borderRadius: 16,
-    padding: 20,
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '500',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    backgroundColor: TG.bgSecondary,
+    borderRadius: 12,
+    padding: 16,
+    color: TG.textPrimary,
+    fontSize: 16,
+    borderWidth: 0.5,
+    borderColor: TG.separator,
   },
-  
-  primaryButton: { 
-      backgroundColor: '#3b82f6', 
-      borderRadius: 16, 
-      paddingVertical: 18, 
-      alignItems: 'center',
-      borderBottomWidth: 4,
-      borderColor: '#2563eb'
+  primaryButton: {
+    backgroundColor: TG.accent,
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: 20,
   },
-  successButton: { 
-      backgroundColor: '#22c55e',
-      borderColor: '#16a34a'
+  primaryButtonDisabled: {
+    backgroundColor: TG.separator,
   },
-  primaryButtonDisabled: { 
-      backgroundColor: '#334155',
-      borderColor: '#1e293b',
-      borderBottomWidth: 2,
-      transform: [{translateY: 2}]
+  primaryButtonText: {
+    color: TG.textWhite,
+    fontSize: 16,
+    fontWeight: '700',
   },
-  primaryButtonText: { 
-      color: '#fff', 
-      fontSize: 18, 
-      fontWeight: '800', 
-      textTransform: 'uppercase', 
-      letterSpacing: 0.5 
-  },
-
   signupContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 32,
+    marginTop: 28,
   },
   signupText: {
-    color: '#94a3b8',
+    color: TG.textSecondary,
     fontSize: 14,
-    fontWeight: '600'
   },
   signupLink: {
-    color: '#3b82f6',
-    fontWeight: '800',
+    color: TG.accent,
+    fontWeight: '600',
     fontSize: 14,
-    letterSpacing: 0.5
   },
 });

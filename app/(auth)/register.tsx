@@ -1,8 +1,8 @@
+import { TG } from '@/constants/theme';
 import { apiRegister } from '@/lib/api';
 import { useAuth } from '@/store/auth';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { ChevronLeft, Image as ImageIcon, MapPin, Shield, Sparkles, User } from 'lucide-react-native';
+import { ChevronLeft } from 'lucide-react-native';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -28,7 +28,6 @@ export default function RegisterScreen() {
     password: ''
   });
 
-  // Animations
   const progressAnim = useRef(new Animated.Value(0.25)).current;
   const slideAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(1)).current;
@@ -40,7 +39,6 @@ export default function RegisterScreen() {
       useNativeDriver: false,
     }).start();
 
-    // Trigger slide and fade for content
     slideAnim.setValue(50);
     fadeAnim.setValue(0);
     Animated.parallel([
@@ -113,24 +111,23 @@ export default function RegisterScreen() {
       case 1:
         return (
           <View style={styles.stepContent}>
-            <View style={styles.iconContainer}>
-               <User size={48} color="#3b82f6" strokeWidth={1.5} />
-            </View>
-            <Text style={styles.stepTitle}>Let&apos;s get to know you!</Text>
+            <Text style={styles.stepTitle}>Create your account</Text>
             <Text style={styles.stepSubtitle}>Pick a username and enter your name</Text>
+            <Text style={styles.label}>Username</Text>
             <TextInput
-              style={[styles.input, { marginBottom: 12 }]}
+              style={styles.input}
               placeholder="Choose a username"
-              placeholderTextColor="#64748b"
+              placeholderTextColor={TG.textHint}
               autoCapitalize="none"
               value={formData.username}
               onChangeText={(text) => updateForm('username', text)}
               autoFocus
             />
+            <Text style={styles.label}>Full Name</Text>
             <TextInput
               style={styles.input}
               placeholder="Enter your full name"
-              placeholderTextColor="#64748b"
+              placeholderTextColor={TG.textHint}
               value={formData.fullName}
               onChangeText={(text) => updateForm('fullName', text)}
             />
@@ -139,10 +136,7 @@ export default function RegisterScreen() {
       case 2:
         return (
           <View style={styles.stepContent}>
-             <View style={styles.iconContainer}>
-               <MapPin size={48} color="#10b981" strokeWidth={1.5} />
-            </View>
-            <Text style={styles.stepTitle}>Where are you from?</Text>
+            <Text style={styles.stepTitle}>Your region</Text>
             <Text style={styles.stepSubtitle}>Select your home region</Text>
             <ScrollView style={styles.regionList} showsVerticalScrollIndicator={false}>
               {REGIONS.map(region => {
@@ -167,11 +161,8 @@ export default function RegisterScreen() {
       case 3:
         return (
           <View style={styles.stepContent}>
-            <View style={styles.iconContainer}>
-               <Sparkles size={48} color="#8b5cf6" strokeWidth={1.5} />
-            </View>
             <Text style={styles.stepTitle}>A bit more details</Text>
-            <Text style={styles.stepSubtitle}>Help us personalize your experience</Text>
+            <Text style={styles.stepSubtitle}>Help us personalise your experience</Text>
             
             <View style={styles.genderRow}>
               {['Male', 'Female'].map(g => {
@@ -191,34 +182,27 @@ export default function RegisterScreen() {
               })}
             </View>
 
-            <View style={styles.inputGroup}>
-                <View style={styles.labelRow}>
-                    <ImageIcon size={18} color="#94a3b8" />
-                    <Text style={styles.label}>Avatar Image URL</Text>
-                </View>
-                <TextInput
-                style={styles.input}
-                placeholder="Optional image link..."
-                placeholderTextColor="#64748b"
-                value={formData.avatarUrl}
-                onChangeText={(text) => updateForm('avatarUrl', text)}
-                />
-            </View>
+            <Text style={styles.label}>Avatar Image URL (optional)</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Paste an image link..."
+              placeholderTextColor={TG.textHint}
+              value={formData.avatarUrl}
+              onChangeText={(text) => updateForm('avatarUrl', text)}
+            />
           </View>
         );
       case 4:
         return (
           <View style={styles.stepContent}>
-            <View style={styles.iconContainer}>
-               <Shield size={48} color="#f59e0b" strokeWidth={1.5} />
-            </View>
-            <Text style={styles.stepTitle}>Keep it safe!</Text>
-            <Text style={styles.stepSubtitle}>Create a password to secure your progress</Text>
+            <Text style={styles.stepTitle}>Set a password</Text>
+            <Text style={styles.stepSubtitle}>Secure your account with a password</Text>
             
+            <Text style={styles.label}>Password</Text>
             <TextInput
               style={styles.input}
               placeholder="Enter your password"
-              placeholderTextColor="#64748b"
+              placeholderTextColor={TG.textHint}
               secureTextEntry
               value={formData.password}
               onChangeText={(text) => updateForm('password', text)}
@@ -230,7 +214,7 @@ export default function RegisterScreen() {
   };
 
   const getButtonText = () => {
-    if (step === 1 && (!formData.username || !formData.fullName)) return "Username & name required";
+    if (step === 1 && (!formData.username || !formData.fullName)) return "Fill in required fields";
     if (step === 4 && !formData.password) return "Password required";
     if (step === 4) return "Create Account";
     return "Continue";
@@ -244,90 +228,89 @@ export default function RegisterScreen() {
   });
 
   return (
-    <LinearGradient colors={['#0f172a', '#1e293b']} style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <KeyboardAvoidingView 
-          style={{ flex: 1 }} 
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    <SafeAreaView style={styles.safeArea}>
+      <KeyboardAvoidingView 
+        style={{ flex: 1 }} 
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        {/* Header & Progress Bar */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={step > 1 ? prevStep : () => router.back()} style={styles.backButton}>
+            <ChevronLeft color={TG.textWhite} size={28} />
+          </TouchableOpacity>
+          <View style={styles.progressBarContainer}>
+            <Animated.View style={[styles.progressBarFill, { width: progressWidth }]} />
+          </View>
+          <Text style={styles.stepIndicator}>{step}/{TOTAL_STEPS}</Text>
+        </View>
+
+        {/* Animated Content Area */}
+        <Animated.ScrollView 
+          style={[styles.content, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}
+          contentContainerStyle={{ flexGrow: 1 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          {/* Header & Progress Bar */}
-          <View style={styles.header}>
-              <TouchableOpacity onPress={step > 1 ? prevStep : () => router.back()} style={styles.backButton}>
-                  <ChevronLeft color="#94a3b8" size={32} />
-              </TouchableOpacity>
-              
-              <View style={styles.progressBarContainer}>
-                  <Animated.View style={[styles.progressBarFill, { width: progressWidth }]} />
-              </View>
-          </View>
+          {renderCurrentStep()}
+        </Animated.ScrollView>
 
-          {/* Animated Content Area */}
-          <Animated.ScrollView 
-             style={[styles.content, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}
-             contentContainerStyle={{ flexGrow: 1 }}
-             keyboardShouldPersistTaps="handled"
-             showsVerticalScrollIndicator={false}
+        {/* Footer Navigation */}
+        <View style={styles.footer}>
+          <TouchableOpacity 
+            style={[styles.primaryButton, isButtonDisabled && styles.primaryButtonDisabled]} 
+            onPress={step < 4 ? nextStep : handleRegister}
+            disabled={isButtonDisabled}
+            activeOpacity={0.7}
           >
-            {renderCurrentStep()}
-          </Animated.ScrollView>
-
-          {/* Footer Navigation */}
-          <View style={styles.footer}>
-            <TouchableOpacity 
-              style={[
-                  styles.primaryButton, 
-                  isButtonDisabled && styles.primaryButtonDisabled,
-                  step === 4 && !isButtonDisabled && styles.successButton
-              ]} 
-              onPress={step < 4 ? nextStep : handleRegister}
-              disabled={isButtonDisabled}
-              activeOpacity={0.8}
-            >
-              {loading ? (
-                  <ActivityIndicator color="#fff" />
-              ) : (
-                  <Text style={styles.primaryButtonText}>{getButtonText()}</Text>
-              )}
-            </TouchableOpacity>
-
-            {step === 1 && (
-              <TouchableOpacity onPress={() => router.push('/(auth)/login')} style={styles.loginLink}>
-                <Text style={styles.loginLinkText}>ALREADY HAVE AN ACCOUNT?</Text>
-              </TouchableOpacity>
+            {loading ? (
+              <ActivityIndicator color={TG.textWhite} />
+            ) : (
+              <Text style={styles.primaryButtonText}>{getButtonText()}</Text>
             )}
-          </View>
-        </KeyboardAvoidingView>
-      </SafeAreaView>
-    </LinearGradient>
+          </TouchableOpacity>
+
+          {step === 1 && (
+            <TouchableOpacity onPress={() => router.push('/(auth)/login')} style={styles.loginLink}>
+              <Text style={styles.loginLinkText}>Already have an account? <Text style={{ color: TG.accent }}>Sign In</Text></Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  safeArea: { flex: 1 },
+  safeArea: { flex: 1, backgroundColor: TG.bg },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 20,
-    gap: 16
+    backgroundColor: TG.headerBg,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    gap: 12,
   },
   backButton: {
     padding: 4,
   },
   progressBarContainer: {
     flex: 1,
-    height: 12,
-    backgroundColor: '#334155',
-    borderRadius: 6,
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    borderRadius: 2,
     overflow: 'hidden',
-    marginRight: 16,
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: '#3b82f6',
-    borderRadius: 6,
+    backgroundColor: TG.textWhite,
+    borderRadius: 2,
+  },
+  stepIndicator: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 13,
+    fontWeight: '600',
+    minWidth: 28,
+    textAlign: 'right',
   },
   content: {
     flex: 1,
@@ -335,117 +318,87 @@ const styles = StyleSheet.create({
   },
   stepContent: {
     flex: 1,
-    paddingTop: 20,
+    paddingTop: 28,
   },
-  iconContainer: {
-      alignSelf: 'center',
-      marginBottom: 24,
-      width: 96,
-      height: 96,
-      borderRadius: 48,
-      backgroundColor: '#1e293b',
-      justifyContent: 'center',
-      alignItems: 'center',
-      borderWidth: 2,
-      borderColor: '#334155'
-  },
-  stepTitle: { fontSize: 28, fontWeight: '800', color: '#f8fafc', marginBottom: 8, textAlign: 'center' },
-  stepSubtitle: { fontSize: 16, color: '#94a3b8', marginBottom: 32, textAlign: 'center' },
+  stepTitle: { fontSize: 24, fontWeight: '700', color: TG.textPrimary, marginBottom: 6 },
+  stepSubtitle: { fontSize: 15, color: TG.textSecondary, marginBottom: 28 },
   
-  inputGroup: {
-      marginTop: 20
+  label: {
+    color: TG.textSecondary,
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 6,
+    marginLeft: 4,
+    marginTop: 8,
   },
-  labelRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      marginBottom: 8,
-      marginLeft: 4,
-  },
-  label: { color: '#94a3b8', fontSize: 14, fontWeight: '700', textTransform: 'uppercase' },
   
   input: {
-    backgroundColor: '#1e293b',
-    borderWidth: 2,
-    borderColor: '#334155',
-    borderRadius: 16,
-    padding: 20,
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '500',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    backgroundColor: TG.bgSecondary,
+    borderRadius: 12,
+    padding: 16,
+    color: TG.textPrimary,
+    fontSize: 16,
+    borderWidth: 0.5,
+    borderColor: TG.separator,
+    marginBottom: 4,
   },
   
-  regionList: { flex: 1, marginTop: -10 },
+  regionList: { flex: 1 },
   choiceCard: { 
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      padding: 20, 
-      backgroundColor: '#1e293b',
-      borderRadius: 16,
-      borderWidth: 2,
-      borderColor: '#334155',
-      marginBottom: 12,
-      // Duolingo-style bottom border
-      borderBottomWidth: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16, 
+    backgroundColor: TG.bgSecondary,
+    borderRadius: 12,
+    borderWidth: 0.5,
+    borderColor: TG.separator,
+    marginBottom: 8,
   },
   choiceCardActive: { 
-      borderColor: '#3b82f6', 
-      backgroundColor: 'rgba(59, 130, 246, 0.1)',
+    borderColor: TG.accent, 
+    backgroundColor: TG.accentLight,
+    borderWidth: 1.5,
   },
-  choiceText: { color: '#f8fafc', fontSize: 18, fontWeight: '600' },
-  choiceTextActive: { color: '#3b82f6' },
+  choiceText: { color: TG.textPrimary, fontSize: 16, fontWeight: '500' },
+  choiceTextActive: { color: TG.accent, fontWeight: '600' },
   activeDot: {
-      width: 12,
-      height: 12,
-      borderRadius: 6,
-      backgroundColor: '#3b82f6'
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: TG.accent,
   },
 
-  genderRow: { flexDirection: 'row', gap: 16, marginBottom: 24 },
+  genderRow: { flexDirection: 'row', gap: 12, marginBottom: 20 },
   genderCard: { 
-      flex: 1, 
-      paddingVertical: 24, 
-      backgroundColor: '#1e293b', 
-      borderRadius: 16, 
-      borderWidth: 2, 
-      borderColor: '#334155', 
-      alignItems: 'center',
-      borderBottomWidth: 4,
+    flex: 1, 
+    paddingVertical: 18, 
+    backgroundColor: TG.bgSecondary, 
+    borderRadius: 12, 
+    borderWidth: 0.5, 
+    borderColor: TG.separator, 
+    alignItems: 'center',
   },
   genderCardActive: { 
-      borderColor: '#8b5cf6', 
-      backgroundColor: 'rgba(139, 92, 246, 0.1)' 
+    borderColor: TG.accent, 
+    backgroundColor: TG.accentLight,
+    borderWidth: 1.5,
   },
-  genderText: { color: '#94a3b8', fontSize: 18, fontWeight: '700' },
-  genderTextActive: { color: '#8b5cf6' },
+  genderText: { color: TG.textSecondary, fontSize: 16, fontWeight: '600' },
+  genderTextActive: { color: TG.accent },
   
-  footer: { padding: 24, paddingBottom: 40, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.05)' },
+  footer: { padding: 24, paddingBottom: 16, borderTopWidth: 0.5, borderTopColor: TG.separator },
   primaryButton: { 
-      backgroundColor: '#3b82f6', 
-      borderRadius: 16, 
-      paddingVertical: 18, 
-      alignItems: 'center',
-      borderBottomWidth: 4,
-      borderColor: '#2563eb'
-  },
-  successButton: { 
-      backgroundColor: '#22c55e',
-      borderColor: '#16a34a'
+    backgroundColor: TG.accent, 
+    borderRadius: 12, 
+    paddingVertical: 16, 
+    alignItems: 'center',
   },
   primaryButtonDisabled: { 
-      backgroundColor: '#334155',
-      borderColor: '#1e293b',
-      borderBottomWidth: 2,
-      transform: [{translateY: 2}]
+    backgroundColor: TG.separator,
   },
-  primaryButtonText: { color: '#fff', fontSize: 18, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
+  primaryButtonText: { color: TG.textWhite, fontSize: 16, fontWeight: '700' },
   
-  loginLink: { alignItems: 'center', marginTop: 24 },
-  loginLinkText: { color: '#3b82f6', fontWeight: '800', fontSize: 14, letterSpacing: 1 }
+  loginLink: { alignItems: 'center', marginTop: 20 },
+  loginLinkText: { color: TG.textSecondary, fontSize: 14 },
 });

@@ -1,206 +1,280 @@
-import { apiDeleteResponse, apiFetchPendingResponses } from '@/lib/api';
+import { TG } from '@/constants/theme';
+import { apiDeleteSpeaking, apiFetchMySpeaking, apiFetchPendingSpeaking, apiPostReview } from '@/lib/api';
 import { deleteResponseLocal, getCachedQuestionById, getStudentResponses } from '@/lib/db';
 import { useAuth } from '@/store/auth';
 import { File } from 'expo-file-system';
-import { LinearGradient } from 'expo-linear-gradient';
-import { CheckCircle, Clock, Play, Square, Trash2 } from 'lucide-react-native';
-import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import { CheckCircle, Clock, Mic, Play, Square, Star, Trash2 } from 'lucide-react-native';
+import React, { useCallback, useState } from 'react';
+import {
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Modal,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ResponsesScreen() {
   const { user } = useAuth();
+  const isTeacher = user?.role === 'teacher';
   const [responses, setResponses] = useState<any[]>([]);
   const [questionMap, setQuestionMap] = useState<Record<number, string>>({});
-  const [playingId, setPlayingId] = useState<number | null>(null);
+  const [playingId, setPlayingId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const [reviewModal, setReviewModal] = useState(false);
+  const [selectedSub, setSelectedSub] = useState<any>(null);
+  const [score, setScore] = useState('');
+  const [feedback, setFeedback] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   const loadResponses = useCallback(async () => {
-    if (user?.role === 'student') {
-      const data = await getStudentResponses(user.id) as any[];
-      setResponses(data);
-      const map: Record<number, string> = {};
-      for (const response of data) {
-        if (!map[response.question_id]) {
-          const question = await getCachedQuestionById(response.question_id);
-          map[response.question_id] = question?.q_text || 'Unknown Question';
+    setLoading(true);
+    try {
+      if (isTeacher) {
+        const result = await apiFetchPendingSpeaking();
+        setResponses(result.data || []);
+      } else {
+        const localData = await getStudentResponses(user!.id) as any[];
+        const map: Record<number, string> = {};
+        for (const r of localData) {
+          if (!map[r.question_id]) {
+            const q = await getCachedQuestionById(r.question_id);
+            map[r.question_id] = q?.q_text || 'Unknown Question';
+          }
+        }
+        setQuestionMap(map);
+
+        try {
+          const result = await apiFetchMySpeaking();
+          const remoteData = result.data || [];
+          const merged = [...localData.filter((l: any) => !l.is_synced), ...remoteData];
+          setResponses(merged);
+        } catch {
+          setResponses(localData);
         }
       }
-      setQuestionMap(map);
-    } else if (user?.role === 'teacher') {
-      try {
-        const data = await apiFetchPendingResponses();
-        setResponses(data);
-      } catch (error) {
-        console.error('Failed to load pending responses', error);
-      }
+    } catch (e) {
+      console.error('Failed to load responses', e);
+    } finally {
+      setLoading(false);
     }
-  }, [user?.id, user?.role]);
+  }, [user?.id, isTeacher]);
 
-  useEffect(() => {
-    void loadResponses();
-  }, [loadResponses]);
+  useFocusEffect(
+    useCallback(() => {
+      loadResponses();
+    }, [loadResponses])
+  );
 
-  const handleDelete = async (id: number, uri: string) => {
+  const handleDelete = async (item: any) => {
     Alert.alert('Delete', 'Remove this recording?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', onPress: async () => {
-        await deleteResponseLocal(id);
-        if (uri) {
-          try {
-            const file = new File(uri);
-            if (file.exists) file.delete();
-          } catch {}
+      {
+        text: 'Delete', style: 'destructive', onPress: async () => {
+          if (item.local_uri) {
+            await deleteResponseLocal(item.id);
+            try { const file = new File(item.local_uri); if (file.exists) file.delete(); } catch {}
+          }
+          if (item.id && typeof item.id === 'string') {
+            apiDeleteSpeaking(item.id).catch(() => {});
+          }
+          loadResponses();
         }
-        apiDeleteResponse(id).catch(() => {});
-        loadResponses();
-      }, style: 'destructive'}
+      }
     ]);
   };
 
-  const handlePlay = async (uri: string, remoteUrl: string, id: number) => {
-    if (playingId === id) {
+  const handlePlay = (item: any) => {
+    if (playingId === (item.id?.toString())) {
       setPlayingId(null);
       return;
     }
-    setPlayingId(id);
-    
-    let sourceUri = uri;
-    const file = new File(uri);
-    if (!file.exists && remoteUrl) {
-      sourceUri = remoteUrl;
-    }
+    setPlayingId(item.id?.toString());
+    const uri = item.local_uri || item.remoteUrl;
+    console.log('Playing', uri);
+  };
 
+  const openReviewModal = (sub: any) => {
+    setSelectedSub(sub);
+    setScore('');
+    setFeedback('');
+    setReviewModal(true);
+  };
+
+  const handleReview = async () => {
+    if (!selectedSub || !score) return;
+    const numScore = parseInt(score, 10);
+    if (isNaN(numScore) || numScore < 0 || numScore > 9) {
+      Alert.alert('Invalid', 'Score must be between 0 and 9');
+      return;
+    }
+    setSubmitting(true);
     try {
-      console.log('Playing', sourceUri);
-    } catch (error) {
-      console.error(error);
-      setPlayingId(null);
+      await apiPostReview(selectedSub.id, numScore, feedback);
+      setReviewModal(false);
+      loadResponses();
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  return (
-    <View style={styles.container}>
-      <LinearGradient colors={['#0f172a', '#1e293b']} style={StyleSheet.absoluteFillObject} />
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.title}>{user?.role === 'teacher' ? 'Pending Submissions' : 'Your Responses'}</Text>
-        
-        {responses.map(res => {
-          const qText = questionMap[res.question_id] || 'Unknown Question';
-          const isPlaying = playingId === res.id;
-          
-          return (
-            <View key={res.id} style={styles.card}>
-              <View style={styles.cardHeader}>
-                <Text style={styles.qText} numberOfLines={2}>{qText}</Text>
-                <View style={styles.statusBadge}>
-                    {res.is_synced ? (
-                        <CheckCircle size={20} color="#10b981" />
-                    ) : (
-                        <Clock size={20} color="#f59e0b" />
-                    )}
-                </View>
-              </View>
-              
-              <View style={styles.cardFooter}>
-                <TouchableOpacity 
-                  style={[styles.playBtn, isPlaying && styles.playBtnActive]} 
-                  onPress={() => handlePlay(res.local_uri, res.remote_url, res.id)}
-                  activeOpacity={0.8}
-                >
-                  {isPlaying ? (
-                     <Square size={20} color="#fff" fill="#fff" />
-                  ) : (
-                     <Play size={20} color="#fff" fill="#fff" />
-                  )}
-                  <Text style={styles.playText}>{isPlaying ? 'STOPPING...' : 'PLAY AUDIO'}</Text>
-                </TouchableOpacity>
+  const renderItem = ({ item }: { item: any }) => {
+    const qText = item.question?.qText || questionMap[item.question_id] || 'Unknown Question';
+    const isPlaying = playingId === (item.id?.toString());
+    const isLocal = !!item.local_uri;
 
-                {user?.role === 'student' && (
-                  <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(res.id, res.local_uri)} activeOpacity={0.7}>
-                    <Trash2 size={22} color="#ef4444" />
-                  </TouchableOpacity>
-                )}
+    return (
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          {isTeacher && item.student && (
+            <View style={styles.studentInfo}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>{(item.student?.fullName || '?').charAt(0)}</Text>
               </View>
-
-              {res.teacher_score !== null && res.teacher_score !== undefined && (
-                <View style={styles.feedbackBox}>
-                  <Text style={styles.scoreText}>SCORE: {res.teacher_score}</Text>
-                  {res.teacher_feedback && <Text style={styles.feedbackText}>{res.teacher_feedback}</Text>}
-                </View>
+              <View>
+                <Text style={styles.studentName}>{item.student.fullName}</Text>
+                <Text style={styles.studentHandle}>@{item.student.username}</Text>
+              </View>
+            </View>
+          )}
+          {!isTeacher && isLocal && (
+            <View style={styles.syncBadge}>
+              {item.is_synced ? (
+                <><CheckCircle size={14} color={TG.green} /><Text style={[styles.badgeText, { color: TG.green }]}>Synced</Text></>
+              ) : (
+                <><Clock size={14} color={TG.orange} /><Text style={[styles.badgeText, { color: TG.orange }]}>Pending</Text></>
               )}
             </View>
-          );
-        })}
-        {responses.length === 0 && (
-          <View style={styles.emptyContainer}>
-             <Clock size={48} color="#334155" style={{ marginBottom: 16 }} />
-             <Text style={styles.emptyText}>No responses yet.</Text>
+          )}
+          {item.scoreAvg != null && (
+            <View style={styles.scorePill}>
+              <Star size={12} color={TG.orange} fill={TG.orange} />
+              <Text style={styles.scoreValue}>{item.scoreAvg.toFixed(1)}</Text>
+            </View>
+          )}
+        </View>
+
+        <Text style={styles.questionText} numberOfLines={2}>{qText}</Text>
+
+        <View style={styles.cardActions}>
+          <TouchableOpacity
+            style={[styles.playBtn, isPlaying && styles.playBtnActive]}
+            activeOpacity={0.7}
+            onPress={() => handlePlay(item)}
+          >
+            {isPlaying ? <Square size={16} color={TG.textWhite} /> : <Play size={16} color={TG.textWhite} fill={TG.textWhite} />}
+            <Text style={styles.playBtnText}>{isPlaying ? 'Stop' : 'Play'}</Text>
+          </TouchableOpacity>
+
+          {isTeacher && (
+            <TouchableOpacity style={styles.reviewActionBtn} activeOpacity={0.7} onPress={() => openReviewModal(item)}>
+              <Text style={styles.reviewActionText}>Review</Text>
+            </TouchableOpacity>
+          )}
+
+          {!isTeacher && (
+            <TouchableOpacity style={styles.deleteBtn} activeOpacity={0.7} onPress={() => handleDelete(item)}>
+              <Trash2 size={18} color={TG.red} />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>{isTeacher ? 'Pending Reviews' : 'My Recordings'}</Text>
+      </View>
+
+      {loading ? (
+        <ActivityIndicator size="large" color={TG.accent} style={{ marginTop: 60 }} />
+      ) : (
+        <FlatList
+          data={responses}
+          keyExtractor={(item, i) => item.id?.toString() || i.toString()}
+          renderItem={renderItem}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Mic size={48} color={TG.separator} />
+              <Text style={styles.emptyText}>{isTeacher ? 'No pending submissions' : 'No recordings yet'}</Text>
+            </View>
+          }
+        />
+      )}
+
+      <Modal visible={reviewModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Review</Text>
+            <Text style={styles.inputLabel}>Score (0-9)</Text>
+            <TextInput style={styles.input} value={score} onChangeText={setScore} keyboardType="number-pad" maxLength={1} placeholder="0-9" placeholderTextColor={TG.textHint} />
+            <Text style={styles.inputLabel}>Feedback</Text>
+            <TextInput style={[styles.input, styles.textArea]} value={feedback} onChangeText={setFeedback} multiline numberOfLines={4} placeholder="Write feedback..." placeholderTextColor={TG.textHint} textAlignVertical="top" />
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setReviewModal(false)}><Text style={styles.cancelBtnText}>Cancel</Text></TouchableOpacity>
+              <TouchableOpacity style={[styles.submitBtn, (!score || submitting) && { opacity: 0.5 }]} onPress={handleReview} disabled={!score || submitting}>
+                {submitting ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.submitBtnText}>Submit</Text>}
+              </TouchableOpacity>
+            </View>
           </View>
-        )}
-      </ScrollView>
-    </View>
+        </View>
+      </Modal>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  content: { padding: 24, paddingTop: 40, paddingBottom: 100 },
-  title: { fontSize: 28, fontWeight: '800', color: '#fff', marginBottom: 24 },
-  
-  card: { 
-      backgroundColor: '#1e293b', 
-      borderRadius: 20, 
-      padding: 20, 
-      marginBottom: 16, 
-      borderWidth: 2, 
-      borderColor: '#334155',
-      borderBottomWidth: 5
-  },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 },
-  qText: { fontSize: 18, color: '#f8fafc', fontWeight: '700', flex: 1, marginRight: 12, lineHeight: 26 },
-  statusBadge: { backgroundColor: '#0f172a', padding: 6, borderRadius: 12 },
-  
-  cardFooter: { flexDirection: 'row', gap: 12, alignItems: 'center' },
-  
-  playBtn: { 
-      flex: 1, 
-      backgroundColor: '#3b82f6', 
-      flexDirection: 'row', 
-      alignItems: 'center', 
-      justifyContent: 'center', 
-      gap: 8, 
-      padding: 16, 
-      borderRadius: 16,
-      borderBottomWidth: 4,
-      borderColor: '#2563eb'
-  },
-  playBtnActive: { 
-      backgroundColor: '#ef4444', 
-      borderColor: '#dc2626',
-      borderBottomWidth: 2,
-      transform: [{translateY: 2}]
-  },
-  playText: { color: '#fff', fontWeight: '800', letterSpacing: 0.5, fontSize: 15 },
-  
-  deleteBtn: { 
-      padding: 14, 
-      backgroundColor: 'rgba(239, 68, 68, 0.1)', 
-      borderRadius: 16, 
-      borderWidth: 2, 
-      borderColor: 'rgba(239, 68, 68, 0.3)',
-      borderBottomWidth: 4
-  },
-  
-  feedbackBox: { 
-      marginTop: 20, 
-      padding: 16, 
-      backgroundColor: 'rgba(16, 185, 129, 0.1)', 
-      borderRadius: 16,
-      borderWidth: 2,
-      borderColor: 'rgba(16, 185, 129, 0.3)'
-  },
-  scoreText: { color: '#10b981', fontWeight: '800', marginBottom: 8, fontSize: 16, letterSpacing: 1 },
-  feedbackText: { color: '#cbd5e1', fontSize: 16, lineHeight: 24, fontWeight: '500' },
-  
-  emptyContainer: { alignItems: 'center', marginTop: 80 },
-  emptyText: { color: '#94a3b8', fontSize: 18, fontWeight: '600' }
+  safeArea: { flex: 1, backgroundColor: TG.bgSecondary },
+  header: { backgroundColor: TG.headerBg, paddingHorizontal: 16, paddingVertical: 14 },
+  headerTitle: { fontSize: 20, fontWeight: '700', color: TG.textWhite },
+  listContent: { paddingBottom: 100 },
+
+  card: { backgroundColor: TG.bg, paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: TG.separatorLight },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 8 },
+  studentInfo: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+  avatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: TG.accentLight, justifyContent: 'center', alignItems: 'center' },
+  avatarText: { fontSize: 14, fontWeight: '700', color: TG.accent },
+  studentName: { fontSize: 15, fontWeight: '600', color: TG.textPrimary },
+  studentHandle: { fontSize: 12, color: TG.textSecondary },
+  syncBadge: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  badgeText: { fontSize: 12, fontWeight: '600' },
+  scorePill: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: TG.orangeLight, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, marginLeft: 'auto' },
+  scoreValue: { fontSize: 13, fontWeight: '700', color: TG.orange },
+
+  questionText: { fontSize: 15, color: TG.textPrimary, lineHeight: 21, marginBottom: 10 },
+
+  cardActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  playBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: TG.accent, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 16 },
+  playBtnActive: { backgroundColor: TG.red },
+  playBtnText: { fontSize: 13, fontWeight: '600', color: TG.textWhite },
+  reviewActionBtn: { backgroundColor: TG.green, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 16 },
+  reviewActionText: { fontSize: 13, fontWeight: '600', color: TG.textWhite },
+  deleteBtn: { marginLeft: 'auto', padding: 8 },
+
+  emptyContainer: { alignItems: 'center', marginTop: 80, gap: 12 },
+  emptyText: { color: TG.textSecondary, fontSize: 15 },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: TG.bg, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20 },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: TG.textPrimary, marginBottom: 12 },
+  inputLabel: { fontSize: 13, color: TG.textSecondary, fontWeight: '600', marginBottom: 6 },
+  input: { backgroundColor: TG.bgSecondary, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: TG.textPrimary, borderWidth: 0.5, borderColor: TG.separator, marginBottom: 12 },
+  textArea: { minHeight: 80 },
+  modalActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  cancelBtn: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 10, backgroundColor: TG.bgSecondary },
+  cancelBtnText: { color: TG.textSecondary, fontWeight: '600' },
+  submitBtn: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 10, backgroundColor: TG.accent },
+  submitBtnText: { color: TG.textWhite, fontWeight: '600' },
 });
