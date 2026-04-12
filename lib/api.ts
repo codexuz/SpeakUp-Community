@@ -3,19 +3,8 @@ import { Platform } from 'react-native';
 
 import { getStoredAuthToken } from '@/store/auth';
 
-function buildApiUrl() {
-  if (process.env.EXPO_PUBLIC_API_URL) {
-    return process.env.EXPO_PUBLIC_API_URL;
-  }
 
-  const scheme = process.env.EXPO_PUBLIC_API_SCHEME || 'http';
-  const host = process.env.EXPO_PUBLIC_API_HOST || 'localhost';
-  const port = process.env.EXPO_PUBLIC_API_PORT ? `:${process.env.EXPO_PUBLIC_API_PORT}` : ':3000';
-
-  return `${scheme}://${host}${port}/api`;
-}
-
-const API_URL = buildApiUrl();
+const API_URL = 'https://speakup.impulselc.uz/api'; 
 
 function getUserAgent(): string {
   const name = Device.deviceName || Device.modelName || 'Unknown';
