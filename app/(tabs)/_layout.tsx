@@ -1,33 +1,61 @@
+import { useSyncManager } from '@/lib/sync';
+import { useAuth } from '@/store/auth';
 import { Tabs } from 'expo-router';
+import { Globe, Home, List, User, Users } from 'lucide-react-native';
 import React from 'react';
-
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Platform } from 'react-native';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
+  const { user } = useAuth();
+
+  useSyncManager();
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        tabBarActiveTintColor: '#3b82f6',
+        tabBarInactiveTintColor: '#64748b',
+        tabBarShowLabel: false,
         headerShown: false,
-        tabBarButton: HapticTab,
+        tabBarStyle: {
+          backgroundColor: '#0f172a',
+          borderTopWidth: 2,
+          borderTopColor: '#1e293b',
+          height: Platform.OS === 'ios' ? 88 : 68,
+          paddingBottom: Platform.OS === 'ios' ? 28 : 12,
+          paddingTop: 12,
+          // elevation 0 for android to remove stock shadow, so it matches iOS flat
+          elevation: 0,
+        },
       }}>
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          tabBarIcon: ({ color }) => <Home size={28} color={color} strokeWidth={2.5} />,
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="groups"
         options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+          tabBarIcon: ({ color }) => <Users size={28} color={color} strokeWidth={2.5} />,
+        }}
+      />
+      <Tabs.Screen
+        name="community"
+        options={{
+          tabBarIcon: ({ color }) => <Globe size={28} color={color} strokeWidth={2.5} />,
+        }}
+      />
+      <Tabs.Screen
+        name="responses"
+        options={{
+          tabBarIcon: ({ color }) => <List size={28} color={color} strokeWidth={2.5} />
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          tabBarIcon: ({ color }) => <User size={28} color={color} strokeWidth={2.5} />,
         }}
       />
     </Tabs>

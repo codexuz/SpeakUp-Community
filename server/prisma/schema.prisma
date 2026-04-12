@@ -1,0 +1,97 @@
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+model User {
+    id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+    username  String   @unique
+    fullName  String   @map("fullName")
+    password  String
+    role      String   @default("student")
+    gender    String?
+    region    String?
+    avatarUrl String?  @map("avatarUrl")
+    pushToken String?  @map("push_token")
+    createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+    responses   Response[]
+    groups      Group[]       @relation("TeacherGroups")
+    memberships GroupMember[]
+
+    @@map("users")
+}
+
+model Test {
+    id          Int      @id @default(autoincrement())
+    title       String
+    description String?
+    createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+    questions Question[]
+
+    @@map("tests")
+}
+
+model Question {
+    id            Int      @id @default(autoincrement())
+    testId        Int      @map("test_id")
+    qText         String   @map("q_text")
+    part          String
+    image         String?
+    speakingTimer Int      @default(30) @map("speaking_timer")
+    prepTimer     Int      @default(5) @map("prep_timer")
+    createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+    test      Test       @relation(fields: [testId], references: [id], onDelete: Cascade)
+    responses Response[]
+
+    @@map("questions")
+}
+
+model Response {
+    id              BigInt   @id @default(autoincrement())
+    questionId      Int      @map("question_id")
+    studentId       String   @map("student_id") @db.Uuid
+    localUri        String?  @map("local_uri")
+    remoteUrl       String?  @map("remote_url")
+    teacherScore    Int?     @map("teacher_score")
+    teacherFeedback String?  @map("teacher_feedback")
+    createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+    question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+    student  User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+    @@map("responses")
+}
+
+model Group {
+    id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+    name         String
+    description  String?
+    teacherId    String   @map("teacher_id") @db.Uuid
+    referralCode String   @unique @map("referral_code")
+    createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+    teacher User          @relation("TeacherGroups", fields: [teacherId], references: [id], onDelete: Cascade)
+    members GroupMember[]
+
+    @@map("groups")
+}
+
+model GroupMember {
+    id        BigInt   @id @default(autoincrement())
+    groupId   String   @map("group_id") @db.Uuid
+    studentId String   @map("student_id") @db.Uuid
+    joinedAt  DateTime @default(now()) @map("joined_at") @db.Timestamptz
+
+    group   Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+    student User  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+    @@unique([groupId, studentId])
+    @@map("group_members")
+}
