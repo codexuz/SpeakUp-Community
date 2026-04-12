@@ -56,7 +56,7 @@ export default function RegisterScreen() {
         useNativeDriver: true,
       })
     ]).start();
-  }, [step]);
+  }, [fadeAnim, progressAnim, slideAnim, step]);
 
   const updateForm = (key: string, value: string) => {
     setFormData(prev => ({ ...prev, [key]: value }));
@@ -113,7 +113,7 @@ export default function RegisterScreen() {
             <View style={styles.iconContainer}>
                <User size={48} color="#3b82f6" strokeWidth={1.5} />
             </View>
-            <Text style={styles.stepTitle}>Let's get to know you!</Text>
+            <Text style={styles.stepTitle}>Let&apos;s get to know you!</Text>
             <Text style={styles.stepSubtitle}>Pick a username and enter your name</Text>
             <TextInput
               style={[styles.input, { marginBottom: 12 }]}

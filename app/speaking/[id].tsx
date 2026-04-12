@@ -7,7 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Speech from 'expo-speech';
 import { ArrowLeft, Clock, Mic, StopCircle } from 'lucide-react-native';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function SpeakingScreen() {
@@ -25,6 +25,40 @@ export default function SpeakingScreen() {
   
   // Animations
   const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  const startRecording = useCallback(async () => {
+    try {
+      const perms = await AudioModule.requestRecordingPermissionsAsync();
+      if (perms.status === 'granted') {
+        await audioRecorder.record();
+      }
+    } catch (err) {
+      console.warn('Failed to start recording', err);
+    }
+  }, [audioRecorder]);
+
+  const stopRecording = useCallback(async () => {
+    try {
+      setPhase('done');
+      if (audioRecorder.isRecording) {
+        await audioRecorder.stop();
+      }
+      
+      const uri = audioRecorder.uri;
+      if (uri && user && question) {
+        const filename = `response_${user.id}_${Date.now()}.m4a`;
+        const dest = new File(Paths.document, filename);
+        new File(uri).copy(dest);
+        
+        await saveResponseOffline(question.id, user.id, dest.uri);
+      }
+      
+      router.back();
+    } catch (err) {
+      console.error('Failed to stop recording', err);
+      router.back();
+    }
+  }, [audioRecorder, question, router, user]);
 
   // Load question from DB
   useEffect(() => {
@@ -54,7 +88,7 @@ export default function SpeakingScreen() {
         ])
       ).start();
     }
-  }, [phase, question]);
+  }, [phase, pulseAnim, question, startRecording]);
 
   useEffect(() => {
     if (timeLeft <= 0) {
@@ -71,41 +105,7 @@ export default function SpeakingScreen() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [timeLeft, phase]);
-
-  const startRecording = async () => {
-    try {
-      const perms = await AudioModule.requestRecordingPermissionsAsync();
-      if (perms.status === 'granted') {
-        await audioRecorder.record();
-      }
-    } catch (err) {
-      console.warn('Failed to start recording', err);
-    }
-  };
-
-  const stopRecording = async () => {
-    try {
-      setPhase('done');
-      if (audioRecorder.isRecording) {
-        await audioRecorder.stop();
-      }
-      
-      const uri = audioRecorder.uri;
-      if (uri && user && question) {
-        const filename = `response_${user.id}_${Date.now()}.m4a`;
-        const dest = new File(Paths.document, filename);
-        new File(uri).copy(dest);
-        
-        await saveResponseOffline(question.id, user.id, dest.uri);
-      }
-      
-      router.back();
-    } catch (err) {
-      console.error('Failed to stop recording', err);
-      router.back();
-    }
-  };
+  }, [phase, stopRecording, timeLeft]);
 
   if (loadingQ) return (
     <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>

@@ -4,7 +4,7 @@ import { useAuth } from '@/store/auth';
 import { File } from 'expo-file-system';
 import { LinearGradient } from 'expo-linear-gradient';
 import { CheckCircle, Clock, Play, Square, Trash2 } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function ResponsesScreen() {
@@ -13,20 +13,15 @@ export default function ResponsesScreen() {
   const [questionMap, setQuestionMap] = useState<Record<number, string>>({});
   const [playingId, setPlayingId] = useState<number | null>(null);
 
-  useEffect(() => {
-    loadResponses();
-  }, []);
-
-  const loadResponses = async () => {
+  const loadResponses = useCallback(async () => {
     if (user?.role === 'student') {
       const data = await getStudentResponses(user.id) as any[];
       setResponses(data);
-      // Build a map of question_id -> q_text from cached DB
       const map: Record<number, string> = {};
-      for (const r of data) {
-        if (!map[r.question_id]) {
-          const q = await getCachedQuestionById(r.question_id);
-          map[r.question_id] = q?.q_text || 'Unknown Question';
+      for (const response of data) {
+        if (!map[response.question_id]) {
+          const question = await getCachedQuestionById(response.question_id);
+          map[response.question_id] = question?.q_text || 'Unknown Question';
         }
       }
       setQuestionMap(map);
@@ -34,11 +29,15 @@ export default function ResponsesScreen() {
       try {
         const data = await apiFetchPendingResponses();
         setResponses(data);
-      } catch (e) {
-        console.error('Failed to load pending responses', e);
+      } catch (error) {
+        console.error('Failed to load pending responses', error);
       }
     }
-  };
+  }, [user?.id, user?.role]);
+
+  useEffect(() => {
+    void loadResponses();
+  }, [loadResponses]);
 
   const handleDelete = async (id: number, uri: string) => {
     Alert.alert('Delete', 'Remove this recording?', [
@@ -49,7 +48,7 @@ export default function ResponsesScreen() {
           try {
             const file = new File(uri);
             if (file.exists) file.delete();
-          } catch(e) {}
+          } catch {}
         }
         apiDeleteResponse(id).catch(() => {});
         loadResponses();
@@ -72,8 +71,8 @@ export default function ResponsesScreen() {
 
     try {
       console.log('Playing', sourceUri);
-    } catch (e) {
-      console.error(e);
+    } catch (error) {
+      console.error(error);
       setPlayingId(null);
     }
   };

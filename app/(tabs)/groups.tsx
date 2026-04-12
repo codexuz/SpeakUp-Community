@@ -13,7 +13,7 @@ export default function GroupsScreen() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const loadGroups = async () => {
+  const loadGroups = useCallback(async () => {
     setLoading(true);
     try {
       if (user?.role === 'teacher') {
@@ -28,12 +28,12 @@ export default function GroupsScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id, user?.role]);
 
   useFocusEffect(
     useCallback(() => {
-      loadGroups();
-    }, [user])
+      void loadGroups();
+    }, [loadGroups])
   );
 
   return (

@@ -1,25 +1,20 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Redirect, Stack, useSegments } from 'expo-router';
-import { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { registerForPushNotifications, useNotificationListeners } from '@/lib/notifications';
+import { useInAppUpdates } from '@/hooks/useInAppUpdates';
+import { useNotifications } from '@/hooks/useNotifications';
 import { AuthProvider, useAuth } from '@/store/auth';
 
 function RootNavigator() {
   const colorScheme = useColorScheme();
-  const { isAuthenticated, isLoading, user } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   const segments = useSegments();
 
-  useNotificationListeners();
-
-  useEffect(() => {
-    if (isAuthenticated && user?.id) {
-      registerForPushNotifications(user.id);
-    }
-  }, [isAuthenticated, user?.id]);
+  useNotifications();
+  useInAppUpdates();
 
   const inAuthGroup = segments[0] === '(auth)';
 
