@@ -7,10 +7,21 @@ import https from 'https';
 
 dotenv.config();
 
+import { authLimiter, defaultLimiter } from './middleware/rateLimiter';
+import analyticsRoutes from './routes/analytics';
 import authRoutes from './routes/auth';
+import communityRoutes from './routes/community';
 import groupsRoutes from './routes/groups';
-import responsesRoutes from './routes/responses';
+import reviewsRoutes from './routes/reviews';
+import speakingRoutes from './routes/speaking';
 import testsRoutes from './routes/tests';
+import { ensureBucket } from './services/minio';
+import './workers/audio.worker';
+
+// BigInt JSON serialization support
+(BigInt.prototype as any).toJSON = function () {
+  return this.toString();
+};
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -37,11 +48,15 @@ app.use(
   })
 );
 app.use(express.json());
+app.use(defaultLimiter);
 
-app.use('/api/auth', authRoutes);
+app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/tests', testsRoutes);
-app.use('/api/responses', responsesRoutes);
+app.use('/api/speaking', speakingRoutes);
+app.use('/api/reviews', reviewsRoutes);
 app.use('/api/groups', groupsRoutes);
+app.use('/api/community', communityRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok' });
@@ -59,7 +74,18 @@ const server = useHttps
     )
   : http.createServer(app);
 
-server.listen(Number(PORT), HOST, () => {
-  const protocol = useHttps ? 'https' : 'http';
-  console.log(`Server running at ${protocol}://${PUBLIC_HOSTNAME}:${PORT}`);
-});
+async function start() {
+  try {
+    await ensureBucket();
+    console.log('MinIO bucket ready');
+  } catch (err) {
+    console.warn('MinIO not available — file uploads will fail:', (err as Error).message);
+  }
+
+  server.listen(Number(PORT), HOST, () => {
+    const protocol = useHttps ? 'https' : 'http';
+    console.log(`Server running at ${protocol}://${PUBLIC_HOSTNAME}:${PORT}`);
+  });
+}
+
+start();
