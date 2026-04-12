@@ -1,7 +1,10 @@
 import { Request, Response, Router } from 'express';
+import { AuthenticatedRequest, authenticateRequest, requireRole } from '../middleware/auth';
 import prisma from '../prisma';
 
 const router = Router();
+
+router.use(authenticateRequest);
 
 function generateReferralCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -12,9 +15,58 @@ function generateReferralCode(): string {
   return code;
 }
 
+async function ensureTeacherOwnsGroup(groupId: string, teacherId: string, res: Response) {
+  const group = await prisma.group.findUnique({ where: { id: groupId } });
+  if (!group) {
+    res.status(404).json({ error: 'Group not found' });
+    return null;
+  }
+
+  if (group.teacherId !== teacherId) {
+    res.status(403).json({ error: 'You do not have access to this group' });
+    return null;
+  }
+
+  return group;
+}
+
+async function ensureGroupAccess(groupId: string, auth: { userId: string; role: string }, res: Response) {
+  const group = await prisma.group.findUnique({ where: { id: groupId } });
+  if (!group) {
+    res.status(404).json({ error: 'Group not found' });
+    return null;
+  }
+
+  if (auth.role === 'teacher') {
+    if (group.teacherId !== auth.userId) {
+      res.status(403).json({ error: 'You do not have access to this group' });
+      return null;
+    }
+
+    return group;
+  }
+
+  const membership = await prisma.groupMember.findUnique({
+    where: { groupId_studentId: { groupId, studentId: auth.userId } },
+  });
+
+  if (!membership) {
+    res.status(403).json({ error: 'You do not have access to this group' });
+    return null;
+  }
+
+  return group;
+}
+
 // GET /api/groups/teacher/:teacherId
-router.get('/teacher/:teacherId', async (req: Request, res: Response) => {
+router.get('/teacher/:teacherId', requireRole('teacher'), async (req: Request, res: Response) => {
   try {
+    const auth = (req as AuthenticatedRequest).auth!;
+    if (auth.userId !== (req.params.teacherId as string)) {
+      res.status(403).json({ error: 'You do not have access to these groups' });
+      return;
+    }
+
     const groups = await prisma.group.findMany({
       where: { teacherId: req.params.teacherId as string },
       orderBy: { createdAt: 'desc' },
@@ -27,8 +79,14 @@ router.get('/teacher/:teacherId', async (req: Request, res: Response) => {
 });
 
 // GET /api/groups/student/:studentId
-router.get('/student/:studentId', async (req: Request, res: Response) => {
+router.get('/student/:studentId', requireRole('student'), async (req: Request, res: Response) => {
   try {
+    const auth = (req as AuthenticatedRequest).auth!;
+    if (auth.userId !== (req.params.studentId as string)) {
+      res.status(403).json({ error: 'You do not have access to these groups' });
+      return;
+    }
+
     const memberships = await prisma.groupMember.findMany({
       where: { studentId: req.params.studentId as string },
       include: {
@@ -51,6 +109,12 @@ router.get('/student/:studentId', async (req: Request, res: Response) => {
 // GET /api/groups/:id — single group
 router.get('/:id', async (req: Request, res: Response) => {
   try {
+    const auth = (req as AuthenticatedRequest).auth!;
+    const access = await ensureGroupAccess(req.params.id as string, auth, res);
+    if (!access) {
+      return;
+    }
+
     const group = await prisma.group.findUnique({
       where: { id: req.params.id as string },
       include: {
@@ -70,6 +134,12 @@ router.get('/:id', async (req: Request, res: Response) => {
 // GET /api/groups/:id/members
 router.get('/:id/members', async (req: Request, res: Response) => {
   try {
+    const auth = (req as AuthenticatedRequest).auth!;
+    const access = await ensureGroupAccess(req.params.id as string, auth, res);
+    if (!access) {
+      return;
+    }
+
     const members = await prisma.groupMember.findMany({
       where: { groupId: req.params.id as string },
       orderBy: { joinedAt: 'asc' },
@@ -84,10 +154,16 @@ router.get('/:id/members', async (req: Request, res: Response) => {
 });
 
 // GET /api/groups/:id/submissions
-router.get('/:id/submissions', async (req: Request, res: Response) => {
+router.get('/:id/submissions', requireRole('teacher'), async (req: Request, res: Response) => {
   try {
+    const auth = (req as AuthenticatedRequest).auth!;
+    const group = await ensureTeacherOwnsGroup(req.params.id as string, auth.userId, res);
+    if (!group) {
+      return;
+    }
+
     const members = await prisma.groupMember.findMany({
-      where: { groupId: req.params.id as string },
+      where: { groupId: group.id },
       select: { studentId: true },
     });
     const studentIds = members.map((m: any) => m.studentId);
@@ -112,17 +188,18 @@ router.get('/:id/submissions', async (req: Request, res: Response) => {
 });
 
 // POST /api/groups — create group
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', requireRole('teacher'), async (req: Request, res: Response) => {
   try {
-    const { name, description, teacherId } = req.body;
-    if (!name || !teacherId) {
-      res.status(400).json({ error: 'name and teacherId are required' });
+    const auth = (req as AuthenticatedRequest).auth!;
+    const { name, description } = req.body;
+    if (!name) {
+      res.status(400).json({ error: 'name is required' });
       return;
     }
 
     const referralCode = generateReferralCode();
     const group = await prisma.group.create({
-      data: { name, description, teacherId, referralCode },
+      data: { name, description, teacherId: auth.userId, referralCode },
     });
 
     res.status(201).json(group);
@@ -134,9 +211,20 @@ router.post('/', async (req: Request, res: Response) => {
 // PUT /api/groups/:id
 router.put('/:id', async (req: Request, res: Response) => {
   try {
+    const auth = (req as AuthenticatedRequest).auth!;
+    if (auth.role !== 'teacher') {
+      res.status(403).json({ error: 'You do not have access to update this group' });
+      return;
+    }
+
+    const existingGroup = await ensureTeacherOwnsGroup(req.params.id as string, auth.userId, res);
+    if (!existingGroup) {
+      return;
+    }
+
     const { name, description } = req.body;
     const group = await prisma.group.update({
-      where: { id: req.params.id as string },
+      where: { id: existingGroup.id },
       data: { name, description },
     });
     res.json(group);
@@ -148,7 +236,18 @@ router.put('/:id', async (req: Request, res: Response) => {
 // DELETE /api/groups/:id
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
-    await prisma.group.delete({ where: { id: req.params.id as string } });
+    const auth = (req as AuthenticatedRequest).auth!;
+    if (auth.role !== 'teacher') {
+      res.status(403).json({ error: 'You do not have access to delete this group' });
+      return;
+    }
+
+    const group = await ensureTeacherOwnsGroup(req.params.id as string, auth.userId, res);
+    if (!group) {
+      return;
+    }
+
+    await prisma.group.delete({ where: { id: group.id } });
     res.json({ success: true });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -156,11 +255,17 @@ router.delete('/:id', async (req: Request, res: Response) => {
 });
 
 // POST /api/groups/:id/regenerate-code
-router.post('/:id/regenerate-code', async (req: Request, res: Response) => {
+router.post('/:id/regenerate-code', requireRole('teacher'), async (req: Request, res: Response) => {
   try {
+    const auth = (req as AuthenticatedRequest).auth!;
+    const group = await ensureTeacherOwnsGroup(req.params.id as string, auth.userId, res);
+    if (!group) {
+      return;
+    }
+
     const newCode = generateReferralCode();
     await prisma.group.update({
-      where: { id: req.params.id as string },
+      where: { id: group.id },
       data: { referralCode: newCode },
     });
     res.json({ referralCode: newCode });
@@ -170,13 +275,16 @@ router.post('/:id/regenerate-code', async (req: Request, res: Response) => {
 });
 
 // POST /api/groups/join
-router.post('/join', async (req: Request, res: Response) => {
+router.post('/join', requireRole('student'), async (req: Request, res: Response) => {
   try {
-    const { referralCode, studentId } = req.body;
-    if (!referralCode || !studentId) {
-      res.status(400).json({ error: 'referralCode and studentId are required' });
+    const auth = (req as AuthenticatedRequest).auth!;
+    const { referralCode } = req.body;
+    if (!referralCode) {
+      res.status(400).json({ error: 'referralCode is required' });
       return;
     }
+
+    const studentId = auth.userId;
 
     const group = await prisma.group.findUnique({
       where: { referralCode: referralCode.toUpperCase().trim() },
@@ -206,11 +314,11 @@ router.post('/join', async (req: Request, res: Response) => {
 });
 
 // POST /api/groups/:id/leave
-router.post('/:id/leave', async (req: Request, res: Response) => {
+router.post('/:id/leave', requireRole('student'), async (req: Request, res: Response) => {
   try {
-    const { studentId } = req.body;
+    const auth = (req as AuthenticatedRequest).auth!;
     await prisma.groupMember.delete({
-      where: { groupId_studentId: { groupId: req.params.id as string, studentId } },
+      where: { groupId_studentId: { groupId: req.params.id as string, studentId: auth.userId } },
     });
     res.json({ success: true });
   } catch (error: any) {
@@ -219,11 +327,22 @@ router.post('/:id/leave', async (req: Request, res: Response) => {
 });
 
 // POST /api/groups/:id/remove-member
-router.post('/:id/remove-member', async (req: Request, res: Response) => {
+router.post('/:id/remove-member', requireRole('teacher'), async (req: Request, res: Response) => {
   try {
+    const auth = (req as AuthenticatedRequest).auth!;
+    const group = await ensureTeacherOwnsGroup(req.params.id as string, auth.userId, res);
+    if (!group) {
+      return;
+    }
+
     const { studentId } = req.body;
+    if (!studentId) {
+      res.status(400).json({ error: 'studentId is required' });
+      return;
+    }
+
     await prisma.groupMember.delete({
-      where: { groupId_studentId: { groupId: req.params.id as string, studentId } },
+      where: { groupId_studentId: { groupId: group.id, studentId } },
     });
     res.json({ success: true });
   } catch (error: any) {

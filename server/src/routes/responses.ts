@@ -1,5 +1,6 @@
 import { Request, Response, Router } from 'express';
 import multer from 'multer';
+import { AuthenticatedRequest, authenticateRequest, requireRole } from '../middleware/auth';
 import { sendPushNotification, sendPushToMultiple } from '../notifications';
 import prisma from '../prisma';
 import { supabase } from '../supabase';
@@ -7,14 +8,19 @@ import { supabase } from '../supabase';
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
+router.use(authenticateRequest);
+
 // POST /api/responses — submit a speaking response (with audio upload)
-router.post('/', upload.single('audio'), async (req: Request, res: Response) => {
+router.post('/', requireRole('student'), upload.single('audio'), async (req: Request, res: Response) => {
   try {
-    const { questionId, studentId } = req.body;
-    if (!questionId || !studentId) {
-      res.status(400).json({ error: 'questionId and studentId are required' });
+    const auth = (req as AuthenticatedRequest).auth!;
+    const { questionId } = req.body;
+    if (!questionId) {
+      res.status(400).json({ error: 'questionId is required' });
       return;
     }
+
+    const studentId = auth.userId;
 
     let remoteUrl: string | null = null;
 
@@ -77,6 +83,12 @@ router.post('/', upload.single('audio'), async (req: Request, res: Response) => 
 // GET /api/responses/student/:id — student's responses
 router.get('/student/:id', async (req: Request, res: Response) => {
   try {
+    const auth = (req as AuthenticatedRequest).auth!;
+    if (auth.role === 'student' && auth.userId !== (req.params.id as string)) {
+      res.status(403).json({ error: 'You do not have access to these responses' });
+      return;
+    }
+
     const responses = await prisma.response.findMany({
       where: { studentId: req.params.id as string },
       orderBy: { createdAt: 'desc' },
@@ -91,7 +103,7 @@ router.get('/student/:id', async (req: Request, res: Response) => {
 });
 
 // GET /api/responses/pending — ungraded responses (for teachers)
-router.get('/pending', async (_req: Request, res: Response) => {
+router.get('/pending', requireRole('teacher'), async (_req: Request, res: Response) => {
   try {
     const responses = await prisma.response.findMany({
       where: { teacherScore: null },
@@ -124,7 +136,7 @@ router.get('/community', async (_req: Request, res: Response) => {
 });
 
 // PUT /api/responses/:id/grade — teacher grades a submission
-router.put('/:id/grade', async (req: Request, res: Response) => {
+router.put('/:id/grade', requireRole('teacher'), async (req: Request, res: Response) => {
   try {
     const { score, feedback } = req.body;
     if (score === undefined || score === null) {
@@ -166,6 +178,22 @@ router.put('/:id/grade', async (req: Request, res: Response) => {
 // DELETE /api/responses/:id
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
+    const auth = (req as AuthenticatedRequest).auth!;
+    const responseToDelete = await prisma.response.findUnique({
+      where: { id: BigInt(req.params.id as string) },
+      select: { studentId: true },
+    });
+
+    if (!responseToDelete) {
+      res.status(404).json({ error: 'Response not found' });
+      return;
+    }
+
+    if (auth.role === 'student' && responseToDelete.studentId !== auth.userId) {
+      res.status(403).json({ error: 'You do not have access to delete this response' });
+      return;
+    }
+
     await prisma.response.delete({ where: { id: BigInt(req.params.id as string) } });
     res.json({ success: true });
   } catch (error: any) {

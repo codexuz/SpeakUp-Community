@@ -1,7 +1,28 @@
 import { Request, Response, Router } from 'express';
+import { AuthenticatedRequest, authenticateRequest, hashPassword, isPasswordHash, signAuthToken, verifyPassword } from '../middleware/auth';
 import prisma from '../prisma';
 
 const router = Router();
+
+function serializeUser(user: {
+  id: string;
+  username: string;
+  fullName: string;
+  role: string;
+  avatarUrl: string | null;
+  gender: string | null;
+  region: string | null;
+}) {
+  return {
+    id: user.id,
+    username: user.username,
+    fullName: user.fullName,
+    role: user.role,
+    avatarUrl: user.avatarUrl,
+    gender: user.gender,
+    region: user.region,
+  };
+}
 
 // POST /api/auth/login
 router.post('/login', async (req: Request, res: Response) => {
@@ -13,19 +34,36 @@ router.post('/login', async (req: Request, res: Response) => {
     }
 
     const user = await prisma.user.findUnique({ where: { username } });
-    if (!user || user.password !== password) {
+    if (!user) {
       res.status(401).json({ error: 'Invalid credentials' });
       return;
     }
 
-    res.json({
-      id: user.id,
-      username: user.username,
-      fullName: user.fullName,
+    const passwordMatches = isPasswordHash(user.password)
+      ? await verifyPassword(password, user.password)
+      : user.password === password;
+
+    if (!passwordMatches) {
+      res.status(401).json({ error: 'Invalid credentials' });
+      return;
+    }
+
+    if (!isPasswordHash(user.password)) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { password: await hashPassword(password) },
+      });
+    }
+
+    const token = signAuthToken({
+      userId: user.id,
       role: user.role,
-      avatarUrl: user.avatarUrl,
-      gender: user.gender,
-      region: user.region,
+      username: user.username,
+    });
+
+    res.json({
+      token,
+      user: serializeUser(user),
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -48,17 +86,26 @@ router.post('/register', async (req: Request, res: Response) => {
     }
 
     const user = await prisma.user.create({
-      data: { username, fullName, password, role: 'student', gender, region, avatarUrl },
+      data: {
+        username,
+        fullName,
+        password: await hashPassword(password),
+        role: 'student',
+        gender,
+        region,
+        avatarUrl,
+      },
+    });
+
+    const token = signAuthToken({
+      userId: user.id,
+      role: user.role,
+      username: user.username,
     });
 
     res.status(201).json({
-      id: user.id,
-      username: user.username,
-      fullName: user.fullName,
-      role: user.role,
-      avatarUrl: user.avatarUrl,
-      gender: user.gender,
-      region: user.region,
+      token,
+      user: serializeUser(user),
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -66,16 +113,17 @@ router.post('/register', async (req: Request, res: Response) => {
 });
 
 // PUT /api/auth/push-token
-router.put('/push-token', async (req: Request, res: Response) => {
+router.put('/push-token', authenticateRequest, async (req: Request, res: Response) => {
   try {
-    const { userId, pushToken } = req.body;
-    if (!userId || !pushToken) {
-      res.status(400).json({ error: 'userId and pushToken are required' });
+    const auth = (req as AuthenticatedRequest).auth!;
+    const { pushToken } = req.body;
+    if (!pushToken) {
+      res.status(400).json({ error: 'pushToken is required' });
       return;
     }
 
     await prisma.user.update({
-      where: { id: userId },
+      where: { id: auth.userId },
       data: { pushToken },
     });
 

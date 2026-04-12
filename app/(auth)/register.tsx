@@ -87,13 +87,16 @@ export default function RegisterScreen() {
       });
       
       login({
-        id: data.id,
-        username: data.username,
-        fullName: data.fullName,
-        role: data.role,
-        avatarUrl: data.avatarUrl,
-        gender: data.gender,
-        region: data.region,
+        token: data.token,
+        user: {
+          id: data.user.id,
+          username: data.user.username,
+          fullName: data.user.fullName,
+          role: data.user.role,
+          avatarUrl: data.user.avatarUrl,
+          gender: data.user.gender,
+          region: data.user.region,
+        },
       });
 
       router.replace('/(tabs)');

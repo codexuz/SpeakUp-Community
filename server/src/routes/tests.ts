@@ -1,7 +1,10 @@
 import { Request, Response, Router } from 'express';
+import { authenticateRequest } from '../middleware/auth';
 import prisma from '../prisma';
 
 const router = Router();
+
+router.use(authenticateRequest);
 
 // GET /api/tests — list tests with question count
 router.get('/', async (_req: Request, res: Response) => {

@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "dev:https": "powershell -ExecutionPolicy Bypass -File ./scripts/dev-https.ps1",
     "build": "tsc",
     "start": "node dist/index.js",
     "db:generate": "prisma generate",
@@ -12,16 +13,19 @@
   },
   "dependencies": {
     "@prisma/client": "^6.6.0",
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "expo-server-sdk": "^3.13.0",
     "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.3",
     "multer": "^2.1.1",
     "uuid": "^11.1.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.2",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/multer": "^1.4.12",
     "@types/node": "^22.15.3",
     "@types/uuid": "^10.0.0",

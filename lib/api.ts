@@ -1,11 +1,28 @@
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000/api';
+import { getStoredAuthToken } from '@/store/auth';
+
+function buildApiUrl() {
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL;
+  }
+
+  const scheme = process.env.EXPO_PUBLIC_API_SCHEME || 'http';
+  const host = process.env.EXPO_PUBLIC_API_HOST || 'localhost';
+  const port = process.env.EXPO_PUBLIC_API_PORT ? `:${process.env.EXPO_PUBLIC_API_PORT}` : ':3000';
+
+  return `${scheme}://${host}${port}/api`;
+}
+
+const API_URL = buildApiUrl();
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_URL}${path}`;
+  const token = await getStoredAuthToken();
+
   const res = await fetch(url, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     },
   });
@@ -43,10 +60,10 @@ export async function apiRegister(payload: {
   });
 }
 
-export async function apiUpdatePushToken(userId: string, pushToken: string) {
+export async function apiUpdatePushToken(_userId: string, pushToken: string) {
   return request<any>('/auth/push-token', {
     method: 'PUT',
-    body: JSON.stringify({ userId, pushToken }),
+    body: JSON.stringify({ pushToken }),
   });
 }
 
@@ -68,6 +85,7 @@ export async function apiFetchQuestion(id: number) {
 
 export async function apiSubmitResponse(questionId: number, studentId: string, audioUri: string) {
   const url = `${API_URL}/responses`;
+  const token = await getStoredAuthToken();
 
   const formData = new FormData();
   formData.append('questionId', questionId.toString());
@@ -81,6 +99,7 @@ export async function apiSubmitResponse(questionId: number, studentId: string, a
   const res = await fetch(url, {
     method: 'POST',
     body: formData,
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     // Don't set Content-Type header for multipart — fetch sets it with boundary
   });
 
