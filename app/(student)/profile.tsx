@@ -1,40 +1,24 @@
+import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
-import { apiFetchMyVerificationStatus, apiLogout, apiRequestTeacherVerification, apiUpdateProfile, apiUploadUserAvatar } from '@/lib/api';
+import { apiLogout, apiUpdateProfile, apiUploadUserAvatar } from '@/lib/api';
 import { useAuth } from '@/store/auth';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import { Award, Camera, ChevronRight, Edit2, LogOut, MapPin, Monitor, Shield, User as UserIcon } from 'lucide-react-native';
-import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Camera, ChevronRight, Edit2, LogOut, MapPin, Monitor, User as UserIcon } from 'lucide-react-native';
+import React, { useState } from 'react';
+import { ActivityIndicator, Image, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ProfileScreen() {
   const { user, logout, updateUser } = useAuth();
   const router = useRouter();
+  const toast = useToast();
   const [editModal, setEditModal] = useState(false);
   const [editFullName, setEditFullName] = useState('');
   const [editGender, setEditGender] = useState('');
   const [editRegion, setEditRegion] = useState('');
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
-  const [verificationLoading, setVerificationLoading] = useState(false);
-  const [verifyModal, setVerifyModal] = useState(false);
-  const [verifyReason, setVerifyReason] = useState('');
-
-  const loadVerificationStatus = useCallback(async () => {
-    if (user?.role === 'teacher' || user?.verifiedTeacher) return;
-    try {
-      const result = await apiFetchMyVerificationStatus();
-      setVerificationStatus(result?.status || null);
-    } catch {
-      setVerificationStatus(null);
-    }
-  }, [user?.role, user?.verifiedTeacher]);
-
-  useEffect(() => {
-    loadVerificationStatus();
-  }, [loadVerificationStatus]);
 
   const openEditModal = () => {
     setEditFullName(user?.fullName || '');
@@ -58,7 +42,7 @@ export default function ProfileScreen() {
       });
       setEditModal(false);
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      toast.error('Error', e.message);
     } finally {
       setSaving(false);
     }
@@ -79,7 +63,7 @@ export default function ProfileScreen() {
       const updated = await apiUploadUserAvatar(result.assets[0].uri);
       updateUser({ avatarUrl: updated.avatarUrl });
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      toast.error('Error', e.message);
     } finally {
       setUploadingAvatar(false);
     }
@@ -94,46 +78,7 @@ export default function ProfileScreen() {
     logout();
   };
 
-  const handleSubmitVerification = async () => {
-    setVerificationLoading(true);
-    try {
-      await apiRequestTeacherVerification(verifyReason.trim() || undefined);
-      setVerificationStatus('pending');
-      setVerifyModal(false);
-      setVerifyReason('');
-      Alert.alert('Submitted', 'Your verification request has been submitted.');
-    } catch (e: any) {
-      Alert.alert('Error', e.message);
-    } finally {
-      setVerificationLoading(false);
-    }
-  };
 
-  const verificationBadge = () => {
-    if (user?.verifiedTeacher || user?.role === 'teacher') {
-      return (
-        <View style={[styles.verifyBadge, { backgroundColor: TG.greenLight }]}>
-          <Shield size={14} color={TG.green} />
-          <Text style={[styles.verifyBadgeText, { color: TG.green }]}>Verified Teacher</Text>
-        </View>
-      );
-    }
-    if (verificationStatus === 'pending') {
-      return (
-        <View style={[styles.verifyBadge, { backgroundColor: TG.orangeLight }]}>
-          <Text style={[styles.verifyBadgeText, { color: TG.orange }]}>Verification Pending</Text>
-        </View>
-      );
-    }
-    if (verificationStatus === 'rejected') {
-      return (
-        <View style={[styles.verifyBadge, { backgroundColor: TG.redLight }]}>
-          <Text style={[styles.verifyBadgeText, { color: TG.red }]}>Verification Rejected</Text>
-        </View>
-      );
-    }
-    return null;
-  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -168,10 +113,6 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {verificationBadge() && (
-          <View style={styles.verifyRow}>{verificationBadge()}</View>
-        )}
-
         <View style={styles.divider} />
 
         <View style={styles.section}>
@@ -195,22 +136,6 @@ export default function ProfileScreen() {
           <ChevronRight size={18} color={TG.textHint} style={{ marginLeft: 'auto' }} />
         </TouchableOpacity>
 
-        {user?.role === 'admin' && (
-          <TouchableOpacity style={styles.menuRow} activeOpacity={0.7} onPress={() => router.push('/teacher-verification' as any)}>
-            <Shield size={18} color={TG.accent} />
-            <Text style={[styles.menuText, { color: TG.accent }]}>Teacher Verification Requests</Text>
-            <ChevronRight size={18} color={TG.textHint} style={{ marginLeft: 'auto' }} />
-          </TouchableOpacity>
-        )}
-
-        {!user?.verifiedTeacher && user?.role !== 'admin' && verificationStatus !== 'pending' && (
-          <TouchableOpacity style={styles.menuRow} activeOpacity={0.7} onPress={() => setVerifyModal(true)}>
-            <Award size={18} color={TG.purple} />
-            <Text style={[styles.menuText, { color: TG.purple }]}>Request Teacher Verification</Text>
-            <ChevronRight size={18} color={TG.textHint} style={{ marginLeft: 'auto' }} />
-          </TouchableOpacity>
-        )}
-
         <View style={{ height: 24 }} />
 
         <TouchableOpacity style={styles.logoutRow} onPress={handleLogout} activeOpacity={0.7}>
@@ -219,49 +144,9 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </ScrollView>
 
-      {/* Verification Request Modal */}
-      <Modal visible={verifyModal} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Teacher Verification</Text>
-            <Text style={{ color: TG.textSecondary, fontSize: 14, marginBottom: 16 }}>Why should you be verified as a teacher?</Text>
-
-            <TextInput
-              style={[styles.modalInput, { height: 100, textAlignVertical: 'top' }]}
-              value={verifyReason}
-              onChangeText={setVerifyReason}
-              placeholder="Describe your teaching experience..."
-              placeholderTextColor={TG.textHint}
-              multiline
-            />
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.cancelBtn}
-                activeOpacity={0.7}
-                onPress={() => { setVerifyModal(false); setVerifyReason(''); }}
-              >
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.submitBtn, verificationLoading && { opacity: 0.5 }]}
-                activeOpacity={0.7}
-                onPress={handleSubmitVerification}
-                disabled={verificationLoading}
-              >
-                {verificationLoading ? (
-                  <ActivityIndicator size="small" color={TG.textWhite} />
-                ) : (
-                  <Text style={styles.submitBtnText}>Submit</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
       {/* Edit Profile Modal */}
       <Modal visible={editModal} animationType="slide" transparent>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Edit Profile</Text>
@@ -317,6 +202,7 @@ export default function ProfileScreen() {
             </View>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
@@ -372,22 +258,6 @@ const styles = StyleSheet.create({
   roleText: { fontSize: 12, fontWeight: '600', color: TG.accent, textTransform: 'capitalize' },
   teacherBadge: { backgroundColor: TG.greenLight },
   teacherText: { color: TG.green },
-
-  verifyRow: {
-    backgroundColor: TG.bg,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-  },
-  verifyBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 10,
-  },
-  verifyBadgeText: { fontSize: 12, fontWeight: '600' },
 
   divider: { height: 8, backgroundColor: TG.bgSecondary },
 

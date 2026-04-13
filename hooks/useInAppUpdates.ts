@@ -1,8 +1,11 @@
+import { useAlert } from '@/components/CustomAlert';
 import * as ExpoInAppUpdates from 'expo-in-app-updates';
 import { useEffect } from 'react';
-import { Alert, Platform } from 'react-native';
+import { Platform } from 'react-native';
 
 export const useInAppUpdates = () => {
+  const { alert } = useAlert();
+
   useEffect(() => {
     if (__DEV__ || Platform.OS === 'web') return;
 
@@ -15,13 +18,12 @@ export const useInAppUpdates = () => {
           console.log('In-app update check result:', result);
           if (!result.updateAvailable) return;
 
-          Alert.alert(
+          alert(
             'Update available',
             'A new version of the app is available with many improvements and bug fixes. Would you like to update now?',
             [
               {
                 text: 'Update',
-                isPreferred: true,
                 onPress: async () => {
                   try {
                     await ExpoInAppUpdates.startUpdate();
@@ -31,7 +33,8 @@ export const useInAppUpdates = () => {
                 },
               },
               { text: 'Cancel' },
-            ]
+            ],
+            'info',
           );
         }
       } catch (err) {

@@ -1,3 +1,5 @@
+import { useAlert } from '@/components/CustomAlert';
+import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
 import { apiPostReview } from '@/lib/api';
 import {
@@ -35,10 +37,11 @@ import {
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Clipboard,
   FlatList,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -53,6 +56,8 @@ export default function GroupDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
   const router = useRouter();
+  const toast = useToast();
+  const { alert } = useAlert();
 
   const [group, setGroup] = useState<Group | null>(null);
   const [members, setMembers] = useState<GroupMember[]>([]);
@@ -119,7 +124,7 @@ export default function GroupDetailScreen() {
   };
 
   const handleDelete = () => {
-    Alert.alert('Delete Group', 'This will permanently remove the group. Continue?', [
+    alert('Delete Group', 'This will permanently remove the group. Continue?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
@@ -129,32 +134,32 @@ export default function GroupDetailScreen() {
             await deleteGroup(id!);
             router.back();
           } catch (e: any) {
-            Alert.alert('Error', e.message);
+            toast.error('Error', e.message);
           }
         },
       },
-    ]);
+    ], 'destructive');
   };
 
   const handleRegenCode = async () => {
     try {
       const newCode = await regenerateReferralCode(id!);
       setGroup(prev => (prev ? { ...prev, referralCode: newCode } : prev));
-      Alert.alert('Done', `New referral code: ${newCode}`);
+      toast.success('Done', `New referral code: ${newCode}`);
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      toast.error('Error', e.message);
     }
   };
 
   const handleCopyCode = () => {
     if (group?.referralCode) {
       Clipboard.setString(group.referralCode);
-      Alert.alert('Copied!', 'Referral code copied to clipboard.');
+      toast.success('Copied!', 'Referral code copied to clipboard.');
     }
   };
 
   const handleLeave = () => {
-    Alert.alert('Leave Group', 'Are you sure you want to leave this group?', [
+    alert('Leave Group', 'Are you sure you want to leave this group?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Leave',
@@ -164,11 +169,11 @@ export default function GroupDetailScreen() {
             await leaveGroup(id!);
             router.back();
           } catch (e: any) {
-            Alert.alert('Error', e.message);
+            toast.error('Error', e.message);
           }
         },
       },
-    ]);
+    ], 'warning');
   };
 
   const handleApprove = async (req: JoinRequest) => {
@@ -177,7 +182,7 @@ export default function GroupDetailScreen() {
       setJoinRequests(prev => prev.filter(r => r.id !== req.id));
       loadData();
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      toast.error('Error', e.message);
     }
   };
 
@@ -186,7 +191,7 @@ export default function GroupDetailScreen() {
       await rejectJoinRequest(id!, req.id);
       setJoinRequests(prev => prev.filter(r => r.id !== req.id));
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      toast.error('Error', e.message);
     }
   };
 
@@ -201,7 +206,7 @@ export default function GroupDetailScreen() {
     if (!selectedSub || !score) return;
     const numScore = parseInt(score, 10);
     if (isNaN(numScore) || numScore < 0 || numScore > 75) {
-      Alert.alert('Invalid', 'Score must be between 0 and 75');
+      toast.warning('Invalid', 'Score must be between 0 and 75');
       return;
     }
     setSubmitting(true);
@@ -210,7 +215,7 @@ export default function GroupDetailScreen() {
       setReviewModal(false);
       loadData();
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      toast.error('Error', e.message);
     } finally {
       setSubmitting(false);
     }
@@ -339,7 +344,7 @@ export default function GroupDetailScreen() {
               {isOwnerOrTeacher && m.userId !== user?.id && m.role === 'student' && (
                 <TouchableOpacity
                   onPress={() => {
-                    Alert.alert('Remove', `Remove ${m.user?.fullName}?`, [
+                    alert('Remove', `Remove ${m.user?.fullName}?`, [
                       { text: 'Cancel', style: 'cancel' },
                       {
                         text: 'Remove',
@@ -349,11 +354,11 @@ export default function GroupDetailScreen() {
                             await removeMember(id!, m.userId);
                             setMembers(prev => prev.filter(x => x.id !== m.id));
                           } catch (e: any) {
-                            Alert.alert('Error', e.message);
+                            toast.error('Error', e.message);
                           }
                         },
                       },
-                    ]);
+                    ], 'destructive');
                   }}
                   style={styles.removeBtn}
                   activeOpacity={0.7}
@@ -476,6 +481,7 @@ export default function GroupDetailScreen() {
 
       {/* Review Modal */}
       <Modal visible={reviewModal} animationType="slide" transparent>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Review Submission</Text>
@@ -528,6 +534,7 @@ export default function GroupDetailScreen() {
             </View>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );

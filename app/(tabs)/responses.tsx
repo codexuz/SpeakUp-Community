@@ -1,3 +1,5 @@
+import { useAlert } from '@/components/CustomAlert';
+import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
 import { apiDeleteSpeaking, apiFetchMySpeaking, apiFetchPendingSpeaking, apiPostReview } from '@/lib/api';
 import { useAuth } from '@/store/auth';
@@ -6,9 +8,10 @@ import { Mic, Play, Square, Star, Trash2 } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -20,6 +23,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 export default function ResponsesScreen() {
   const { user } = useAuth();
   const isTeacher = user?.role === 'teacher';
+  const toast = useToast();
+  const { alert } = useAlert();
   const [responses, setResponses] = useState<any[]>([]);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -54,7 +59,7 @@ export default function ResponsesScreen() {
   );
 
   const handleDelete = async (item: any) => {
-    Alert.alert('Delete', 'Remove this recording?', [
+    alert('Delete', 'Remove this recording?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete', style: 'destructive', onPress: async () => {
@@ -64,7 +69,7 @@ export default function ResponsesScreen() {
           loadResponses();
         }
       }
-    ]);
+    ], 'destructive');
   };
 
   const handlePlay = (item: any) => {
@@ -88,7 +93,7 @@ export default function ResponsesScreen() {
     if (!selectedSub || !score) return;
     const numScore = parseInt(score, 10);
     if (isNaN(numScore) || numScore < 0 || numScore > 9) {
-      Alert.alert('Invalid', 'Score must be between 0 and 9');
+      toast.warning('Invalid', 'Score must be between 0 and 9');
       return;
     }
     setSubmitting(true);
@@ -97,7 +102,7 @@ export default function ResponsesScreen() {
       setReviewModal(false);
       loadResponses();
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      toast.error('Error', e.message);
     } finally {
       setSubmitting(false);
     }
@@ -182,6 +187,7 @@ export default function ResponsesScreen() {
       )}
 
       <Modal visible={reviewModal} animationType="slide" transparent>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Review</Text>
@@ -197,6 +203,7 @@ export default function ResponsesScreen() {
             </View>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );

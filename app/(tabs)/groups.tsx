@@ -1,3 +1,5 @@
+import { useAlert } from '@/components/CustomAlert';
+import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
 import { apiRequestJoinGroup, apiSearchGroups } from '@/lib/api';
 import { fetchMyGroups, Group } from '@/lib/groups';
@@ -7,17 +9,16 @@ import { useRouter } from 'expo-router';
 import { ChevronRight, Globe, LogIn, Pencil, Search, UserPlus, Users, X } from 'lucide-react-native';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Animated,
-  FlatList,
-  Platform,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Animated,
+    FlatList,
+    Platform,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -53,6 +54,8 @@ function formatMemberCount(n: number): string {
 export default function GroupsScreen() {
   const { user } = useAuth();
   const router = useRouter();
+  const toast = useToast();
+  const { alert } = useAlert();
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -144,17 +147,17 @@ export default function GroupsScreen() {
   }, [searchMode, doGlobalSearch]);
 
   const handleRequestJoin = useCallback(async (groupId: string, groupName: string) => {
-    Alert.alert('Request to Join', `Send a join request to "${groupName}"?`, [
+    alert('Request to Join', `Send a join request to "${groupName}"?`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Send Request',
         onPress: async () => {
           try {
             await apiRequestJoinGroup(groupId);
-            Alert.alert('Sent', 'Your join request has been sent.');
+            toast.success('Sent', 'Your join request has been sent.');
             doGlobalSearch(searchQuery);
           } catch (e: any) {
-            Alert.alert('Error', e.message);
+            toast.error('Error', e.message);
           }
         },
       },

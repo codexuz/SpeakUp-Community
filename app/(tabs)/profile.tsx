@@ -1,3 +1,4 @@
+import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
 import { apiFetchMyVerificationStatus, apiLogout, apiRequestTeacherVerification, apiUpdateProfile, apiUploadUserAvatar } from '@/lib/api';
 import { useAuth } from '@/store/auth';
@@ -5,12 +6,13 @@ import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { Award, Camera, ChevronRight, Edit2, LogOut, MapPin, Monitor, Shield, User as UserIcon } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ProfileScreen() {
   const { user, logout, updateUser } = useAuth();
   const router = useRouter();
+  const toast = useToast();
   const [editModal, setEditModal] = useState(false);
   const [editFullName, setEditFullName] = useState('');
   const [editGender, setEditGender] = useState('');
@@ -58,7 +60,7 @@ export default function ProfileScreen() {
       });
       setEditModal(false);
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      toast.error('Error', e.message);
     } finally {
       setSaving(false);
     }
@@ -79,7 +81,7 @@ export default function ProfileScreen() {
       const updated = await apiUploadUserAvatar(result.assets[0].uri);
       updateUser({ avatarUrl: updated.avatarUrl });
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      toast.error('Error', e.message);
     } finally {
       setUploadingAvatar(false);
     }
@@ -101,9 +103,9 @@ export default function ProfileScreen() {
       setVerificationStatus('pending');
       setVerifyModal(false);
       setVerifyReason('');
-      Alert.alert('Submitted', 'Your verification request has been submitted.');
+      toast.success('Submitted', 'Your verification request has been submitted.');
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      toast.error('Error', e.message);
     } finally {
       setVerificationLoading(false);
     }
@@ -221,6 +223,7 @@ export default function ProfileScreen() {
 
       {/* Verification Request Modal */}
       <Modal visible={verifyModal} animationType="slide" transparent>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Teacher Verification</Text>
@@ -258,10 +261,12 @@ export default function ProfileScreen() {
             </View>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Edit Profile Modal */}
       <Modal visible={editModal} animationType="slide" transparent>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Edit Profile</Text>
@@ -317,6 +322,7 @@ export default function ProfileScreen() {
             </View>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );

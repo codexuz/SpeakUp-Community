@@ -6,6 +6,8 @@ import 'react-native-reanimated';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 // import { useInAppUpdates } from '@/hooks/useInAppUpdates';
 // import { useNotifications } from '@/hooks/useNotifications';
+import { CustomAlertProvider } from '@/components/CustomAlert';
+import { ToastProvider } from '@/components/Toast';
 import { TG } from '@/constants/theme';
 import { AuthProvider, useAuth } from '@/store/auth';
 
@@ -45,6 +47,8 @@ function RootNavigator() {
         <Stack.Screen name="(admin)" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="speaking/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="session/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="review/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="group/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="group/create" options={{ headerShown: false }} />
         <Stack.Screen name="group/join" options={{ headerShown: false }} />
@@ -56,6 +60,9 @@ function RootNavigator() {
       </Stack>
       {!isAuthenticated && !inAuthGroup && <Redirect href="/(auth)/login" />}
       {isAuthenticated && inAuthGroup && <Redirect href={getRoleRoute(user?.role ?? undefined) as any} />}
+      {isAuthenticated && !inAuthGroup && inRoleGroup && seg !== getRoleRoute(user?.role ?? undefined).slice(1) && (
+        <Redirect href={getRoleRoute(user?.role ?? undefined) as any} />
+      )}
       {isAuthenticated && !inAuthGroup && !inRoleGroup && seg === '(tabs)' && (
         <Redirect href={getRoleRoute(user?.role ?? undefined) as any} />
       )}
@@ -66,7 +73,11 @@ function RootNavigator() {
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <RootNavigator />
+      <ToastProvider>
+        <CustomAlertProvider>
+          <RootNavigator />
+        </CustomAlertProvider>
+      </ToastProvider>
     </AuthProvider>
   );
 }

@@ -1,23 +1,26 @@
+import { useAlert } from '@/components/CustomAlert';
+import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
 import { joinGroupByCode } from '@/lib/groups';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, LogIn, Ticket } from 'lucide-react-native';
 import React, { useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    KeyboardAvoidingView,
+    Platform,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function JoinGroupScreen() {
   const router = useRouter();
+  const toast = useToast();
+  const { alert } = useAlert();
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<TextInput>(null);
@@ -25,17 +28,17 @@ export default function JoinGroupScreen() {
   const handleJoin = async () => {
     const trimmed = code.trim().toUpperCase();
     if (trimmed.length < 5) {
-      Alert.alert('Invalid', 'Please enter a valid 5-character referral code');
+      toast.warning('Invalid', 'Please enter a valid 5-character referral code');
       return;
     }
     setLoading(true);
     try {
       const group = await joinGroupByCode(trimmed);
-      Alert.alert('Joined!', `You joined "${group?.name}" successfully.`, [
+      alert('Joined!', `You joined "${group?.name}" successfully.`, [
         { text: 'OK', onPress: () => router.back() },
-      ]);
+      ], 'success');
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      toast.error('Error', e.message);
     } finally {
       setLoading(false);
     }

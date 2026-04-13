@@ -1,3 +1,4 @@
+import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
 import { apiFetchCommunityFeed, apiLikeSpeaking, apiPostReview, apiUnlikeSpeaking } from '@/lib/api';
 import { useAuth } from '@/store/auth';
@@ -5,15 +6,16 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Flame, Heart, MessageCircle, Star, TrendingUp } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Modal,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -22,6 +24,7 @@ type Strategy = 'latest' | 'trending' | 'top';
 export default function CommunityScreen() {
   const { user } = useAuth();
   const isTeacher = user?.role === 'teacher';
+  const toast = useToast();
 
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -100,7 +103,7 @@ export default function CommunityScreen() {
     if (!selectedSub || !score) return;
     const numScore = parseInt(score, 10);
     if (isNaN(numScore) || numScore < 0 || numScore > 9) {
-      Alert.alert('Invalid', 'Score must be between 0 and 9');
+      toast.warning('Invalid', 'Score must be between 0 and 9');
       return;
     }
     setSubmitting(true);
@@ -109,7 +112,7 @@ export default function CommunityScreen() {
       setReviewModal(false);
       loadFeed(strategy, 1);
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      toast.error('Error', e.message);
     } finally {
       setSubmitting(false);
     }
@@ -203,6 +206,7 @@ export default function CommunityScreen() {
       )}
 
       <Modal visible={reviewModal} animationType="slide" transparent>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Review Submission</Text>
@@ -251,6 +255,7 @@ export default function CommunityScreen() {
             </View>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );

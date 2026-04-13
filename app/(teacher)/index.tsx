@@ -1,19 +1,18 @@
 import { TG } from '@/constants/theme';
 import { apiFetchAnalyticsOverview, apiFetchPendingSpeaking } from '@/lib/api';
-import { fetchTestsWithQuestions, Test } from '@/lib/data';
 import { useAuth } from '@/store/auth';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { BookOpen, ChevronRight, ClipboardList, Mic, Users } from 'lucide-react-native';
+import { ChevronRight, Mic, Users } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import {
-    ActivityIndicator,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -24,18 +23,15 @@ export default function TeacherHomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [overview, setOverview] = useState<any>(null);
-  const [tests, setTests] = useState<Test[]>([]);
 
   const loadData = useCallback(async () => {
     try {
-      const [pending, analytics, testData] = await Promise.all([
+      const [pending, analytics] = await Promise.all([
         apiFetchPendingSpeaking(1, 1).catch(() => ({ data: [], pagination: { total: 0 } })),
         apiFetchAnalyticsOverview().catch(() => null),
-        fetchTestsWithQuestions().catch(() => []),
       ]);
       setPendingCount(pending.pagination?.total || pending.data?.length || 0);
       setOverview(analytics);
-      setTests(testData);
     } catch (e) {
       console.error('Failed to load teacher dashboard', e);
     } finally {
@@ -132,47 +128,6 @@ export default function TeacherHomeScreen() {
             </View>
             <ChevronRight size={20} color={TG.textHint} />
           </TouchableOpacity>
-
-          {(user?.verifiedTeacher) && (
-            <TouchableOpacity
-              style={styles.actionCard}
-              activeOpacity={0.7}
-              onPress={() => router.push('/test' as any)}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: TG.purpleLight }]}>
-                <ClipboardList size={22} color={TG.purple} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.actionTitle}>Manage Tests</Text>
-                <Text style={styles.actionDesc}>Create and edit tests & questions</Text>
-              </View>
-              <ChevronRight size={20} color={TG.textHint} />
-            </TouchableOpacity>
-          )}
-
-          {/* Available Tests */}
-          {tests.length > 0 && (
-            <>
-              <Text style={styles.sectionTitle}>Available Tests</Text>
-              {tests.map(test => (
-                <TouchableOpacity
-                  key={test.id}
-                  style={styles.testCard}
-                  activeOpacity={0.7}
-                  onPress={() => router.push({ pathname: '/test/[id]', params: { id: String(test.id) } } as any)}
-                >
-                  <View style={[styles.testIcon, { backgroundColor: TG.accentLight }]}>
-                    <BookOpen size={20} color={TG.accent} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.testTitle}>{test.title}</Text>
-                    <Text style={styles.testSub}>{test.questions?.length || 0} questions</Text>
-                  </View>
-                  <ChevronRight size={18} color={TG.textHint} />
-                </TouchableOpacity>
-              ))}
-            </>
-          )}
         </ScrollView>
       )}
     </SafeAreaView>
@@ -239,34 +194,4 @@ const styles = StyleSheet.create({
   },
   actionTitle: { fontSize: 16, fontWeight: '600', color: TG.textPrimary },
   actionDesc: { fontSize: 13, color: TG.textSecondary, marginTop: 2 },
-
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: TG.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    paddingHorizontal: 16,
-    paddingTop: 24,
-    paddingBottom: 8,
-  },
-  testCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: TG.bg,
-    borderBottomWidth: 0.5,
-    borderBottomColor: TG.separatorLight,
-    gap: 12,
-  },
-  testIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  testTitle: { fontSize: 15, fontWeight: '600', color: TG.textPrimary },
-  testSub: { fontSize: 12, color: TG.textSecondary, marginTop: 2 },
 });

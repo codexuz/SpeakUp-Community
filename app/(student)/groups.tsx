@@ -1,14 +1,15 @@
+import { useAlert } from '@/components/CustomAlert';
+import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
 import { apiRequestJoinGroup, apiSearchGroups } from '@/lib/api';
 import { fetchMyGroups, Group } from '@/lib/groups';
 import { useAuth } from '@/store/auth';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { ChevronRight, Globe, LogIn, Pencil, Search, UserPlus, Users, X } from 'lucide-react-native';
+import { ChevronRight, Globe, LogIn, Search, UserPlus, Users, X } from 'lucide-react-native';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   FlatList,
   Platform,
@@ -53,6 +54,8 @@ function formatMemberCount(n: number): string {
 export default function GroupsScreen() {
   const { user } = useAuth();
   const router = useRouter();
+  const toast = useToast();
+  const { alert } = useAlert();
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -144,17 +147,17 @@ export default function GroupsScreen() {
   }, [searchMode, doGlobalSearch]);
 
   const handleRequestJoin = useCallback(async (groupId: string, groupName: string) => {
-    Alert.alert('Request to Join', `Send a join request to "${groupName}"?`, [
+    alert('Request to Join', `Send a join request to "${groupName}"?`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Send Request',
         onPress: async () => {
           try {
             await apiRequestJoinGroup(groupId);
-            Alert.alert('Sent', 'Your join request has been sent.');
+            toast.success('Sent', 'Your join request has been sent.');
             doGlobalSearch(searchQuery);
           } catch (e: any) {
-            Alert.alert('Error', e.message);
+            toast.error('Error', e.message);
           }
         },
       },
@@ -385,24 +388,16 @@ export default function GroupsScreen() {
           </View>
           <Text style={styles.emptyTitle}>No Groups Yet</Text>
           <Text style={styles.emptySubtitle}>
-            Create your own group or join one{'\n'}with a referral code
+            Join a group with a referral code
           </Text>
           <View style={styles.emptyActions}>
             <TouchableOpacity
               style={styles.emptyBtnPrimary}
               activeOpacity={0.7}
-              onPress={() => router.push('/group/create' as any)}
-            >
-              <Pencil size={16} color="#fff" />
-              <Text style={styles.emptyBtnPrimaryText}>Create Group</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.emptyBtnSecondary}
-              activeOpacity={0.7}
               onPress={() => router.push('/group/join' as any)}
             >
-              <LogIn size={16} color={TG.accent} />
-              <Text style={styles.emptyBtnSecondaryText}>Join Group</Text>
+              <LogIn size={16} color="#fff" />
+              <Text style={styles.emptyBtnPrimaryText}>Join Group</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -431,22 +426,15 @@ export default function GroupsScreen() {
         />
       )}
 
-      {/* FAB row – Create & Join */}
+      {/* FAB – Join */}
       {!loading && groups.length > 0 && (
         <View style={styles.fabRow}>
           <TouchableOpacity
-            style={styles.fabSecondary}
+            style={styles.fab}
             activeOpacity={0.8}
             onPress={() => router.push('/group/join' as any)}
           >
-            <LogIn size={20} color={TG.accent} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.fab}
-            activeOpacity={0.8}
-            onPress={() => router.push('/group/create' as any)}
-          >
-            <Pencil size={22} color="#fff" />
+            <LogIn size={22} color="#fff" />
           </TouchableOpacity>
         </View>
       )}
@@ -625,10 +613,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 24,
-    ...Platform.select({
-      ios: { shadowColor: TG.accent, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 },
-      android: { elevation: 4 },
-    }),
   },
   emptyBtnPrimaryText: { fontSize: 15, fontWeight: '600', color: '#fff' },
   emptyBtnSecondary: {

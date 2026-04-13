@@ -1,16 +1,17 @@
+import { useAlert } from '@/components/CustomAlert';
+import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
-import { apiFetchSessions, apiRevokeAllSessions, apiRevokeSession, SessionItem } from '@/lib/api';
+import { apiFetchSessions, apiRevokeAllSessions, apiRevokeSession, AuthSessionItem } from '@/lib/api';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, Monitor, Smartphone, Trash2 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -40,7 +41,7 @@ function SessionRow({
   session,
   onRevoke,
 }: {
-  session: SessionItem;
+  session: AuthSessionItem;
   onRevoke: (id: string) => void;
 }) {
   return (
@@ -75,7 +76,9 @@ function SessionRow({
 
 export default function SessionsScreen() {
   const router = useRouter();
-  const [sessions, setSessions] = useState<SessionItem[]>([]);
+  const toast = useToast();
+  const { alert } = useAlert();
+  const [sessions, setSessions] = useState<AuthSessionItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [revoking, setRevoking] = useState<string | null>(null);
 
@@ -90,7 +93,7 @@ export default function SessionsScreen() {
       });
       setSessions(data.sessions);
     } catch {
-      Alert.alert('Error', 'Failed to load sessions');
+      toast.error('Error', 'Failed to load sessions');
     } finally {
       setLoading(false);
     }
@@ -102,7 +105,7 @@ export default function SessionsScreen() {
 
   const handleRevoke = useCallback(
     (sessionId: string) => {
-      Alert.alert('Terminate Session', 'This will log out that device. Continue?', [
+      alert('Terminate Session', 'This will log out that device. Continue?', [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Terminate',
@@ -113,19 +116,19 @@ export default function SessionsScreen() {
               await apiRevokeSession(sessionId);
               setSessions((prev) => prev.filter((s) => s.sessionId !== sessionId));
             } catch {
-              Alert.alert('Error', 'Failed to revoke session');
+              toast.error('Error', 'Failed to revoke session');
             } finally {
               setRevoking(null);
             }
           },
         },
-      ]);
+      ], 'destructive');
     },
     [],
   );
 
   const handleRevokeAll = useCallback(() => {
-    Alert.alert(
+    alert(
       'Terminate All Other Sessions',
       'This will log out all other devices. Continue?',
       [
@@ -139,13 +142,14 @@ export default function SessionsScreen() {
               await apiRevokeAllSessions();
               setSessions((prev) => prev.filter((s) => s.current));
             } catch {
-              Alert.alert('Error', 'Failed to revoke sessions');
+              toast.error('Error', 'Failed to revoke sessions');
             } finally {
               setRevoking(null);
             }
           },
         },
       ],
+      'destructive',
     );
   }, []);
 

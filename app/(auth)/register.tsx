@@ -1,10 +1,11 @@
+import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
 import { apiRegister } from '@/lib/api';
 import { useAuth } from '@/store/auth';
 import { useRouter } from 'expo-router';
 import { ChevronLeft, Eye, EyeOff } from 'lucide-react-native';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Animated, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const TOTAL_STEPS = 4;
@@ -20,6 +21,7 @@ const GENDER_AVATARS: Record<string, string> = {
 export default function RegisterScreen() {
   const router = useRouter();
   const { login } = useAuth();
+  const toast = useToast();
   
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -77,7 +79,7 @@ export default function RegisterScreen() {
 
   const handleRegister = async () => {
     if (!formData.username || !formData.fullName || !formData.password) {
-      return Alert.alert('Error', 'Please fill all required fields');
+      return toast.error('Error', 'Please fill all required fields');
     }
     
     setLoading(true);
@@ -108,7 +110,7 @@ export default function RegisterScreen() {
       router.replace('/' as any);
       
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      toast.error('Error', e.message);
     } finally {
       setLoading(false);
     }

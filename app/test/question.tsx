@@ -1,3 +1,4 @@
+import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
 import { apiCreateQuestion, apiFetchQuestion, apiUpdateQuestion } from '@/lib/api';
 import { useAuth } from '@/store/auth';
@@ -5,16 +6,15 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -24,6 +24,7 @@ export default function QuestionFormScreen() {
   const { testId, questionId } = useLocalSearchParams<{ testId: string; questionId?: string }>();
   const { user } = useAuth();
   const router = useRouter();
+  const toast = useToast();
 
   const isEdit = !!questionId;
   const isAllowed = user?.role === 'admin' || (user?.role === 'teacher' && user?.verifiedTeacher);
@@ -47,25 +48,25 @@ export default function QuestionFormScreen() {
           setSpeakingTimer(String(q.speakingTimer ?? q.speaking_timer ?? 30));
           setPrepTimer(String(q.prepTimer ?? q.prep_timer ?? 5));
         })
-        .catch((e: any) => Alert.alert('Error', e.message))
+        .catch((e: any) => toast.error('Error', e.message))
         .finally(() => setLoading(false));
     }
   }, [isEdit, questionId]);
 
   const handleSave = async () => {
     if (!qText.trim()) {
-      Alert.alert('Validation', 'Question text is required');
+      toast.warning('Validation', 'Question text is required');
       return;
     }
 
     const speak = parseInt(speakingTimer, 10);
     const prep = parseInt(prepTimer, 10);
     if (isNaN(speak) || speak < 1) {
-      Alert.alert('Validation', 'Speaking timer must be at least 1 second');
+      toast.warning('Validation', 'Speaking timer must be at least 1 second');
       return;
     }
     if (isNaN(prep) || prep < 0) {
-      Alert.alert('Validation', 'Prep timer must be 0 or more seconds');
+      toast.warning('Validation', 'Prep timer must be 0 or more seconds');
       return;
     }
 
@@ -86,7 +87,7 @@ export default function QuestionFormScreen() {
       }
       router.back();
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      toast.error('Error', e.message);
     } finally {
       setSaving(false);
     }

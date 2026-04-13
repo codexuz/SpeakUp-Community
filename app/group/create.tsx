@@ -1,23 +1,24 @@
+import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
 import { createGroup, updateGroup } from '@/lib/groups';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, Users } from 'lucide-react-native';
 import React, { useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    KeyboardAvoidingView,
+    Platform,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function CreateGroupScreen() {
   const router = useRouter();
+  const toast = useToast();
   const params = useLocalSearchParams<{ editId?: string; name?: string; description?: string }>();
 
   const isEditing = !!params.editId;
@@ -27,7 +28,7 @@ export default function CreateGroupScreen() {
 
   const handleSubmit = async () => {
     if (!name.trim()) {
-      Alert.alert('Error', 'Group name is required');
+      toast.error('Error', 'Group name is required');
       return;
     }
     setLoading(true);
@@ -39,7 +40,7 @@ export default function CreateGroupScreen() {
       }
       router.back();
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      toast.error('Error', e.message);
     } finally {
       setLoading(false);
     }

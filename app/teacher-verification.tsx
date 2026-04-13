@@ -1,3 +1,5 @@
+import { useAlert } from '@/components/CustomAlert';
+import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
 import { apiFetchAllVerifications, apiReviewVerification } from '@/lib/api';
 import { useAuth } from '@/store/auth';
@@ -5,13 +7,12 @@ import { useRouter } from 'expo-router';
 import { ArrowLeft, Check, Shield, X } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -20,6 +21,8 @@ type FilterStatus = 'pending' | 'approved' | 'rejected' | 'all';
 export default function TeacherVerificationScreen() {
   const { user } = useAuth();
   const router = useRouter();
+  const toast = useToast();
+  const { alert } = useAlert();
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterStatus>('pending');
@@ -31,7 +34,7 @@ export default function TeacherVerificationScreen() {
       const data = await apiFetchAllVerifications(status);
       setRequests(data || []);
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      toast.error('Error', e.message);
     } finally {
       setLoading(false);
     }
@@ -43,7 +46,7 @@ export default function TeacherVerificationScreen() {
 
   const handleReview = (item: any, status: 'approved' | 'rejected') => {
     const title = status === 'approved' ? 'Approve' : 'Reject';
-    Alert.alert(title, `${title} verification for ${item.user?.fullName || 'this user'}?`, [
+    alert(title, `${title} verification for ${item.user?.fullName || 'this user'}?`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: title,
@@ -53,7 +56,7 @@ export default function TeacherVerificationScreen() {
             await apiReviewVerification(item.id, { status });
             loadRequests();
           } catch (e: any) {
-            Alert.alert('Error', e.message);
+            toast.error('Error', e.message);
           }
         },
       },

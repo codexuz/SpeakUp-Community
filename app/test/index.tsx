@@ -1,3 +1,5 @@
+import { useAlert } from '@/components/CustomAlert';
+import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
 import { apiCreateTest, apiDeleteTest, apiFetchTests } from '@/lib/api';
 import { useAuth } from '@/store/auth';
@@ -5,15 +7,16 @@ import { useRouter } from 'expo-router';
 import { ArrowLeft, BookOpen, ChevronRight, Plus, Trash2 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Modal,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -27,6 +30,8 @@ interface Test {
 export default function TestManagementScreen() {
   const { user } = useAuth();
   const router = useRouter();
+  const toast = useToast();
+  const { alert } = useAlert();
   const [tests, setTests] = useState<Test[]>([]);
   const [loading, setLoading] = useState(true);
   const [createModal, setCreateModal] = useState(false);
@@ -42,7 +47,7 @@ export default function TestManagementScreen() {
       const data = await apiFetchTests();
       setTests(data || []);
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      toast.error('Error', e.message);
     } finally {
       setLoading(false);
     }
@@ -54,7 +59,7 @@ export default function TestManagementScreen() {
 
   const handleCreate = async () => {
     if (!title.trim()) {
-      Alert.alert('Validation', 'Title is required');
+      toast.warning('Validation', 'Title is required');
       return;
     }
     setCreating(true);
@@ -65,14 +70,14 @@ export default function TestManagementScreen() {
       setDescription('');
       load();
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      toast.error('Error', e.message);
     } finally {
       setCreating(false);
     }
   };
 
   const handleDelete = (test: Test) => {
-    Alert.alert(
+    alert(
       'Delete Test',
       `Delete "${test.title}"? This will also delete all its questions and responses.`,
       [
@@ -85,11 +90,12 @@ export default function TestManagementScreen() {
               await apiDeleteTest(test.id);
               setTests((prev) => prev.filter((t) => t.id !== test.id));
             } catch (e: any) {
-              Alert.alert('Error', e.message);
+              toast.error('Error', e.message);
             }
           },
         },
       ],
+      'destructive',
     );
   };
 
@@ -163,6 +169,7 @@ export default function TestManagementScreen() {
 
       {/* Create Test Modal */}
       <Modal visible={createModal} animationType="slide" transparent>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>New Test</Text>
@@ -213,6 +220,7 @@ export default function TestManagementScreen() {
             </View>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );

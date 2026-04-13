@@ -1,3 +1,5 @@
+import { useAlert } from '@/components/CustomAlert';
+import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
 import { apiDeleteQuestion, apiDeleteTest, apiFetchTests, apiUpdateTest } from '@/lib/api';
 import { useAuth } from '@/store/auth';
@@ -5,15 +7,16 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, Edit2, MessageSquare, Plus, Trash2 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Modal,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -38,6 +41,8 @@ export default function TestDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
   const router = useRouter();
+  const toast = useToast();
+  const { alert } = useAlert();
   const [test, setTest] = useState<Test | null>(null);
   const [loading, setLoading] = useState(true);
   const [editModal, setEditModal] = useState(false);
@@ -70,7 +75,7 @@ export default function TestDetailScreen() {
         setTest(normalized);
       }
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      toast.error('Error', e.message);
     } finally {
       setLoading(false);
     }
@@ -89,7 +94,7 @@ export default function TestDetailScreen() {
 
   const handleSave = async () => {
     if (!editTitle.trim()) {
-      Alert.alert('Validation', 'Title is required');
+      toast.warning('Validation', 'Title is required');
       return;
     }
     setSaving(true);
@@ -101,14 +106,14 @@ export default function TestDetailScreen() {
       setTest((prev) => prev ? { ...prev, title: updated.title, description: updated.description } : prev);
       setEditModal(false);
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      toast.error('Error', e.message);
     } finally {
       setSaving(false);
     }
   };
 
   const handleDeleteTest = () => {
-    Alert.alert('Delete Test', 'Delete this test and all its questions?', [
+    alert('Delete Test', 'Delete this test and all its questions?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
@@ -118,15 +123,15 @@ export default function TestDetailScreen() {
             await apiDeleteTest(test!.id);
             router.back();
           } catch (e: any) {
-            Alert.alert('Error', e.message);
+            toast.error('Error', e.message);
           }
         },
       },
-    ]);
+    ], 'destructive');
   };
 
   const handleDeleteQuestion = (q: Question) => {
-    Alert.alert('Delete Question', `Delete this question?\n\n"${q.qText}"`, [
+    alert('Delete Question', `Delete this question?\n\n"${q.qText}"`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
@@ -138,11 +143,11 @@ export default function TestDetailScreen() {
               prev ? { ...prev, questions: prev.questions.filter((x) => x.id !== q.id) } : prev,
             );
           } catch (e: any) {
-            Alert.alert('Error', e.message);
+            toast.error('Error', e.message);
           }
         },
       },
-    ]);
+    ], 'destructive');
   };
 
   const partColor = (part: string) => {
@@ -293,6 +298,7 @@ export default function TestDetailScreen() {
 
       {/* Edit Test Modal */}
       <Modal visible={editModal} animationType="slide" transparent>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Edit Test</Text>
@@ -335,6 +341,7 @@ export default function TestDetailScreen() {
             </View>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );

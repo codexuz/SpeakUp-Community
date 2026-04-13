@@ -1,10 +1,11 @@
+import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
 import { apiLogin } from '@/lib/api';
 import { useAuth } from '@/store/auth';
 import { useRouter } from 'expo-router';
 import { Eye, EyeOff, MessageCircle } from 'lucide-react-native';
 import React, { useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function LoginScreen() {
@@ -14,9 +15,10 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
   const { login } = useAuth();
+  const toast = useToast();
 
   const handleLogin = async () => {
-    if (!username || !password) return Alert.alert('Error', 'Please enter both fields.');
+    if (!username || !password) return toast.error('Error', 'Please enter both fields.');
 
     setLoading(true);
     try {
@@ -36,7 +38,7 @@ export default function LoginScreen() {
       });
       router.replace('/(tabs)');
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Invalid credentials');
+      toast.error('Error', e.message || 'Invalid credentials');
     } finally {
       setLoading(false);
     }
