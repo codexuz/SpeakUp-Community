@@ -13,6 +13,7 @@ import {
   leaveGroup,
   regenerateReferralCode,
   rejectJoinRequest,
+  removeMember,
 } from '@/lib/groups';
 import { useAuth } from '@/store/auth';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -340,7 +341,18 @@ export default function GroupDetailScreen() {
                   onPress={() => {
                     Alert.alert('Remove', `Remove ${m.user?.fullName}?`, [
                       { text: 'Cancel', style: 'cancel' },
-                      { text: 'Remove', style: 'destructive', onPress: () => {/* TODO: add remove API */} },
+                      {
+                        text: 'Remove',
+                        style: 'destructive',
+                        onPress: async () => {
+                          try {
+                            await removeMember(id!, m.userId);
+                            setMembers(prev => prev.filter(x => x.id !== m.id));
+                          } catch (e: any) {
+                            Alert.alert('Error', e.message);
+                          }
+                        },
+                      },
                     ]);
                   }}
                   style={styles.removeBtn}

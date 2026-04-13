@@ -1,7 +1,7 @@
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 
-import { getStoredAuthToken } from '@/store/auth';
+import { getStoredAuthToken, getStoredUser } from '@/store/auth';
 
 
 const API_URL = 'https://speakup.impulselc.uz/api'; 
@@ -69,6 +69,41 @@ export async function apiUpdatePushToken(_userId: string, pushToken: string) {
 
 export async function apiLogout() {
   return request<any>('/auth/logout', { method: 'POST' });
+}
+
+export async function apiUpdateProfile(data: { fullName?: string; gender?: string; region?: string }) {
+  return request<any>('/auth/profile', {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function apiUploadUserAvatar(imageUri: string) {
+  const url = `${API_URL}/auth/avatar`;
+  const token = await getStoredAuthToken();
+
+  const formData = new FormData();
+  formData.append('avatar', {
+    uri: imageUri,
+    name: 'avatar.jpg',
+    type: 'image/jpeg',
+  } as any);
+
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      'User-Agent': getUserAgent(),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(body.error || `Upload failed: ${res.status}`);
+  }
+
+  return res.json();
 }
 
 export interface SessionItem {
@@ -318,6 +353,120 @@ export async function apiAddTeacher(groupId: string, userId: string) {
 
 export async function apiLeaveGroup(groupId: string) {
   return request<any>(`/groups/${groupId}/leave`, { method: 'POST' });
+}
+
+export async function apiRemoveMember(groupId: string, userId: string) {
+  return request<any>(`/groups/${groupId}/remove-member`, {
+    method: 'POST',
+    body: JSON.stringify({ userId }),
+  });
+}
+
+export async function apiSearchGroups(query: string) {
+  return request<any[]>(`/groups/search?q=${encodeURIComponent(query)}`);
+}
+
+export async function apiUploadGroupAvatar(groupId: string, imageUri: string) {
+  const url = `${API_URL}/groups/${groupId}/avatar`;
+  const token = await getStoredAuthToken();
+
+  const formData = new FormData();
+  formData.append('avatar', {
+    uri: imageUri,
+    name: 'avatar.jpg',
+    type: 'image/jpeg',
+  } as any);
+
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      'User-Agent': getUserAgent(),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(body.error || `Upload failed: ${res.status}`);
+  }
+
+  return res.json();
+}
+
+// =============================================
+// Teacher Verification
+// =============================================
+
+export async function apiRequestTeacherVerification(reason?: string) {
+  return request<any>('/teacher-verification', {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export async function apiFetchMyVerificationStatus() {
+  return request<any>('/teacher-verification/me');
+}
+
+export async function apiFetchAllVerifications(status?: string) {
+  const qs = status ? `?status=${status}` : '';
+  return request<any[]>(`/teacher-verification${qs}`);
+}
+
+export async function apiReviewVerification(id: string, data: { status: 'approved' | 'rejected'; reviewNote?: string }) {
+  return request<any>(`/teacher-verification/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+// =============================================
+// Tests CRUD (teacher/admin)
+// =============================================
+
+export async function apiCreateTest(data: { title: string; description?: string }) {
+  const user = await getStoredUser();
+  if (user?.role !== 'admin' && !(user?.role === 'teacher' && user?.verifiedTeacher)) {
+    throw new Error('Only verified teachers can create tests');
+  }
+  return request<any>('/tests', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function apiUpdateTest(testId: number, data: { title?: string; description?: string }) {
+  return request<any>(`/tests/${testId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function apiDeleteTest(testId: number) {
+  return request<any>(`/tests/${testId}`, { method: 'DELETE' });
+}
+
+export async function apiCreateQuestion(testId: number, data: { qText: string; part: string; image?: string; speakingTimer?: number; prepTimer?: number }) {
+  const user = await getStoredUser();
+  if (user?.role !== 'admin' && !(user?.role === 'teacher' && user?.verifiedTeacher)) {
+    throw new Error('Only verified teachers can create questions');
+  }
+  return request<any>(`/tests/${testId}/questions`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function apiUpdateQuestion(questionId: number, data: { qText?: string; part?: string; image?: string; speakingTimer?: number; prepTimer?: number }) {
+  return request<any>(`/tests/questions/${questionId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function apiDeleteQuestion(questionId: number) {
+  return request<any>(`/tests/questions/${questionId}`, { method: 'DELETE' });
 }
 
 // Backward compat (deprecated — use apiFetchMyGroups)

@@ -2,7 +2,7 @@ import { TG } from '@/constants/theme';
 import { fetchTestsWithQuestions, Test } from '@/lib/data';
 import { useAuth } from '@/store/auth';
 import { useRouter } from 'expo-router';
-import { BarChart3, BookOpen, ChevronRight, Mic } from 'lucide-react-native';
+import { BarChart3, BookOpen, ChevronRight, ClipboardList, Mic } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -43,7 +43,7 @@ export default function HomeScreen() {
     loadTests();
   }, []);
 
-  if (user?.role === 'teacher') {
+  if (user?.role === 'teacher' || user?.role === 'admin') {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
@@ -90,6 +90,23 @@ export default function HomeScreen() {
             </View>
             <ChevronRight size={20} color={TG.textHint} />
           </TouchableOpacity>
+
+          {(user.verifiedTeacher || user.role === 'admin') && (
+            <TouchableOpacity 
+              style={styles.actionCard}
+              activeOpacity={0.7}
+              onPress={() => router.push('/test' as any)}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: TG.purpleLight }]}>
+                <ClipboardList size={22} color={TG.purple} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.actionTitle}>Manage Tests</Text>
+                <Text style={styles.actionDesc}>Create and edit tests & questions</Text>
+              </View>
+              <ChevronRight size={20} color={TG.textHint} />
+            </TouchableOpacity>
+          )}
         </ScrollView>
       </SafeAreaView>
     );

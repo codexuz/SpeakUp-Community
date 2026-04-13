@@ -1,12 +1,14 @@
 import { TG } from '@/constants/theme';
+import { apiRequestJoinGroup, apiSearchGroups } from '@/lib/api';
 import { fetchMyGroups, Group } from '@/lib/groups';
 import { useAuth } from '@/store/auth';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { ChevronRight, LogIn, Pencil, Search, Users, X } from 'lucide-react-native';
+import { ChevronRight, Globe, LogIn, Pencil, Search, UserPlus, Users, X } from 'lucide-react-native';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   FlatList,
   Platform,
@@ -56,8 +58,12 @@ export default function GroupsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchVisible, setSearchVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchMode, setSearchMode] = useState<'local' | 'global'>('local');
+  const [globalResults, setGlobalResults] = useState<any[]>([]);
+  const [globalSearching, setGlobalSearching] = useState(false);
   const searchAnim = useRef(new Animated.Value(0)).current;
   const searchInputRef = useRef<TextInput>(null);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loadGroups = useCallback(async () => {
     setLoading(true);
@@ -98,6 +104,8 @@ export default function GroupsScreen() {
       }).start(() => {
         setSearchVisible(false);
         setSearchQuery('');
+        setSearchMode('local');
+        setGlobalResults([]);
       });
     } else {
       setSearchVisible(true);
@@ -110,6 +118,48 @@ export default function GroupsScreen() {
       });
     }
   }, [searchVisible, searchAnim]);
+
+  const doGlobalSearch = useCallback(async (query: string) => {
+    if (query.trim().length < 2) {
+      setGlobalResults([]);
+      return;
+    }
+    setGlobalSearching(true);
+    try {
+      const results = await apiSearchGroups(query.trim());
+      setGlobalResults(results || []);
+    } catch {
+      setGlobalResults([]);
+    } finally {
+      setGlobalSearching(false);
+    }
+  }, []);
+
+  const handleSearchChange = useCallback((text: string) => {
+    setSearchQuery(text);
+    if (searchMode === 'global') {
+      if (searchTimer.current) clearTimeout(searchTimer.current);
+      searchTimer.current = setTimeout(() => doGlobalSearch(text), 400);
+    }
+  }, [searchMode, doGlobalSearch]);
+
+  const handleRequestJoin = useCallback(async (groupId: string, groupName: string) => {
+    Alert.alert('Request to Join', `Send a join request to "${groupName}"?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Send Request',
+        onPress: async () => {
+          try {
+            await apiRequestJoinGroup(groupId);
+            Alert.alert('Sent', 'Your join request has been sent.');
+            doGlobalSearch(searchQuery);
+          } catch (e: any) {
+            Alert.alert('Error', e.message);
+          }
+        },
+      },
+    ]);
+  }, [searchQuery, doGlobalSearch]);
 
   const filteredGroups = useMemo(() => {
     if (!searchQuery.trim()) return groups;
@@ -229,23 +279,102 @@ export default function GroupsScreen() {
           <TextInput
             ref={searchInputRef}
             style={styles.searchInput}
-            placeholder="Search groups…"
+            placeholder={searchMode === 'global' ? 'Search all groups…' : 'Search my groups…'}
             placeholderTextColor={TG.textHint}
             value={searchQuery}
-            onChangeText={setSearchQuery}
+            onChangeText={handleSearchChange}
             returnKeyType="search"
             autoCorrect={false}
           />
           {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity onPress={() => { setSearchQuery(''); setGlobalResults([]); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <X size={16} color={TG.textSecondary} />
             </TouchableOpacity>
           )}
+          <TouchableOpacity
+            onPress={() => {
+              const next = searchMode === 'local' ? 'global' : 'local';
+              setSearchMode(next);
+              setGlobalResults([]);
+              if (next === 'global' && searchQuery.trim().length >= 2) {
+                doGlobalSearch(searchQuery);
+              }
+            }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Globe size={16} color={searchMode === 'global' ? TG.accent : TG.textHint} />
+          </TouchableOpacity>
         </View>
       </Animated.View>
 
       {/* Body */}
-      {loading && !refreshing ? (
+      {searchMode === 'global' && searchVisible ? (
+        globalSearching ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={TG.accent} />
+          </View>
+        ) : globalResults.length === 0 && searchQuery.length >= 2 ? (
+          <View style={styles.emptyContainer}>
+            <Search size={44} color={TG.textHint} />
+            <Text style={[styles.emptyTitle, { marginTop: 16 }]}>No results</Text>
+            <Text style={styles.emptySubtitle}>No groups matching "{searchQuery}"</Text>
+          </View>
+        ) : globalResults.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Globe size={44} color={TG.textHint} />
+            <Text style={[styles.emptyTitle, { marginTop: 16 }]}>Search All Groups</Text>
+            <Text style={styles.emptySubtitle}>Type at least 2 characters to search</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={globalResults}
+            keyExtractor={(g) => g.id}
+            contentContainerStyle={styles.list}
+            showsVerticalScrollIndicator={false}
+            ItemSeparatorComponent={ListSeparator}
+            renderItem={({ item: g }) => {
+              const avatarColor = getAvatarColor(g.name);
+              return (
+                <View style={styles.row}>
+                  <View style={[styles.avatar, { backgroundColor: avatarColor.bg }]}>
+                    <Text style={[styles.avatarLetter, { color: avatarColor.text }]}>
+                      {g.name.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={styles.rowContent}>
+                    <Text style={styles.groupName} numberOfLines={1}>{g.name}</Text>
+                    <Text style={styles.subtitle} numberOfLines={1}>
+                      {g.memberCount ? `${formatMemberCount(g.memberCount)} members` : g.description || ''}
+                    </Text>
+                  </View>
+                  {g.status === 'member' ? (
+                    <TouchableOpacity
+                      style={[styles.statusChip, { backgroundColor: TG.greenLight }]}
+                      onPress={() => router.push(`/group/${g.id}` as any)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.statusChipText, { color: TG.green }]}>Open</Text>
+                    </TouchableOpacity>
+                  ) : g.status === 'pending' ? (
+                    <View style={[styles.statusChip, { backgroundColor: TG.orangeLight }]}>
+                      <Text style={[styles.statusChipText, { color: TG.orange }]}>Pending</Text>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      style={[styles.statusChip, { backgroundColor: TG.accentLight }]}
+                      onPress={() => handleRequestJoin(g.id, g.name)}
+                      activeOpacity={0.7}
+                    >
+                      <UserPlus size={14} color={TG.accent} />
+                      <Text style={[styles.statusChipText, { color: TG.accent }]}>Join</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              );
+            }}
+          />
+        )
+      ) : loading && !refreshing ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={TG.accent} />
         </View>
@@ -512,6 +641,17 @@ const styles = StyleSheet.create({
     borderRadius: 24,
   },
   emptyBtnSecondaryText: { fontSize: 15, fontWeight: '600', color: TG.accent },
+
+  // Status chip (global search)
+  statusChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+  },
+  statusChipText: { fontSize: 12, fontWeight: '600' },
 
   // FABs
   fabRow: {

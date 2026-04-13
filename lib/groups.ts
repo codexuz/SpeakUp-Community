@@ -11,7 +11,11 @@ import {
   apiLeaveGroup,
   apiRegenerateReferralCode,
   apiRejectJoinRequest,
+  apiRemoveMember,
+  apiRequestJoinGroup,
+  apiSearchGroups,
   apiUpdateGroup,
+  apiUploadGroupAvatar,
 } from './api';
 
 export interface Group {
@@ -113,4 +117,24 @@ export async function approveJoinRequest(groupId: string, requestId: string, rol
 
 export async function rejectJoinRequest(groupId: string, requestId: string): Promise<void> {
   await apiRejectJoinRequest(groupId, requestId);
+}
+
+// =============================================
+// Search & Remove
+// =============================================
+
+export async function searchGroups(query: string) {
+  return apiSearchGroups(query);
+}
+
+export async function requestJoinGroup(groupId: string, message?: string) {
+  return apiRequestJoinGroup(groupId, message);
+}
+
+export async function removeMember(groupId: string, userId: string): Promise<void> {
+  await apiRemoveMember(groupId, userId);
+}
+
+export async function uploadGroupAvatar(groupId: string, imageUri: string) {
+  return apiUploadGroupAvatar(groupId, imageUri);
 }
