@@ -10,6 +10,7 @@ import {
     Clock,
     Globe,
     Loader,
+    Lock,
     MessageSquare,
     Mic,
     Star,
@@ -238,11 +239,11 @@ export default function SessionDetailScreen() {
           activeOpacity={0.7}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Globe
-            size={22}
-            color={TG.textWhite}
-            fill={session?.visibility === 'community' ? TG.textWhite : 'transparent'}
-          />
+          {session?.visibility === 'community' ? (
+            <Globe size={22} color={TG.textWhite} />
+          ) : (
+            <Lock size={22} color={'rgba(255,255,255,0.5)'} />
+          )}
         </TouchableOpacity>
       </View>
 

@@ -4,7 +4,7 @@ import { apiFetchCommunityFeed, apiLikeSpeaking, apiPostReview, apiUnlikeSpeakin
 import { useAuth } from '@/store/auth';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { Flame, Heart, MessageCircle, Star, TrendingUp } from 'lucide-react-native';
+import { ChevronRight, Flame, Heart, MessageCircle, Mic, Star, TrendingUp } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
@@ -122,35 +122,44 @@ export default function CommunityScreen() {
 
   const renderItem = ({ item }: { item: any }) => (
     <TouchableOpacity style={styles.card} activeOpacity={0.7} onPress={() => router.push(`/community/${item.id}` as any)}>
-      <View style={styles.cardHeader}>
+      {/* Top row: avatar, name+date, score pill, chevron */}
+      <View style={styles.topRow}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>{(item.user?.fullName || '?').charAt(0)}</Text>
         </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.userName}>{item.user?.fullName || 'Unknown'}</Text>
-          <Text style={styles.userHandle}>@{item.user?.username || '?'}</Text>
+        <View style={styles.nameBlock}>
+          <Text style={styles.userName} numberOfLines={1}>{item.user?.fullName || 'Unknown'}</Text>
+          <Text style={styles.dateText}>
+            {new Date(item.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+          </Text>
         </View>
         {item.scoreAvg != null && (
           <View style={styles.scorePill}>
-            <Star size={12} color={TG.orange} fill={TG.orange} />
+            <Star size={11} color={TG.orange} fill={TG.orange} />
             <Text style={styles.scoreText}>{item.scoreAvg.toFixed(1)}</Text>
           </View>
         )}
+        <ChevronRight size={16} color={TG.textHint} />
       </View>
 
-      <Text style={styles.questionText} numberOfLines={3}>
+      {/* Test title */}
+      <Text style={styles.titleText} numberOfLines={2}>
         {item.test?.title || 'Unknown Test'}
       </Text>
-      <Text style={styles.metaText}>{item._count?.responses || 0} responses · {new Date(item.createdAt).toLocaleDateString()}</Text>
 
-      <View style={styles.cardActions}>
-        <TouchableOpacity style={styles.actionBtn} activeOpacity={0.6} onPress={() => toggleLike(item)}>
-          <Heart size={18} color={item.isLiked ? TG.red : TG.textHint} fill={item.isLiked ? TG.red : 'none'} />
-          <Text style={[styles.actionText, item.isLiked && { color: TG.red }]}>{item.likes || 0}</Text>
+      {/* Bottom bar: meta chips + actions */}
+      <View style={styles.bottomRow}>
+        <View style={styles.chip}>
+          <Mic size={12} color={TG.accent} />
+          <Text style={styles.chipText}>{item._count?.responses || 0}</Text>
+        </View>
+        <TouchableOpacity style={styles.chip} activeOpacity={0.6} onPress={() => toggleLike(item)}>
+          <Heart size={12} color={item.isLiked ? TG.red : TG.textHint} fill={item.isLiked ? TG.red : 'none'} />
+          <Text style={[styles.chipText, item.isLiked && { color: TG.red }]}>{item.likes || 0}</Text>
         </TouchableOpacity>
-        <View style={styles.actionBtn}>
-          <MessageCircle size={18} color={TG.textHint} />
-          <Text style={styles.actionText}>{item.commentsCount || 0}</Text>
+        <View style={styles.chip}>
+          <MessageCircle size={12} color={TG.textHint} />
+          <Text style={styles.chipText}>{item.commentsCount || 0}</Text>
         </View>
         {isTeacher && (
           <TouchableOpacity style={styles.reviewBtn} activeOpacity={0.7} onPress={() => openReviewModal(item)}>
@@ -273,22 +282,32 @@ const styles = StyleSheet.create({
   tabActive: { backgroundColor: TG.accent },
   tabText: { fontSize: 13, fontWeight: '600', color: TG.textSecondary },
   tabTextActive: { color: TG.textWhite },
-  listContent: { paddingBottom: 100 },
-  card: { backgroundColor: TG.bg, paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: TG.separatorLight },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
-  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: TG.accentLight, justifyContent: 'center', alignItems: 'center' },
-  avatarText: { fontSize: 16, fontWeight: '700', color: TG.accent },
-  userName: { fontSize: 15, fontWeight: '600', color: TG.textPrimary },
-  userHandle: { fontSize: 12, color: TG.textSecondary },
-  scorePill: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: TG.orangeLight, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 },
-  scoreText: { fontSize: 13, fontWeight: '700', color: TG.orange },
-  questionText: { fontSize: 15, color: TG.textPrimary, lineHeight: 21, marginBottom: 4 },
-  metaText: { fontSize: 12, color: TG.textHint, marginBottom: 10 },
-  cardActions: { flexDirection: 'row', alignItems: 'center', gap: 20 },
-  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  actionText: { fontSize: 13, color: TG.textHint, fontWeight: '500' },
-  reviewBtn: { marginLeft: 'auto', backgroundColor: TG.accent, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 14 },
-  reviewBtnText: { fontSize: 13, fontWeight: '600', color: TG.textWhite },
+  listContent: { paddingHorizontal: 12, paddingTop: 8, paddingBottom: 100 },
+  card: {
+    backgroundColor: TG.bg,
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  topRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
+  avatar: { width: 34, height: 34, borderRadius: 17, backgroundColor: TG.accentLight, justifyContent: 'center', alignItems: 'center' },
+  avatarText: { fontSize: 14, fontWeight: '700', color: TG.accent },
+  nameBlock: { flex: 1 },
+  userName: { fontSize: 14, fontWeight: '600', color: TG.textPrimary },
+  dateText: { fontSize: 11, color: TG.textHint, marginTop: 1 },
+  scorePill: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: TG.orangeLight, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8 },
+  scoreText: { fontSize: 12, fontWeight: '700', color: TG.orange },
+  titleText: { fontSize: 14, fontWeight: '500', color: TG.textPrimary, lineHeight: 20, marginBottom: 8 },
+  bottomRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  chipText: { fontSize: 12, color: TG.textHint, fontWeight: '500' },
+  reviewBtn: { marginLeft: 'auto', backgroundColor: TG.accent, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 10 },
+  reviewBtnText: { fontSize: 12, fontWeight: '600', color: TG.textWhite },
   emptyContainer: { alignItems: 'center', marginTop: 80, gap: 12 },
   emptyText: { color: TG.textSecondary, fontSize: 15 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
