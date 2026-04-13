@@ -395,8 +395,9 @@ export default function GroupDetailScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.subStudent}>{sub.user?.fullName || 'Unknown'}</Text>
                   <Text style={styles.subQuestion} numberOfLines={2}>
-                    {sub.question?.q_text || 'Unknown Question'}
+                    {sub.test?.title || 'Unknown Test'}
                   </Text>
+                  <Text style={styles.subMeta}>{sub._count?.responses || 0} responses{sub.cefrLevel ? ` · ${sub.cefrLevel}` : ''}</Text>
                 </View>
                 {sub.scoreAvg != null ? (
                   <View style={styles.scoreBadge}>
@@ -480,7 +481,7 @@ export default function GroupDetailScreen() {
             <Text style={styles.modalTitle}>Review Submission</Text>
             {selectedSub && (
               <Text style={styles.modalSubtitle} numberOfLines={2}>
-                {selectedSub.question?.q_text}
+                {selectedSub.user?.fullName} - {selectedSub.test?.title}
               </Text>
             )}
             <Text style={styles.inputLabel}>Score (0-75)</Text>
@@ -627,6 +628,7 @@ const styles = StyleSheet.create({
   subHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10 },
   subStudent: { fontSize: 15, fontWeight: '600', color: TG.accent, marginBottom: 2 },
   subQuestion: { fontSize: 14, color: TG.textSecondary, lineHeight: 20 },
+  subMeta: { fontSize: 12, color: TG.textHint, marginTop: 2 },
   scoreBadge: {
     flexDirection: 'row',
     alignItems: 'center',

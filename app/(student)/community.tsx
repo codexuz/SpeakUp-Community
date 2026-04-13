@@ -119,11 +119,11 @@ export default function CommunityScreen() {
     <View style={styles.card}>
       <View style={styles.cardHeader}>
         <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{(item.student?.fullName || '?').charAt(0)}</Text>
+          <Text style={styles.avatarText}>{(item.user?.fullName || '?').charAt(0)}</Text>
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.userName}>{item.student?.fullName || 'Unknown'}</Text>
-          <Text style={styles.userHandle}>@{item.student?.username || '?'}</Text>
+          <Text style={styles.userName}>{item.user?.fullName || 'Unknown'}</Text>
+          <Text style={styles.userHandle}>@{item.user?.username || '?'}</Text>
         </View>
         {item.scoreAvg != null && (
           <View style={styles.scorePill}>
@@ -134,8 +134,9 @@ export default function CommunityScreen() {
       </View>
 
       <Text style={styles.questionText} numberOfLines={3}>
-        {item.question?.qText || ''}
+        {item.test?.title || 'Unknown Test'}
       </Text>
+      <Text style={styles.metaText}>{item._count?.responses || 0} responses · {new Date(item.createdAt).toLocaleDateString()}</Text>
 
       <View style={styles.cardActions}>
         <TouchableOpacity style={styles.actionBtn} activeOpacity={0.6} onPress={() => toggleLike(item)}>
@@ -208,7 +209,7 @@ export default function CommunityScreen() {
             <Text style={styles.modalTitle}>Review Submission</Text>
             {selectedSub && (
               <Text style={styles.modalSubtitle} numberOfLines={2}>
-                {selectedSub.student?.fullName} - {selectedSub.question?.qText}
+                {selectedSub.user?.fullName} - {selectedSub.test?.title}
               </Text>
             )}
             <Text style={styles.inputLabel}>Score (0-75)</Text>
@@ -274,7 +275,8 @@ const styles = StyleSheet.create({
   userHandle: { fontSize: 12, color: TG.textSecondary },
   scorePill: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: TG.orangeLight, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10 },
   scoreText: { fontSize: 13, fontWeight: '700', color: TG.orange },
-  questionText: { fontSize: 15, color: TG.textPrimary, lineHeight: 21, marginBottom: 10 },
+  questionText: { fontSize: 15, color: TG.textPrimary, lineHeight: 21, marginBottom: 4 },
+  metaText: { fontSize: 12, color: TG.textHint, marginBottom: 10 },
   cardActions: { flexDirection: 'row', alignItems: 'center', gap: 20 },
   actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   actionText: { fontSize: 13, color: TG.textHint, fontWeight: '500' },

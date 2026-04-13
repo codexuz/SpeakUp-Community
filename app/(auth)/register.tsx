@@ -31,7 +31,8 @@ export default function RegisterScreen() {
     gender: 'Male',
     region: 'Tashkent',
     avatarUrl: GENDER_AVATARS['Male'],
-    password: ''
+    password: '',
+    role: 'student' as 'student' | 'teacher',
   });
 
   const progressAnim = useRef(new Animated.Value(0.25)).current;
@@ -88,6 +89,7 @@ export default function RegisterScreen() {
         gender: formData.gender,
         region: formData.region,
         avatarUrl: formData.avatarUrl,
+        role: formData.role,
       });
       
       login({
@@ -103,7 +105,7 @@ export default function RegisterScreen() {
         },
       });
 
-      router.replace('/(tabs)');
+      router.replace('/' as any);
       
     } catch (e: any) {
       Alert.alert('Error', e.message);
@@ -170,6 +172,29 @@ export default function RegisterScreen() {
             <Text style={styles.stepTitle}>A bit more details</Text>
             <Text style={styles.stepSubtitle}>Help us personalise your experience</Text>
             
+            <Text style={styles.label}>I am a</Text>
+            <View style={styles.genderRow}>
+              {(['student', 'teacher'] as const).map(r => {
+                const isActive = formData.role === r;
+                return (
+                  <TouchableOpacity
+                    key={r}
+                    style={[styles.genderCard, isActive && styles.genderCardActive]}
+                    onPress={() => updateForm('role', r)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.genderText, isActive && styles.genderTextActive, { fontSize: 28 }]}>
+                      {r === 'student' ? '🎓' : '👩‍🏫'}
+                    </Text>
+                    <Text style={[styles.genderText, isActive && styles.genderTextActive]}>
+                      {r.charAt(0).toUpperCase() + r.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <Text style={styles.label}>Gender</Text>
             <View style={styles.genderRow}>
               {['Male', 'Female'].map(g => {
                 const isActive = formData.gender === g;

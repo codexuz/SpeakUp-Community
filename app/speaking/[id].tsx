@@ -85,6 +85,7 @@ export default function SpeakingScreen() {
   const [phase, setPhase] = useState<'prep' | 'speak' | 'done'>('prep');
   const [timeLeft, setTimeLeft] = useState(0);
   const [uploading, setUploading] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
 
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -113,7 +114,14 @@ export default function SpeakingScreen() {
       if (audioRecorder.isRecording) await audioRecorder.stop();
       const uri = audioRecorder.uri;
       if (uri && user && question) {
-        await apiSubmitSpeaking(question.id, uri);
+        const result = await apiSubmitSpeaking(question.id, uri, {
+          ...(sessionId
+            ? { sessionId }
+            : { testId: Number(id) }),
+        });
+        if (!sessionId && result?.sessionId) {
+          setSessionId(result.sessionId);
+        }
       }
     } catch (err) {
       console.error('Failed to save recording', err);
@@ -127,7 +135,7 @@ export default function SpeakingScreen() {
       setCurrentIndex(prev => prev + 1);
       setPhase('prep');
     }
-  }, [audioRecorder, isLastQuestion, question, router, user]);
+  }, [audioRecorder, id, isLastQuestion, question, router, sessionId, user]);
 
   useEffect(() => {
     (async () => {

@@ -53,6 +53,7 @@ export async function apiRegister(payload: {
   gender?: string;
   region?: string;
   avatarUrl?: string;
+  role?: 'student' | 'teacher';
 }) {
   return request<any>('/auth/register', {
     method: 'POST',
@@ -106,7 +107,7 @@ export async function apiUploadUserAvatar(imageUri: string) {
   return res.json();
 }
 
-export interface SessionItem {
+export interface AuthSessionItem {
   sessionId: string;
   userId: string;
   device: string;
@@ -116,8 +117,42 @@ export interface SessionItem {
   current: boolean;
 }
 
+export interface TestSession {
+  id: string;
+  testId: number;
+  userId: string;
+  visibility: 'private' | 'group' | 'community';
+  groupId: string | null;
+  likes: number;
+  commentsCount: number;
+  scoreAvg: number | null;
+  cefrLevel: string | null;
+  createdAt: string;
+  test?: { id: number; title: string; description: string | null };
+  user?: { id: string; fullName: string; username: string; avatarUrl: string | null };
+  responses?: SpeakingResponse[];
+  reviews?: any[];
+  isLiked?: boolean;
+  _count?: { responses: number; reviews?: number; comments?: number };
+}
+
+export interface SpeakingResponse {
+  id: string;
+  questionId: number;
+  studentId: string;
+  sessionId: string | null;
+  localUri: string | null;
+  remoteUrl: string | null;
+  teacherScore: number | null;
+  teacherFeedback: string | null;
+  audioProcessed: boolean;
+  createdAt: string;
+  student?: { id: string; fullName: string; username: string; avatarUrl: string | null };
+  question?: { id: number; qText: string; part: string; speakingTimer: number; prepTimer: number };
+}
+
 export async function apiFetchSessions() {
-  return request<{ sessions: SessionItem[] }>('/auth/sessions');
+  return request<{ sessions: AuthSessionItem[] }>('/auth/sessions');
 }
 
 export async function apiRevokeSession(sessionId: string) {
@@ -147,16 +182,22 @@ export async function apiFetchQuestion(id: number) {
 export async function apiSubmitSpeaking(
   questionId: number,
   audioUri: string,
-  visibility: string = 'private',
-  groupId?: string,
+  options: {
+    visibility?: 'private' | 'group' | 'community';
+    groupId?: string;
+    sessionId?: string;
+    testId?: number;
+  } = {},
 ) {
   const url = `${API_URL}/speaking`;
   const token = await getStoredAuthToken();
 
   const formData = new FormData();
   formData.append('questionId', questionId.toString());
-  formData.append('visibility', visibility);
-  if (groupId) formData.append('groupId', groupId);
+  if (options.visibility) formData.append('visibility', options.visibility);
+  if (options.groupId) formData.append('groupId', options.groupId);
+  if (options.sessionId) formData.append('sessionId', options.sessionId);
+  if (options.testId) formData.append('testId', options.testId.toString());
   formData.append('audio', {
     uri: audioUri,
     name: `response_${Date.now()}.m4a`,
@@ -181,11 +222,15 @@ export async function apiSubmitSpeaking(
 }
 
 export async function apiFetchMySpeaking(page = 1, limit = 20) {
-  return request<{ data: any[]; pagination: any }>(`/speaking/my?page=${page}&limit=${limit}`);
+  return request<{ data: TestSession[]; pagination: any }>(`/speaking/my?page=${page}&limit=${limit}`);
 }
 
 export async function apiFetchPendingSpeaking(page = 1, limit = 20) {
-  return request<{ data: any[]; pagination: any }>(`/speaking/pending?page=${page}&limit=${limit}`);
+  return request<{ data: TestSession[]; pagination: any }>(`/speaking/pending?page=${page}&limit=${limit}`);
+}
+
+export async function apiFetchSessionDetail(sessionId: string) {
+  return request<TestSession>(`/speaking/sessions/${sessionId}`);
 }
 
 export async function apiFetchSpeakingById(id: string) {
@@ -203,26 +248,32 @@ export async function apiDeleteSpeaking(id: string) {
   return request<any>(`/speaking/${id}`, { method: 'DELETE' });
 }
 
-// Likes
-export async function apiLikeSpeaking(id: string) {
-  return request<any>(`/speaking/${id}/like`, { method: 'POST' });
+// Likes (session-based)
+export async function apiLikeSession(sessionId: string) {
+  return request<any>(`/speaking/sessions/${sessionId}/like`, { method: 'POST' });
 }
 
-export async function apiUnlikeSpeaking(id: string) {
-  return request<any>(`/speaking/${id}/like`, { method: 'DELETE' });
+export async function apiUnlikeSession(sessionId: string) {
+  return request<any>(`/speaking/sessions/${sessionId}/like`, { method: 'DELETE' });
 }
 
-// Comments
-export async function apiCommentOnSpeaking(id: string, text: string) {
-  return request<any>(`/speaking/${id}/comment`, {
+// Comments (session-based)
+export async function apiCommentOnSession(sessionId: string, text: string) {
+  return request<any>(`/speaking/sessions/${sessionId}/comment`, {
     method: 'POST',
     body: JSON.stringify({ text }),
   });
 }
 
-export async function apiFetchSpeakingComments(id: string, page = 1, limit = 20) {
-  return request<{ data: any[]; pagination: any }>(`/speaking/${id}/comments?page=${page}&limit=${limit}`);
+export async function apiFetchSessionComments(sessionId: string, page = 1, limit = 20) {
+  return request<{ data: any[]; pagination: any }>(`/speaking/sessions/${sessionId}/comments?page=${page}&limit=${limit}`);
 }
+
+// Deprecated — use session-based versions above
+export const apiLikeSpeaking = apiLikeSession;
+export const apiUnlikeSpeaking = apiUnlikeSession;
+export const apiCommentOnSpeaking = apiCommentOnSession;
+export const apiFetchSpeakingComments = apiFetchSessionComments;
 
 // =============================================
 // Reviews

@@ -1,7 +1,7 @@
 import { TG } from '@/constants/theme';
 import { apiFetchPendingSpeaking, apiPostReview } from '@/lib/api';
 import { useFocusEffect } from '@react-navigation/native';
-import { Mic, Play, Square, Star } from 'lucide-react-native';
+import { Mic, Star } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import {
     ActivityIndicator,
@@ -89,20 +89,20 @@ export default function TeacherReviewsScreen() {
   };
 
   const renderItem = ({ item }: { item: any }) => {
-    const qText = item.question?.qText || 'Unknown Question';
-    const isPlaying = playingId === item.id?.toString();
+    const testTitle = item.test?.title || 'Unknown Test';
+    const responseCount = item._count?.responses || 0;
 
     return (
       <View style={styles.card}>
         <View style={styles.cardHeader}>
-          {item.student && (
+          {item.user && (
             <View style={styles.studentInfo}>
               <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{(item.student?.fullName || '?').charAt(0)}</Text>
+                <Text style={styles.avatarText}>{(item.user?.fullName || '?').charAt(0)}</Text>
               </View>
               <View>
-                <Text style={styles.studentName}>{item.student.fullName}</Text>
-                <Text style={styles.studentHandle}>@{item.student.username}</Text>
+                <Text style={styles.studentName}>{item.user.fullName}</Text>
+                <Text style={styles.studentHandle}>@{item.user.username}</Text>
               </View>
             </View>
           )}
@@ -114,18 +114,10 @@ export default function TeacherReviewsScreen() {
           )}
         </View>
 
-        <Text style={styles.questionText} numberOfLines={2}>{qText}</Text>
+        <Text style={styles.questionText} numberOfLines={2}>{testTitle}</Text>
+        <Text style={styles.metaText}>{responseCount} response{responseCount !== 1 ? 's' : ''} · {new Date(item.createdAt).toLocaleDateString()}</Text>
 
         <View style={styles.cardActions}>
-          <TouchableOpacity
-            style={[styles.playBtn, isPlaying && styles.playBtnActive]}
-            activeOpacity={0.7}
-            onPress={() => handlePlay(item)}
-          >
-            {isPlaying ? <Square size={16} color={TG.textWhite} /> : <Play size={16} color={TG.textWhite} fill={TG.textWhite} />}
-            <Text style={styles.playBtnText}>{isPlaying ? 'Stop' : 'Play'}</Text>
-          </TouchableOpacity>
-
           <TouchableOpacity style={styles.reviewActionBtn} activeOpacity={0.7} onPress={() => openReviewModal(item)}>
             <Text style={styles.reviewActionText}>Review</Text>
           </TouchableOpacity>
@@ -239,7 +231,8 @@ const styles = StyleSheet.create({
   scorePill: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: TG.orangeLight, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, marginLeft: 'auto' },
   scoreValue: { fontSize: 13, fontWeight: '700', color: TG.orange },
 
-  questionText: { fontSize: 15, color: TG.textPrimary, lineHeight: 21, marginBottom: 10 },
+  questionText: { fontSize: 15, color: TG.textPrimary, lineHeight: 21, marginBottom: 4 },
+  metaText: { fontSize: 12, color: TG.textHint, marginBottom: 10 },
 
   cardActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   playBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: TG.accent, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 16 },
