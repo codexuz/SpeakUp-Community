@@ -1,14 +1,20 @@
 import { useToast } from '@/components/Toast';
 import WaveformPlayer from '@/components/WaveformPlayer';
 import { TG } from '@/constants/theme';
-import { apiFetchSessionDetail, apiUpdateSpeaking, SpeakingResponse, TestSession } from '@/lib/api';
+import {
+    apiFetchSessionDetail,
+    apiLikeSpeaking,
+    apiUnlikeSpeaking,
+    SpeakingResponse,
+    TestSession,
+} from '@/lib/api';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
     ArrowLeft,
     BarChart3,
     Calendar,
     Clock,
-    Globe,
+    Heart,
     Loader,
     MessageSquare,
     Mic,
@@ -87,12 +93,14 @@ function ScoreRing({ score, max = 75 }: { score: number; max?: number }) {
   );
 }
 
-export default function SessionDetailScreen() {
+export default function CommunityDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const toast = useToast();
   const [session, setSession] = useState<TestSession | null>(null);
   const [loading, setLoading] = useState(true);
+  const [liked, setLiked] = useState(false);
+  const [likeCount, setLikeCount] = useState(0);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const loadSession = useCallback(async () => {
@@ -101,6 +109,8 @@ export default function SessionDetailScreen() {
     try {
       const data = await apiFetchSessionDetail(id);
       setSession(data);
+      setLiked(data.isLiked ?? false);
+      setLikeCount(data.likes ?? 0);
       Animated.timing(fadeAnim, {
         toValue: 1,
         duration: 350,
@@ -116,6 +126,23 @@ export default function SessionDetailScreen() {
   useEffect(() => {
     loadSession();
   }, [loadSession]);
+
+  const toggleLike = async () => {
+    if (!session) return;
+    try {
+      if (liked) {
+        await apiUnlikeSpeaking(session.id);
+        setLiked(false);
+        setLikeCount((c) => Math.max(0, c - 1));
+      } else {
+        await apiLikeSpeaking(session.id);
+        setLiked(true);
+        setLikeCount((c) => c + 1);
+      }
+    } catch (e: any) {
+      toast.error('Error', e.message || 'Failed to update like');
+    }
+  };
 
   const responses = session?.responses || [];
 
@@ -215,35 +242,15 @@ export default function SessionDetailScreen() {
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle} numberOfLines={1}>
-            {session?.test?.title || 'Session Detail'}
+            {session?.test?.title || 'Community Session'}
           </Text>
-          {session && (
+          {session?.user && (
             <Text style={styles.headerSub}>
-              {responses.length} response{responses.length !== 1 ? 's' : ''}
+              by {session.user.fullName}
             </Text>
           )}
         </View>
-        <TouchableOpacity
-          onPress={async () => {
-            if (!session) return;
-            const next = session.visibility === 'community' ? 'private' : 'community';
-            try {
-              await apiUpdateSpeaking(session.id, next);
-              setSession({ ...session, visibility: next });
-              toast.success('Visibility', next === 'community' ? 'Shared to community' : 'Set to private');
-            } catch (e: any) {
-              toast.error('Error', e.message || 'Failed to update visibility');
-            }
-          }}
-          activeOpacity={0.7}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Globe
-            size={22}
-            color={TG.textWhite}
-            fill={session?.visibility === 'community' ? TG.textWhite : 'transparent'}
-          />
-        </TouchableOpacity>
+        <View style={{ width: 22 }} />
       </View>
 
       {loading ? (
@@ -266,6 +273,34 @@ export default function SessionDetailScreen() {
             ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
             ListHeaderComponent={
               <View style={styles.summaryCard}>
+                {/* User info row */}
+                <View style={styles.userRow}>
+                  <View style={styles.avatar}>
+                    <Text style={styles.avatarText}>
+                      {(session.user?.fullName || '?').charAt(0)}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.userName}>{session.user?.fullName || 'Unknown'}</Text>
+                    <Text style={styles.userHandle}>@{session.user?.username || '?'}</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.likeBtn}
+                    activeOpacity={0.6}
+                    onPress={toggleLike}
+                  >
+                    <Heart
+                      size={20}
+                      color={liked ? TG.red : TG.textHint}
+                      fill={liked ? TG.red : 'none'}
+                    />
+                    <Text style={[styles.likeText, liked && { color: TG.red }]}>
+                      {likeCount}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Meta chips */}
                 <View style={styles.metaRow}>
                   <MetaChip
                     icon={<Mic size={13} color={TG.accent} />}
@@ -279,9 +314,7 @@ export default function SessionDetailScreen() {
                       color={TG.orange}
                     />
                   )}
-                  {session.cefrLevel && (
-                    <CefrBadge level={session.cefrLevel} />
-                  )}
+                  {session.cefrLevel && <CefrBadge level={session.cefrLevel} />}
                   <View style={styles.metaSpacer} />
                   <View style={styles.dateChip}>
                     <Calendar size={11} color={TG.textHint} />
@@ -332,7 +365,34 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     marginBottom: 14,
+    gap: 10,
   },
+  userRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: TG.accentLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarText: { fontSize: 16, fontWeight: '700', color: TG.accent },
+  userName: { fontSize: 15, fontWeight: '600', color: TG.textPrimary },
+  userHandle: { fontSize: 12, color: TG.textSecondary },
+  likeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: TG.bgSecondary,
+  },
+  likeText: { fontSize: 13, fontWeight: '600', color: TG.textHint },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -350,11 +410,7 @@ const styles = StyleSheet.create({
   },
   metaChipText: { fontSize: 12, fontWeight: '600', color: TG.textSecondary },
   metaSpacer: { flex: 1 },
-  dateChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
+  dateChip: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   dateChipText: { fontSize: 11, color: TG.textHint },
 
   // ─── Response card ───

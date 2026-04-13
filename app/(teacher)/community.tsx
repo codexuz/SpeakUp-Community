@@ -3,6 +3,7 @@ import { TG } from '@/constants/theme';
 import { apiFetchCommunityFeed, apiLikeSpeaking, apiPostReview, apiUnlikeSpeaking } from '@/lib/api';
 import { useAuth } from '@/store/auth';
 import { useFocusEffect } from '@react-navigation/native';
+import { useRouter } from 'expo-router';
 import { Flame, Heart, MessageCircle, Star, TrendingUp } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import {
@@ -25,6 +26,7 @@ export default function CommunityScreen() {
   const { user } = useAuth();
   const isTeacher = user?.role === 'teacher';
   const toast = useToast();
+  const router = useRouter();
 
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -119,7 +121,7 @@ export default function CommunityScreen() {
   };
 
   const renderItem = ({ item }: { item: any }) => (
-    <View style={styles.card}>
+    <TouchableOpacity style={styles.card} activeOpacity={0.7} onPress={() => router.push(`/community/${item.id}` as any)}>
       <View style={styles.cardHeader}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>{(item.user?.fullName || '?').charAt(0)}</Text>
@@ -156,7 +158,7 @@ export default function CommunityScreen() {
           </TouchableOpacity>
         )}
       </View>
-    </View>
+    </TouchableOpacity>
   );
 
   const strategies: { key: Strategy; label: string; icon: React.ReactNode }[] = [
