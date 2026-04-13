@@ -200,8 +200,8 @@ export default function GroupDetailScreen() {
   const handleReview = async () => {
     if (!selectedSub || !score) return;
     const numScore = parseInt(score, 10);
-    if (isNaN(numScore) || numScore < 0 || numScore > 9) {
-      Alert.alert('Invalid', 'Score must be between 0 and 9');
+    if (isNaN(numScore) || numScore < 0 || numScore > 75) {
+      Alert.alert('Invalid', 'Score must be between 0 and 75');
       return;
     }
     setSubmitting(true);
@@ -483,14 +483,14 @@ export default function GroupDetailScreen() {
                 {selectedSub.question?.q_text}
               </Text>
             )}
-            <Text style={styles.inputLabel}>Score (0-9)</Text>
+            <Text style={styles.inputLabel}>Score (0-75)</Text>
             <TextInput
               style={styles.modalInput}
               value={score}
               onChangeText={setScore}
               keyboardType="number-pad"
-              maxLength={1}
-              placeholder="0-9"
+              maxLength={2}
+              placeholder="0-75"
               placeholderTextColor={TG.textHint}
             />
             <Text style={styles.inputLabel}>Feedback</Text>

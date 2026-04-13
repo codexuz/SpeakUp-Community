@@ -16,10 +16,11 @@ const headers = (token: string) => ({
 ## Table of Contents
 
 - [TypeScript Types](#typescript-types)
+- [CEFR Scoring](#cefr-scoring)
 - [Auth](#auth)
 - [Tests & Questions](#tests--questions)
-- [Speaking (Submissions)](#speaking-submissions)
-- [Reviews](#reviews)
+- [Speaking (Test Sessions)](#speaking-test-sessions)
+- [Reviews (Session-based)](#reviews-session-based)
 - [Groups](#groups)
 - [Community Feed](#community-feed)
 - [Analytics (Teacher)](#analytics-teacher)
@@ -62,31 +63,46 @@ export interface Question {
   createdAt: string;
 }
 
-export interface SpeakingResponse {
+export interface TestSession {
   id: string;
-  questionId: number;
-  studentId: string;
-  localUri: string | null;
-  remoteUrl: string | null;
-  teacherScore: number | null;
-  teacherFeedback: string | null;
+  testId: number;
+  userId: string;
   visibility: "private" | "group" | "community";
   groupId: string | null;
   likes: number;
   commentsCount: number;
   scoreAvg: number | null;
+  cefrLevel: string | null; // "A2" | "B1" | "B2" | "C1"
+  createdAt: string;
+  test?: Pick<Test, "id" | "title" | "description">;
+  user?: Pick<User, "id" | "fullName" | "username" | "avatarUrl">;
+  responses?: SpeakingResponse[];
+  reviews?: Review[];
+  isLiked?: boolean;
+  _count?: { responses: number; reviews?: number; comments?: number };
+}
+
+export interface SpeakingResponse {
+  id: string;
+  questionId: number;
+  studentId: string;
+  sessionId: string | null;
+  localUri: string | null;
+  remoteUrl: string | null;
+  teacherScore: number | null;
+  teacherFeedback: string | null;
   audioProcessed: boolean;
   createdAt: string;
   student?: Pick<User, "id" | "fullName" | "username" | "avatarUrl">;
-  question?: Pick<Question, "qText" | "part">;
-  isLiked?: boolean;
+  question?: Pick<Question, "id" | "qText" | "part" | "speakingTimer" | "prepTimer">;
 }
 
 export interface Review {
   id: string;
-  responseId: string;
+  sessionId: string;
   reviewerId: string;
-  score: number;
+  score: number; // 0–75
+  cefrLevel: string; // "A2" | "B1" | "B2" | "C1"
   feedback: string | null;
   createdAt: string;
   reviewer?: Pick<User, "id" | "fullName" | "username" | "avatarUrl">;
@@ -94,7 +110,7 @@ export interface Review {
 
 export interface Comment {
   id: string;
-  responseId: string;
+  sessionId: string;
   userId: string;
   text: string;
   createdAt: string;
@@ -142,7 +158,7 @@ export interface TeacherVerification {
   updatedAt: string;
 }
 
-export interface Session {
+export interface AuthSession {
   sessionId: string;
   userId: string;
   device: string;
@@ -159,6 +175,21 @@ export interface Pagination {
   totalPages: number;
 }
 ```
+
+---
+
+## CEFR Scoring
+
+Reviews use a **0–75** point scale. The CEFR level is derived automatically:
+
+| Score Range | CEFR Level |
+|-------------|------------|
+| 0–37 | A2 |
+| 38–50 | B1 |
+| 51–64 | B2 |
+| 65–75 | C1 |
+
+The `cefrLevel` field is included in review objects and session objects (based on `scoreAvg`).
 
 ---
 
@@ -265,7 +296,7 @@ const getSessions = async (token: string) => {
   const res = await fetch(`${BASE_URL}/auth/sessions`, {
     headers: headers(token),
   });
-  return res.json(); // { sessions: Session[] }
+  return res.json(); // { sessions: AuthSession[] }
 };
 ```
 
@@ -448,7 +479,9 @@ const deleteQuestion = async (token: string, questionId: number) => {
 
 ---
 
-## Speaking (Submissions)
+## Speaking (Test Sessions)
+
+All speaking data is organized into **test sessions**. A `TestSession` represents one user taking one test. Each session contains multiple `Response` records (one per question). Reviews, likes, and comments are attached to the **session**, not individual responses.
 
 ### SSE — Real-time Events
 
@@ -472,39 +505,72 @@ const connectSSE = (token: string) => {
 };
 ```
 
-### My Submissions
+### My Sessions
 
 ```ts
-const mySubmissions = async (token: string, page = 1, limit = 20) => {
+const mySessions = async (token: string, page = 1, limit = 20) => {
   const res = await fetch(
     `${BASE_URL}/speaking/my?page=${page}&limit=${limit}`,
     { headers: headers(token) }
   );
-  return res.json(); // { data: SpeakingResponse[], pagination: Pagination }
+  return res.json();
+  // { data: TestSession[], pagination: Pagination }
+  // Each session includes: test { id, title, description }, _count { responses }
+};
+```
+
+### Get Session Detail
+
+Returns the full session with test info, user info, all responses (with questions), reviews, and comment count.
+
+```ts
+const getSession = async (token: string, sessionId: string) => {
+  const res = await fetch(`${BASE_URL}/speaking/sessions/${sessionId}`, {
+    headers: headers(token),
+  });
+  return res.json();
+  // TestSession with:
+  //   test: { id, title, description }
+  //   user: { id, fullName, username, avatarUrl }
+  //   responses: SpeakingResponse[] (each with question details)
+  //   reviews: Review[] (each with reviewer info and cefrLevel)
+  //   isLiked: boolean
+  //   cefrLevel: string | null
+  //   _count: { comments }
 };
 ```
 
 ### Pending Reviews 🔒 teacher
 
+Sessions that have not been reviewed yet.
+
 ```ts
-const pendingSubmissions = async (token: string, page = 1, limit = 20) => {
+const pendingSessions = async (token: string, page = 1, limit = 20) => {
   const res = await fetch(
     `${BASE_URL}/speaking/pending?page=${page}&limit=${limit}`,
     { headers: headers(token) }
   );
-  return res.json(); // { data: SpeakingResponse[], pagination: Pagination }
+  return res.json();
+  // { data: TestSession[], pagination: Pagination }
+  // Each session includes: user, test, _count { responses }
 };
 ```
 
 ### Submit Audio 🔒 student
+
+Upload a single audio response. Pass `testId` to create a new session, or `sessionId` to add to an existing one.
 
 ```ts
 const submitSpeaking = async (
   token: string,
   audioUri: string,
   questionId: number,
-  visibility: "private" | "group" | "community" = "private",
-  groupId?: string
+  options: {
+    visibility?: "private" | "group" | "community";
+    groupId?: string;
+    sessionId?: string; // add to existing session
+    testId?: number; // create new session for this test
+  } = {}
 ) => {
   const formData = new FormData();
   formData.append("audio", {
@@ -513,30 +579,39 @@ const submitSpeaking = async (
     type: "audio/m4a",
   } as any);
   formData.append("questionId", String(questionId));
-  formData.append("visibility", visibility);
-  if (groupId) formData.append("groupId", groupId);
+  if (options.visibility) formData.append("visibility", options.visibility);
+  if (options.groupId) formData.append("groupId", options.groupId);
+  if (options.sessionId) formData.append("sessionId", options.sessionId);
+  if (options.testId) formData.append("testId", String(options.testId));
 
   const res = await fetch(`${BASE_URL}/speaking`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
     body: formData,
   });
-  return res.json(); // 201 SpeakingResponse
+  return res.json();
+  // 201 SpeakingResponse with sessionId
 };
 ```
 
-### Get Single Submission
+**Session creation flow:**
+1. First question: pass `testId` + `visibility` + optional `groupId` → a new `TestSession` is created
+2. Subsequent questions: pass the returned `sessionId` → responses are added to the same session
+
+### Get Single Response
 
 ```ts
-const getSubmission = async (token: string, id: string) => {
+const getResponse = async (token: string, id: string) => {
   const res = await fetch(`${BASE_URL}/speaking/${id}`, {
     headers: headers(token),
   });
-  return res.json(); // SpeakingResponse (with reviews[], isLiked)
+  return res.json(); // SpeakingResponse (with student, question, isLiked)
 };
 ```
 
-### Update Submission Visibility
+### Update Visibility
+
+Updates the session's visibility (not the individual response).
 
 ```ts
 const updateSubmission = async (
@@ -553,7 +628,7 @@ const updateSubmission = async (
 };
 ```
 
-### Delete Submission
+### Delete Response
 
 ```ts
 const deleteSubmission = async (token: string, id: string) => {
@@ -565,50 +640,57 @@ const deleteSubmission = async (token: string, id: string) => {
 };
 ```
 
-### Like / Unlike
+### Like / Unlike Session
 
 ```ts
-const likeSubmission = async (token: string, id: string) => {
-  const res = await fetch(`${BASE_URL}/speaking/${id}/like`, {
-    method: "POST",
-    headers: headers(token),
-  });
+const likeSession = async (token: string, sessionId: string) => {
+  const res = await fetch(
+    `${BASE_URL}/speaking/sessions/${sessionId}/like`,
+    { method: "POST", headers: headers(token) }
+  );
   return res.json(); // { success: true }
 };
 
-const unlikeSubmission = async (token: string, id: string) => {
-  const res = await fetch(`${BASE_URL}/speaking/${id}/like`, {
-    method: "DELETE",
-    headers: headers(token),
-  });
+const unlikeSession = async (token: string, sessionId: string) => {
+  const res = await fetch(
+    `${BASE_URL}/speaking/sessions/${sessionId}/like`,
+    { method: "DELETE", headers: headers(token) }
+  );
   return res.json(); // { success: true }
 };
 ```
 
-### Add Comment
+### Add Comment to Session
 
 ```ts
-const addComment = async (token: string, id: string, text: string) => {
-  const res = await fetch(`${BASE_URL}/speaking/${id}/comment`, {
-    method: "POST",
-    headers: headers(token),
-    body: JSON.stringify({ text }),
-  });
+const addComment = async (
+  token: string,
+  sessionId: string,
+  text: string
+) => {
+  const res = await fetch(
+    `${BASE_URL}/speaking/sessions/${sessionId}/comment`,
+    {
+      method: "POST",
+      headers: headers(token),
+      body: JSON.stringify({ text }),
+    }
+  );
   return res.json(); // 201 Comment
 };
 ```
 
-### List Comments
+### List Session Comments
 
 ```ts
 const getComments = async (
   token: string,
-  id: string,
+  sessionId: string,
   page = 1,
   limit = 20
 ) => {
   const res = await fetch(
-    `${BASE_URL}/speaking/${id}/comments?page=${page}&limit=${limit}`,
+    `${BASE_URL}/speaking/sessions/${sessionId}/comments?page=${page}&limit=${limit}`,
     { headers: headers(token) }
   );
   return res.json(); // { data: Comment[], pagination: Pagination }
@@ -617,47 +699,54 @@ const getComments = async (
 
 ---
 
-## Reviews
+## Reviews (Session-based)
+
+Reviews are posted per **session**, not per individual response. Each reviewer can submit one review per session (upsert). Score range is **0–75** with automatic CEFR level.
 
 ### Submit / Update Review
 
 ```ts
 const submitReview = async (
   token: string,
-  speakingId: string,
-  data: { score: number; feedback?: string } // score: 0–9
+  sessionId: string,
+  data: { score: number; feedback?: string } // score: 0–75
 ) => {
-  const res = await fetch(`${BASE_URL}/reviews/${speakingId}`, {
+  const res = await fetch(`${BASE_URL}/reviews/${sessionId}`, {
     method: "POST",
     headers: headers(token),
     body: JSON.stringify(data),
   });
-  return res.json(); // 201 Review (upserts — one review per user per submission)
+  return res.json();
+  // 201 Review { id, sessionId, reviewerId, score, cefrLevel, feedback, createdAt, reviewer }
 };
 ```
 
-### List Reviews for a Submission
+> Cannot review your own session. One review per reviewer per session (upserts on conflict).
+
+### List Reviews for a Session
 
 ```ts
-const getReviews = async (token: string, speakingId: string) => {
-  const res = await fetch(`${BASE_URL}/reviews/${speakingId}`, {
+const getReviews = async (token: string, sessionId: string) => {
+  const res = await fetch(`${BASE_URL}/reviews/${sessionId}`, {
     headers: headers(token),
   });
-  return res.json(); // Review[]
+  return res.json(); // Review[] (each with cefrLevel and reviewer info)
 };
 ```
 
 ### Delete My Review
 
 ```ts
-const deleteMyReview = async (token: string, speakingId: string) => {
-  const res = await fetch(`${BASE_URL}/reviews/${speakingId}`, {
+const deleteMyReview = async (token: string, sessionId: string) => {
+  const res = await fetch(`${BASE_URL}/reviews/${sessionId}`, {
     method: "DELETE",
     headers: headers(token),
   });
   return res.json(); // { success: true }
 };
 ```
+
+> Deleting a review recalculates the session's `scoreAvg`.
 
 ---
 
@@ -710,10 +799,12 @@ const getGroupMembers = async (token: string, groupId: string) => {
 };
 ```
 
-### Get Group Submissions 🔒 owner/teacher
+### Get Group Sessions (Submissions)
+
+Returns test sessions submitted to the group, with CEFR levels.
 
 ```ts
-const getGroupSubmissions = async (
+const getGroupSessions = async (
   token: string,
   groupId: string,
   page = 1,
@@ -723,7 +814,8 @@ const getGroupSubmissions = async (
     `${BASE_URL}/groups/${groupId}/submissions?page=${page}&limit=${limit}`,
     { headers: headers(token) }
   );
-  return res.json(); // { data: SpeakingResponse[], pagination: Pagination }
+  return res.json();
+  // { data: TestSession[] (with user, test, cefrLevel, _count), pagination: Pagination }
 };
 ```
 
@@ -939,6 +1031,8 @@ const removeMember = async (
 
 ## Community Feed
 
+The community feed shows **test sessions** with `visibility: "community"`.
+
 ### Get Feed
 
 ```ts
@@ -953,7 +1047,7 @@ const getCommunityFeed = async (
     { headers: headers(token) }
   );
   return res.json();
-  // { data: SpeakingResponse[], pagination: Pagination, strategy }
+  // { data: TestSession[] (with user, test, cefrLevel, isLiked, _count), pagination, strategy }
 };
 ```
 
