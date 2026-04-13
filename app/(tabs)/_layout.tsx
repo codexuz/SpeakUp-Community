@@ -1,13 +1,10 @@
 import { TG } from '@/constants/theme';
-import { useSyncManager } from '@/lib/sync';
 import { Tabs } from 'expo-router';
 import { Globe, Home, List, User, Users } from 'lucide-react-native';
 import React from 'react';
 import { Platform } from 'react-native';
 
 export default function TabLayout() {
-  useSyncManager();
-
   return (
     <Tabs
       screenOptions={{

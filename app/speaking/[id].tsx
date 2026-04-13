@@ -1,12 +1,11 @@
 import { TG } from '@/constants/theme';
-import { fetchQuestionById, Question } from '@/lib/data';
-import { saveResponseOffline } from '@/lib/db';
+import { apiSubmitSpeaking } from '@/lib/api';
+import { fetchQuestionsByTestId, Question } from '@/lib/data';
 import { useAuth } from '@/store/auth';
 import { AudioModule, RecordingPresets, useAudioRecorder } from 'expo-audio';
-import { File, Paths } from 'expo-file-system';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Speech from 'expo-speech';
-import { ArrowLeft, Clock, Mic, StopCircle } from 'lucide-react-native';
+import { ArrowLeft, ChevronRight, Clock, Mic, StopCircle } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,13 +15,17 @@ export default function SpeakingScreen() {
   const router = useRouter();
   const { user } = useAuth();
 
-  const [question, setQuestion] = useState<Question | null>(null);
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [loadingQ, setLoadingQ] = useState(true);
   const [phase, setPhase] = useState<'prep' | 'speak' | 'done'>('prep');
   const [timeLeft, setTimeLeft] = useState(0);
 
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  const question = questions[currentIndex] ?? null;
+  const isLastQuestion = currentIndex >= questions.length - 1;
 
   const startRecording = useCallback(async () => {
     try {
@@ -33,28 +36,30 @@ export default function SpeakingScreen() {
     }
   }, [audioRecorder]);
 
-  const stopRecording = useCallback(async () => {
+  const saveAndAdvance = useCallback(async () => {
     try {
       setPhase('done');
       if (audioRecorder.isRecording) await audioRecorder.stop();
       const uri = audioRecorder.uri;
       if (uri && user && question) {
-        const filename = `response_${user.id}_${Date.now()}.m4a`;
-        const dest = new File(Paths.document, filename);
-        new File(uri).copy(dest);
-        await saveResponseOffline(question.id, user.id, dest.uri);
+        await apiSubmitSpeaking(question.id, uri);
       }
-      router.back();
     } catch (err) {
-      console.error('Failed to stop recording', err);
-      router.back();
+      console.error('Failed to save recording', err);
     }
-  }, [audioRecorder, question, router, user]);
+
+    if (isLastQuestion) {
+      router.back();
+    } else {
+      setCurrentIndex(prev => prev + 1);
+      setPhase('prep');
+    }
+  }, [audioRecorder, isLastQuestion, question, router, user]);
 
   useEffect(() => {
     (async () => {
-      const q = await fetchQuestionById(Number(id));
-      setQuestion(q);
+      const qs = await fetchQuestionsByTestId(Number(id));
+      setQuestions(qs);
       setLoadingQ(false);
     })();
   }, [id]);
@@ -74,17 +79,17 @@ export default function SpeakingScreen() {
         ])
       ).start();
     }
-  }, [phase, pulseAnim, question, startRecording]);
+  }, [phase, currentIndex, pulseAnim, question, startRecording]);
 
   useEffect(() => {
     if (timeLeft <= 0) {
       if (phase === 'prep') setPhase('speak');
-      else if (phase === 'speak') stopRecording();
+      else if (phase === 'speak') saveAndAdvance();
       return;
     }
     const timer = setInterval(() => setTimeLeft(p => p - 1), 1000);
     return () => clearInterval(timer);
-  }, [phase, stopRecording, timeLeft]);
+  }, [phase, saveAndAdvance, timeLeft]);
 
   if (loadingQ) return (
     <SafeAreaView style={[styles.safeArea, { justifyContent: 'center', alignItems: 'center' }]}>
@@ -92,9 +97,9 @@ export default function SpeakingScreen() {
     </SafeAreaView>
   );
 
-  if (!question) return (
+  if (questions.length === 0 || !question) return (
     <SafeAreaView style={[styles.safeArea, { justifyContent: 'center', alignItems: 'center' }]}>
-      <Text style={{ color: TG.textSecondary, fontSize: 16 }}>Question not found</Text>
+      <Text style={{ color: TG.textSecondary, fontSize: 16 }}>No questions found</Text>
     </SafeAreaView>
   );
 
@@ -108,7 +113,12 @@ export default function SpeakingScreen() {
           <ArrowLeft size={22} color={TG.textWhite} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Part {question.part}</Text>
-        <View style={{ width: 36 }} />
+        <Text style={styles.headerCounter}>{currentIndex + 1}/{questions.length}</Text>
+      </View>
+
+      {/* Progress bar */}
+      <View style={styles.progressTrack}>
+        <View style={[styles.progressFill, { width: `${((currentIndex + 1) / questions.length) * 100}%` }]} />
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -140,12 +150,13 @@ export default function SpeakingScreen() {
             <Mic size={20} color={TG.textWhite} />
             <Text style={styles.btnText}>Start Speaking</Text>
           </TouchableOpacity>
-        ) : (
+        ) : phase === 'speak' ? (
           <TouchableOpacity style={styles.stopBtn} onPress={() => setTimeLeft(0)} activeOpacity={0.7}>
             <StopCircle size={20} color={TG.textWhite} />
-            <Text style={styles.btnText}>Finish</Text>
+            <Text style={styles.btnText}>{isLastQuestion ? 'Finish' : 'Next'}</Text>
+            {!isLastQuestion && <ChevronRight size={18} color={TG.textWhite} />}
           </TouchableOpacity>
-        )}
+        ) : null}
       </View>
     </SafeAreaView>
   );
@@ -160,6 +171,10 @@ const styles = StyleSheet.create({
   },
   backBtn: { padding: 4 },
   headerTitle: { fontSize: 17, fontWeight: '700', color: TG.textWhite },
+  headerCounter: { fontSize: 14, fontWeight: '600', color: 'rgba(255,255,255,0.7)', minWidth: 36, textAlign: 'right' },
+
+  progressTrack: { height: 3, backgroundColor: TG.separator },
+  progressFill: { height: 3, backgroundColor: TG.accent },
 
   content: { padding: 20, paddingBottom: 8 },
   imageCard: {

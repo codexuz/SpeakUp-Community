@@ -1,21 +1,19 @@
 import { TG } from '@/constants/theme';
 import { apiDeleteSpeaking, apiFetchMySpeaking, apiFetchPendingSpeaking, apiPostReview } from '@/lib/api';
-import { deleteResponseLocal, getCachedQuestionById, getStudentResponses } from '@/lib/db';
 import { useAuth } from '@/store/auth';
-import { File } from 'expo-file-system';
 import { useFocusEffect } from '@react-navigation/native';
-import { CheckCircle, Clock, Mic, Play, Square, Star, Trash2 } from 'lucide-react-native';
+import { Mic, Play, Square, Star, Trash2 } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    Modal,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Modal,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -23,7 +21,6 @@ export default function ResponsesScreen() {
   const { user } = useAuth();
   const isTeacher = user?.role === 'teacher';
   const [responses, setResponses] = useState<any[]>([]);
-  const [questionMap, setQuestionMap] = useState<Record<number, string>>({});
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -40,31 +37,15 @@ export default function ResponsesScreen() {
         const result = await apiFetchPendingSpeaking();
         setResponses(result.data || []);
       } else {
-        const localData = await getStudentResponses(user!.id) as any[];
-        const map: Record<number, string> = {};
-        for (const r of localData) {
-          if (!map[r.question_id]) {
-            const q = await getCachedQuestionById(r.question_id);
-            map[r.question_id] = q?.q_text || 'Unknown Question';
-          }
-        }
-        setQuestionMap(map);
-
-        try {
-          const result = await apiFetchMySpeaking();
-          const remoteData = result.data || [];
-          const merged = [...localData.filter((l: any) => !l.is_synced), ...remoteData];
-          setResponses(merged);
-        } catch {
-          setResponses(localData);
-        }
+        const result = await apiFetchMySpeaking();
+        setResponses(result.data || []);
       }
     } catch (e) {
       console.error('Failed to load responses', e);
     } finally {
       setLoading(false);
     }
-  }, [user?.id, isTeacher]);
+  }, [isTeacher]);
 
   useFocusEffect(
     useCallback(() => {
@@ -77,13 +58,9 @@ export default function ResponsesScreen() {
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete', style: 'destructive', onPress: async () => {
-          if (item.local_uri) {
-            await deleteResponseLocal(item.id);
-            try { const file = new File(item.local_uri); if (file.exists) file.delete(); } catch {}
-          }
-          if (item.id && typeof item.id === 'string') {
-            apiDeleteSpeaking(item.id).catch(() => {});
-          }
+          try {
+            await apiDeleteSpeaking(item.id);
+          } catch {}
           loadResponses();
         }
       }
@@ -96,7 +73,7 @@ export default function ResponsesScreen() {
       return;
     }
     setPlayingId(item.id?.toString());
-    const uri = item.local_uri || item.remoteUrl;
+    const uri = item.remoteUrl;
     console.log('Playing', uri);
   };
 
@@ -127,9 +104,8 @@ export default function ResponsesScreen() {
   };
 
   const renderItem = ({ item }: { item: any }) => {
-    const qText = item.question?.qText || questionMap[item.question_id] || 'Unknown Question';
+    const qText = item.question?.qText || 'Unknown Question';
     const isPlaying = playingId === (item.id?.toString());
-    const isLocal = !!item.local_uri;
 
     return (
       <View style={styles.card}>
@@ -143,15 +119,6 @@ export default function ResponsesScreen() {
                 <Text style={styles.studentName}>{item.student.fullName}</Text>
                 <Text style={styles.studentHandle}>@{item.student.username}</Text>
               </View>
-            </View>
-          )}
-          {!isTeacher && isLocal && (
-            <View style={styles.syncBadge}>
-              {item.is_synced ? (
-                <><CheckCircle size={14} color={TG.green} /><Text style={[styles.badgeText, { color: TG.green }]}>Synced</Text></>
-              ) : (
-                <><Clock size={14} color={TG.orange} /><Text style={[styles.badgeText, { color: TG.orange }]}>Pending</Text></>
-              )}
             </View>
           )}
           {item.scoreAvg != null && (
@@ -248,8 +215,6 @@ const styles = StyleSheet.create({
   avatarText: { fontSize: 14, fontWeight: '700', color: TG.accent },
   studentName: { fontSize: 15, fontWeight: '600', color: TG.textPrimary },
   studentHandle: { fontSize: 12, color: TG.textSecondary },
-  syncBadge: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  badgeText: { fontSize: 12, fontWeight: '600' },
   scorePill: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: TG.orangeLight, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, marginLeft: 'auto' },
   scoreValue: { fontSize: 13, fontWeight: '700', color: TG.orange },
 

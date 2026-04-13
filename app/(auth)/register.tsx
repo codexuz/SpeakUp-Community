@@ -2,9 +2,9 @@ import { TG } from '@/constants/theme';
 import { apiRegister } from '@/lib/api';
 import { useAuth } from '@/store/auth';
 import { useRouter } from 'expo-router';
-import { ChevronLeft } from 'lucide-react-native';
+import { ChevronLeft, Eye, EyeOff } from 'lucide-react-native';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const TOTAL_STEPS = 4;
@@ -12,19 +12,25 @@ const REGIONS = [
   'Tashkent', 'Andijan', 'Bukhara', 'Fergana', 'Jizzakh', 'Namangan', 'Navoiy', 'Kashkadarya', 'Samarkand', 'Syrdarya', 'Surkhandarya', 'Khorezm', 'Karakalpakstan'
 ];
 
+const GENDER_AVATARS: Record<string, string> = {
+  Female: 'https://0c274cbb-6ce5-45fb-8540-ad2b7912cd23.srvstatic.uz/female.jpg',
+  Male: 'https://0c274cbb-6ce5-45fb-8540-ad2b7912cd23.srvstatic.uz/male.jpg',
+};
+
 export default function RegisterScreen() {
   const router = useRouter();
   const { login } = useAuth();
   
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   
   const [formData, setFormData] = useState({
     username: '',
     fullName: '',
     gender: 'Male',
     region: 'Tashkent',
-    avatarUrl: 'https://i.ibb.co/68vS1zZ/default-avatar.png',
+    avatarUrl: GENDER_AVATARS['Male'],
     password: ''
   });
 
@@ -171,9 +177,10 @@ export default function RegisterScreen() {
                   <TouchableOpacity
                     key={g}
                     style={[styles.genderCard, isActive && styles.genderCardActive]}
-                    onPress={() => updateForm('gender', g)}
+                    onPress={() => setFormData(prev => ({ ...prev, gender: g, avatarUrl: GENDER_AVATARS[g] }))}
                     activeOpacity={0.7}
                   >
+                    <Image source={{ uri: GENDER_AVATARS[g] }} style={styles.genderAvatar} />
                     <Text style={[styles.genderText, isActive && styles.genderTextActive]}>
                       {g}
                     </Text>
@@ -181,15 +188,6 @@ export default function RegisterScreen() {
                 );
               })}
             </View>
-
-            <Text style={styles.label}>Avatar Image URL (optional)</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Paste an image link..."
-              placeholderTextColor={TG.textHint}
-              value={formData.avatarUrl}
-              onChangeText={(text) => updateForm('avatarUrl', text)}
-            />
           </View>
         );
       case 4:
@@ -199,15 +197,28 @@ export default function RegisterScreen() {
             <Text style={styles.stepSubtitle}>Secure your account with a password</Text>
             
             <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your password"
-              placeholderTextColor={TG.textHint}
-              secureTextEntry
-              value={formData.password}
-              onChangeText={(text) => updateForm('password', text)}
-              autoFocus
-            />
+            <View style={styles.passwordWrap}>
+              <TextInput
+                style={styles.passwordInput}
+                placeholder="Enter your password"
+                placeholderTextColor={TG.textHint}
+                secureTextEntry={!showPassword}
+                value={formData.password}
+                onChangeText={(text) => updateForm('password', text)}
+                autoFocus
+              />
+              <TouchableOpacity
+                onPress={() => setShowPassword(prev => !prev)}
+                style={styles.eyeBtn}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                {showPassword ? (
+                  <EyeOff size={20} color={TG.textHint} />
+                ) : (
+                  <Eye size={20} color={TG.textHint} />
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         );
     }
@@ -342,6 +353,25 @@ const styles = StyleSheet.create({
     borderColor: TG.separator,
     marginBottom: 4,
   },
+  passwordWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: TG.bgSecondary,
+    borderRadius: 12,
+    borderWidth: 0.5,
+    borderColor: TG.separator,
+    marginBottom: 4,
+  },
+  passwordInput: {
+    flex: 1,
+    padding: 16,
+    color: TG.textPrimary,
+    fontSize: 16,
+  },
+  eyeBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 16,
+  },
   
   regionList: { flex: 1 },
   choiceCard: { 
@@ -378,6 +408,13 @@ const styles = StyleSheet.create({
     borderWidth: 0.5, 
     borderColor: TG.separator, 
     alignItems: 'center',
+    gap: 10,
+  },
+  genderAvatar: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: TG.separator,
   },
   genderCardActive: { 
     borderColor: TG.accent, 

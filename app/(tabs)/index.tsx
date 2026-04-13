@@ -3,8 +3,8 @@ import { fetchTestsWithQuestions, Test } from '@/lib/data';
 import { useAuth } from '@/store/auth';
 import { useRouter } from 'expo-router';
 import { BarChart3, BookOpen, ChevronRight, Mic } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function HomeScreen() {
@@ -12,11 +12,13 @@ export default function HomeScreen() {
   const router = useRouter();
   const [tests, setTests] = useState<Test[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const loadTests = async () => {
     setLoading(true);
     try {
       const data = await fetchTestsWithQuestions();
+      console.log('Fetched tests:', JSON.stringify(data));
       setTests(data);
     } catch (e) {
       console.error('Failed to load tests', e);
@@ -24,6 +26,18 @@ export default function HomeScreen() {
       setLoading(false);
     }
   };
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const data = await fetchTestsWithQuestions();
+      setTests(data);
+    } catch (e) {
+      console.error('Failed to refresh tests', e);
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
 
   useEffect(() => {
     loadTests();
@@ -35,7 +49,12 @@ export default function HomeScreen() {
         <View style={styles.header}>
           <Text style={styles.headerTitle}>SpeakUp</Text>
         </View>
-        <View style={styles.teacherContainer}>
+        <ScrollView
+          contentContainerStyle={styles.teacherContainer}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={TG.accent} colors={[TG.accent]} />
+          }
+        >
           <View style={styles.teacherAvatar}>
             <Text style={styles.teacherAvatarText}>{user.fullName?.charAt(0) || 'T'}</Text>
           </View>
@@ -71,7 +90,7 @@ export default function HomeScreen() {
             </View>
             <ChevronRight size={20} color={TG.textHint} />
           </TouchableOpacity>
-        </View>
+        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -81,7 +100,13 @@ export default function HomeScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>SpeakUp</Text>
       </View>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={TG.accent} colors={[TG.accent]} />
+        }
+      >
         <Text style={styles.greeting}>Hello, {user?.fullName} 👋</Text>
         <Text style={styles.subGreeting}>Choose a test to practice your speaking</Text>
 
@@ -100,11 +125,7 @@ export default function HomeScreen() {
                 style={styles.testCard}
                 activeOpacity={0.7}
                 onPress={() => {
-                  if (firstQuestion) {
-                    router.push(`/speaking/${firstQuestion.id}`);
-                  } else {
-                    Alert.alert('No Questions', 'This test does not have any questions yet.');
-                  }
+                    router.push({ pathname: '/speaking/[id]', params: { id: String(test.id) } } as any);
                 }}
               >
                 <View style={[styles.testIcon, { backgroundColor: TG.accentLight }]}>

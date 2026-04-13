@@ -2,7 +2,7 @@ import { TG } from '@/constants/theme';
 import { apiLogin } from '@/lib/api';
 import { useAuth } from '@/store/auth';
 import { useRouter } from 'expo-router';
-import { MessageCircle } from 'lucide-react-native';
+import { Eye, EyeOff, MessageCircle } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,6 +11,7 @@ export default function LoginScreen() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
   const { login } = useAuth();
 
@@ -74,14 +75,27 @@ export default function LoginScreen() {
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your password"
-              placeholderTextColor={TG.textHint}
-              secureTextEntry
-              value={password}
-              onChangeText={setPassword}
-            />
+            <View style={styles.passwordWrap}>
+              <TextInput
+                style={styles.passwordInput}
+                placeholder="Enter your password"
+                placeholderTextColor={TG.textHint}
+                secureTextEntry={!showPassword}
+                value={password}
+                onChangeText={setPassword}
+              />
+              <TouchableOpacity
+                onPress={() => setShowPassword(prev => !prev)}
+                style={styles.eyeBtn}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                {showPassword ? (
+                  <EyeOff size={20} color={TG.textHint} />
+                ) : (
+                  <Eye size={20} color={TG.textHint} />
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
 
           <TouchableOpacity
@@ -160,6 +174,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     borderWidth: 0.5,
     borderColor: TG.separator,
+  },
+  passwordWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: TG.bgSecondary,
+    borderRadius: 12,
+    borderWidth: 0.5,
+    borderColor: TG.separator,
+  },
+  passwordInput: {
+    flex: 1,
+    padding: 16,
+    color: TG.textPrimary,
+    fontSize: 16,
+  },
+  eyeBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 16,
   },
   primaryButton: {
     backgroundColor: TG.accent,
