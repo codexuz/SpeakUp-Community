@@ -19,6 +19,8 @@ export default function ProfileScreen() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
   const [verificationLoading, setVerificationLoading] = useState(false);
+  const [verifyModal, setVerifyModal] = useState(false);
+  const [verifyReason, setVerifyReason] = useState('');
 
   const loadVerificationStatus = useCallback(async () => {
     if (user?.role === 'teacher' || user?.verifiedTeacher) return;
@@ -92,44 +94,19 @@ export default function ProfileScreen() {
     logout();
   };
 
-  const handleRequestVerification = () => {
-    Alert.prompt
-      ? Alert.prompt('Teacher Verification', 'Why should you be verified as a teacher?', [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Submit',
-            onPress: async (reason: any) => {
-              setVerificationLoading(true);
-              try {
-                await apiRequestTeacherVerification(reason);
-                setVerificationStatus('pending');
-                Alert.alert('Submitted', 'Your verification request has been submitted.');
-              } catch (e: any) {
-                Alert.alert('Error', e.message);
-              } finally {
-                setVerificationLoading(false);
-              }
-            },
-          },
-        ])
-      : Alert.alert('Teacher Verification', 'Submit a request to be verified as a teacher?', [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Submit',
-            onPress: async () => {
-              setVerificationLoading(true);
-              try {
-                await apiRequestTeacherVerification();
-                setVerificationStatus('pending');
-                Alert.alert('Submitted', 'Your verification request has been submitted.');
-              } catch (e: any) {
-                Alert.alert('Error', e.message);
-              } finally {
-                setVerificationLoading(false);
-              }
-            },
-          },
-        ]);
+  const handleSubmitVerification = async () => {
+    setVerificationLoading(true);
+    try {
+      await apiRequestTeacherVerification(verifyReason.trim() || undefined);
+      setVerificationStatus('pending');
+      setVerifyModal(false);
+      setVerifyReason('');
+      Alert.alert('Submitted', 'Your verification request has been submitted.');
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setVerificationLoading(false);
+    }
   };
 
   const verificationBadge = () => {
@@ -226,15 +203,11 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         )}
 
-        {user?.role !== 'teacher' && !user?.verifiedTeacher && verificationStatus !== 'pending' && (
-          <TouchableOpacity style={styles.menuRow} activeOpacity={0.7} onPress={handleRequestVerification} disabled={verificationLoading}>
+        {!user?.verifiedTeacher && user?.role !== 'admin' && verificationStatus !== 'pending' && (
+          <TouchableOpacity style={styles.menuRow} activeOpacity={0.7} onPress={() => setVerifyModal(true)}>
             <Award size={18} color={TG.purple} />
             <Text style={[styles.menuText, { color: TG.purple }]}>Request Teacher Verification</Text>
-            {verificationLoading ? (
-              <ActivityIndicator size={14} color={TG.purple} style={{ marginLeft: 'auto' }} />
-            ) : (
-              <ChevronRight size={18} color={TG.textHint} style={{ marginLeft: 'auto' }} />
-            )}
+            <ChevronRight size={18} color={TG.textHint} style={{ marginLeft: 'auto' }} />
           </TouchableOpacity>
         )}
 
@@ -245,6 +218,47 @@ export default function ProfileScreen() {
           <Text style={styles.logoutText}>Log Out</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Verification Request Modal */}
+      <Modal visible={verifyModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Teacher Verification</Text>
+            <Text style={{ color: TG.textSecondary, fontSize: 14, marginBottom: 16 }}>Why should you be verified as a teacher?</Text>
+
+            <TextInput
+              style={[styles.modalInput, { height: 100, textAlignVertical: 'top' }]}
+              value={verifyReason}
+              onChangeText={setVerifyReason}
+              placeholder="Describe your teaching experience..."
+              placeholderTextColor={TG.textHint}
+              multiline
+            />
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.cancelBtn}
+                activeOpacity={0.7}
+                onPress={() => { setVerifyModal(false); setVerifyReason(''); }}
+              >
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.submitBtn, verificationLoading && { opacity: 0.5 }]}
+                activeOpacity={0.7}
+                onPress={handleSubmitVerification}
+                disabled={verificationLoading}
+              >
+                {verificationLoading ? (
+                  <ActivityIndicator size="small" color={TG.textWhite} />
+                ) : (
+                  <Text style={styles.submitBtnText}>Submit</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Edit Profile Modal */}
       <Modal visible={editModal} animationType="slide" transparent>
@@ -413,7 +427,7 @@ const styles = StyleSheet.create({
   logoutText: { fontSize: 15, color: TG.red, fontWeight: '500' },
 
   // Edit Modal
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.17)', justifyContent: 'flex-end' },
   modalContent: { backgroundColor: TG.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 },
   modalTitle: { fontSize: 18, fontWeight: '700', color: TG.textPrimary, marginBottom: 20 },
   inputLabel: { fontSize: 13, color: TG.textSecondary, fontWeight: '600', marginBottom: 6 },

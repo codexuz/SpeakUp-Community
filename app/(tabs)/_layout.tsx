@@ -1,11 +1,14 @@
 import { TG } from '@/constants/theme';
 import { Tabs } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { Globe, Home, List, User, Users } from 'lucide-react-native';
 import React from 'react';
 import { Platform } from 'react-native';
 
 export default function TabLayout() {
   return (
+    <>
+    <StatusBar style="light" backgroundColor={TG.headerBg} />
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: TG.tabActive,
@@ -67,5 +70,6 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
+    </>
   );
 }
