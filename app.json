@@ -60,7 +60,8 @@
         {
           "enableBackgroundRemoteNotifications": false
         }
-      ]
+      ],
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true,

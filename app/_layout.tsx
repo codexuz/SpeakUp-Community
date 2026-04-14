@@ -51,9 +51,15 @@ function RootNavigator() {
         <Stack.Screen name="review/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="community/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="user/[id]" options={{ headerShown: false }} />
-        <Stack.Screen name="group/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="group/[id]/index" options={{ headerShown: false }} />
+        <Stack.Screen name="group/[id]/detail" options={{ headerShown: false }} />
+        <Stack.Screen name="group/[id]/messaging" options={{ headerShown: false }} />
+        <Stack.Screen name="group/[id]/submissions" options={{ headerShown: false }} />
+        <Stack.Screen name="group/[id]/requests" options={{ headerShown: false }} />
         <Stack.Screen name="group/create" options={{ headerShown: false }} />
+        <Stack.Screen name="group/edit" options={{ headerShown: false }} />
         <Stack.Screen name="group/join" options={{ headerShown: false }} />
+        <Stack.Screen name="profile/edit" options={{ headerShown: false }} />
         <Stack.Screen name="sessions" options={{ headerShown: false }} />
         <Stack.Screen name="teacher-verification" options={{ headerShown: false }} />
         <Stack.Screen name="test/index" options={{ headerShown: false }} />

@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   Animated,
   FlatList,
+  Image,
   Platform,
   RefreshControl,
   StyleSheet,
@@ -192,11 +193,15 @@ export default function GroupsScreen() {
         onPress={() => router.push(`/group/${group.id}` as any)}
       >
         {/* Avatar */}
-        <View style={[styles.avatar, { backgroundColor: avatarColor.bg }]}>
-          <Text style={[styles.avatarLetter, { color: avatarColor.text }]}>
-            {group.name.charAt(0).toUpperCase()}
-          </Text>
-        </View>
+        {group.avatarUrl ? (
+          <Image source={{ uri: group.avatarUrl }} style={styles.avatarImg} />
+        ) : (
+          <View style={[styles.avatar, { backgroundColor: avatarColor.bg }]}>
+            <Text style={[styles.avatarLetter, { color: avatarColor.text }]}>
+              {group.name.charAt(0).toUpperCase()}
+            </Text>
+          </View>
+        )}
 
         {/* Content */}
         <View style={styles.rowContent}>
@@ -326,11 +331,15 @@ export default function GroupsScreen() {
                     handleRequestJoin(g.id, g.name);
                   }}
                 >
-                  <View style={[styles.avatar, { backgroundColor: avatarColor.bg }]}>
-                    <Text style={[styles.avatarLetter, { color: avatarColor.text }]}>
-                      {g.name.charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
+                  {g.avatarUrl ? (
+                    <Image source={{ uri: g.avatarUrl }} style={styles.avatarImg} />
+                  ) : (
+                    <View style={[styles.avatar, { backgroundColor: avatarColor.bg }]}>
+                      <Text style={[styles.avatarLetter, { color: avatarColor.text }]}>
+                        {g.name.charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                  )}
                   <View style={styles.rowContent}>
                     <Text style={styles.groupName} numberOfLines={1}>{g.name}</Text>
                     <Text style={styles.subtitle} numberOfLines={1}>
@@ -510,6 +519,11 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '600',
     marginTop: Platform.OS === 'android' ? -1 : 0,
+  },
+  avatarImg: {
+    width: AVATAR_SIZE,
+    height: AVATAR_SIZE,
+    borderRadius: AVATAR_SIZE / 2,
   },
 
   // Row content
