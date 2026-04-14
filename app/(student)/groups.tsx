@@ -6,7 +6,7 @@ import { fetchMyGroups, Group } from '@/lib/groups';
 import { useAuth } from '@/store/auth';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { ChevronRight, Globe, LogIn, Search, UserPlus, Users, X } from 'lucide-react-native';
+import { Globe, LogIn, Plus, Search, UserPlus, Users, X } from 'lucide-react-native';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -174,22 +174,6 @@ export default function GroupsScreen() {
     );
   }, [groups, searchQuery]);
 
-  // ── Role badge ────────────────────────────────────────────
-  const roleBadge = (role?: string) => {
-    if (!role) return null;
-    const map: Record<string, { color: string; bg: string; label: string }> = {
-      owner: { color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)', label: 'Owner' },
-      teacher: { color: TG.accent, bg: TG.accentLight, label: 'Teacher' },
-      student: { color: TG.green, bg: TG.greenLight, label: 'Student' },
-    };
-    const info = map[role] ?? { color: TG.textSecondary, bg: TG.separatorLight, label: role };
-    return (
-      <View style={[styles.roleBadge, { backgroundColor: info.bg }]}>
-        <Text style={[styles.roleText, { color: info.color }]}>{info.label}</Text>
-      </View>
-    );
-  };
-
   // ── searchBarHeight ────────────────────────────────────────
   const searchBarHeight = searchAnim.interpolate({
     inputRange: [0, 1],
@@ -221,7 +205,6 @@ export default function GroupsScreen() {
             <Text style={styles.groupName} numberOfLines={1}>
               {group.name}
             </Text>
-            {roleBadge(group.myRole)}
           </View>
 
           {/* Bottom row: description / members */}
@@ -234,16 +217,6 @@ export default function GroupsScreen() {
           </View>
         </View>
 
-        {/* Right side: member count badge + chevron */}
-        <View style={styles.rowRight}>
-          {group.description ? (
-            <View style={styles.memberBadge}>
-              <Users size={11} color={TG.textSecondary} />
-              <Text style={styles.memberBadgeText}>{formatMemberCount(memberCount)}</Text>
-            </View>
-          ) : null}
-          <ChevronRight size={18} color={TG.separator} />
-        </View>
       </TouchableOpacity>
     );
   };
@@ -338,7 +311,21 @@ export default function GroupsScreen() {
             renderItem={({ item: g }) => {
               const avatarColor = getAvatarColor(g.name);
               return (
-                <View style={styles.row}>
+                <TouchableOpacity
+                  style={styles.row}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    if (g.status === 'member') {
+                      router.push(`/group/${g.id}` as any);
+                      return;
+                    }
+                    if (g.status === 'pending') {
+                      toast.warning('Pending', 'Your join request is already pending.');
+                      return;
+                    }
+                    handleRequestJoin(g.id, g.name);
+                  }}
+                >
                   <View style={[styles.avatar, { backgroundColor: avatarColor.bg }]}>
                     <Text style={[styles.avatarLetter, { color: avatarColor.text }]}>
                       {g.name.charAt(0).toUpperCase()}
@@ -372,7 +359,7 @@ export default function GroupsScreen() {
                       <Text style={[styles.statusChipText, { color: TG.accent }]}>Join</Text>
                     </TouchableOpacity>
                   )}
-                </View>
+                </TouchableOpacity>
               );
             }}
           />
@@ -428,15 +415,13 @@ export default function GroupsScreen() {
 
       {/* FAB – Join */}
       {!loading && groups.length > 0 && (
-        <View style={styles.fabRow}>
-          <TouchableOpacity
-            style={styles.fab}
-            activeOpacity={0.8}
-            onPress={() => router.push('/group/join' as any)}
-          >
-            <LogIn size={22} color="#fff" />
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          style={styles.fab}
+          activeOpacity={0.85}
+          onPress={() => router.push('/group/join' as any)}
+        >
+          <Plus size={24} color="#fff" strokeWidth={2.5} />
+        </TouchableOpacity>
       )}
     </SafeAreaView>
   );
@@ -456,15 +441,6 @@ const styles = StyleSheet.create({
     backgroundColor: TG.headerBg,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.12,
-        shadowRadius: 4,
-      },
-      android: { elevation: 4 },
-    }),
   },
   headerTitle: {
     fontSize: 20,
@@ -485,18 +461,16 @@ const styles = StyleSheet.create({
   searchBarWrap: {
     backgroundColor: TG.bg,
     overflow: 'hidden',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: TG.separator,
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: TG.bgSecondary,
-    marginHorizontal: 12,
+    marginHorizontal: 16,
     marginVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    height: 36,
+    paddingHorizontal: 14,
+    borderRadius: 18,
+    height: 42,
     gap: 8,
   },
   searchInput: {
@@ -507,20 +481,20 @@ const styles = StyleSheet.create({
   },
 
   // List
-  list: { paddingBottom: 110 },
+  list: { paddingHorizontal: 14, paddingTop: 8, paddingBottom: 110 },
   separator: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: TG.separator,
-    marginLeft: 16 + AVATAR_SIZE + 14,
+    height: 10,
+    backgroundColor: 'transparent',
   },
 
   // Row (group item)
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: TG.bg,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderRadius: 22,
+    backgroundColor: TG.bgSecondary,
     gap: 14,
   },
 
@@ -554,23 +528,6 @@ const styles = StyleSheet.create({
     flex: 1,
     lineHeight: 19,
   },
-
-  // Row right side
-  rowRight: { alignItems: 'flex-end', justifyContent: 'center', gap: 4 },
-  memberBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: TG.bgSecondary,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 10,
-  },
-  memberBadgeText: { fontSize: 11, fontWeight: '600', color: TG.textSecondary },
-
-  // Role badge
-  roleBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
-  roleText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
 
   // Loading
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
@@ -637,15 +594,11 @@ const styles = StyleSheet.create({
   },
   statusChipText: { fontSize: 12, fontWeight: '600' },
 
-  // FABs
-  fabRow: {
-    position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 28 : 20,
-    right: 20,
-    alignItems: 'center',
-    gap: 12,
-  },
+  // FAB (Telegram-style)
   fab: {
+    position: 'absolute',
+    bottom: Platform.OS === 'ios' ? 28 : 24,
+    right: 20,
     width: 56,
     height: 56,
     borderRadius: 28,
@@ -658,25 +611,6 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.25,
         shadowRadius: 8,
-      },
-      android: { elevation: 6 },
-    }),
-  },
-  fabSecondary: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: TG.bg,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: TG.separator,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
       },
       android: { elevation: 3 },
     }),

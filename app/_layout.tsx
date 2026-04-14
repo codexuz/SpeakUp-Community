@@ -50,6 +50,7 @@ function RootNavigator() {
         <Stack.Screen name="session/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="review/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="community/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="user/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="group/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="group/create" options={{ headerShown: false }} />
         <Stack.Screen name="group/join" options={{ headerShown: false }} />

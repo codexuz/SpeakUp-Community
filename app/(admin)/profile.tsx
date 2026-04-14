@@ -1,3 +1,4 @@
+import { useAlert } from '@/components/CustomAlert';
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
 import { apiLogout, apiUpdateProfile, apiUploadUserAvatar } from '@/lib/api';
@@ -13,6 +14,7 @@ export default function ProfileScreen() {
   const { user, logout, updateUser } = useAuth();
   const router = useRouter();
   const toast = useToast();
+  const { alert } = useAlert();
   const [editModal, setEditModal] = useState(false);
   const [editFullName, setEditFullName] = useState('');
   const [editGender, setEditGender] = useState('');
@@ -70,12 +72,21 @@ export default function ProfileScreen() {
   };
 
   const handleLogout = async () => {
-    try {
-      await apiLogout();
-    } catch {
-      // still logout locally even if API fails
-    }
-    logout();
+    alert('Log Out', 'Are you sure you want to log out?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Log Out',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await apiLogout();
+          } catch {
+            // still logout locally even if API fails
+          }
+          logout();
+        },
+      },
+    ], 'warning');
   };
 
 

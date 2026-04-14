@@ -6,7 +6,7 @@ import { fetchMyGroups, Group } from '@/lib/groups';
 import { useAuth } from '@/store/auth';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { ChevronRight, Globe, LogIn, Pencil, Search, UserPlus, Users, X } from 'lucide-react-native';
+import { Globe, Plus, Search, UserPlus, Users, X } from 'lucide-react-native';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -174,22 +174,6 @@ export default function GroupsScreen() {
     );
   }, [groups, searchQuery]);
 
-  // ── Role badge ────────────────────────────────────────────
-  const roleBadge = (role?: string) => {
-    if (!role) return null;
-    const map: Record<string, { color: string; bg: string; label: string }> = {
-      owner: { color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)', label: 'Owner' },
-      teacher: { color: TG.accent, bg: TG.accentLight, label: 'Teacher' },
-      student: { color: TG.green, bg: TG.greenLight, label: 'Student' },
-    };
-    const info = map[role] ?? { color: TG.textSecondary, bg: TG.separatorLight, label: role };
-    return (
-      <View style={[styles.roleBadge, { backgroundColor: info.bg }]}>
-        <Text style={[styles.roleText, { color: info.color }]}>{info.label}</Text>
-      </View>
-    );
-  };
-
   // ── searchBarHeight ────────────────────────────────────────
   const searchBarHeight = searchAnim.interpolate({
     inputRange: [0, 1],
@@ -216,12 +200,11 @@ export default function GroupsScreen() {
 
         {/* Content */}
         <View style={styles.rowContent}>
-          {/* Top row: name + role */}
+          {/* Top row: name */}
           <View style={styles.rowTop}>
             <Text style={styles.groupName} numberOfLines={1}>
               {group.name}
             </Text>
-            {roleBadge(group.myRole)}
           </View>
 
           {/* Bottom row: description / members */}
@@ -232,17 +215,6 @@ export default function GroupsScreen() {
                 : `${formatMemberCount(memberCount)} member${memberCount !== 1 ? 's' : ''}`}
             </Text>
           </View>
-        </View>
-
-        {/* Right side: member count badge + chevron */}
-        <View style={styles.rowRight}>
-          {group.description ? (
-            <View style={styles.memberBadge}>
-              <Users size={11} color={TG.textSecondary} />
-              <Text style={styles.memberBadgeText}>{formatMemberCount(memberCount)}</Text>
-            </View>
-          ) : null}
-          <ChevronRight size={18} color={TG.separator} />
         </View>
       </TouchableOpacity>
     );
@@ -338,7 +310,21 @@ export default function GroupsScreen() {
             renderItem={({ item: g }) => {
               const avatarColor = getAvatarColor(g.name);
               return (
-                <View style={styles.row}>
+                <TouchableOpacity
+                  style={styles.row}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    if (g.status === 'member') {
+                      router.push(`/group/${g.id}` as any);
+                      return;
+                    }
+                    if (g.status === 'pending') {
+                      toast.warning('Pending', 'Your join request is already pending.');
+                      return;
+                    }
+                    handleRequestJoin(g.id, g.name);
+                  }}
+                >
                   <View style={[styles.avatar, { backgroundColor: avatarColor.bg }]}>
                     <Text style={[styles.avatarLetter, { color: avatarColor.text }]}>
                       {g.name.charAt(0).toUpperCase()}
@@ -372,7 +358,7 @@ export default function GroupsScreen() {
                       <Text style={[styles.statusChipText, { color: TG.accent }]}>Join</Text>
                     </TouchableOpacity>
                   )}
-                </View>
+                </TouchableOpacity>
               );
             }}
           />
@@ -396,7 +382,7 @@ export default function GroupsScreen() {
               activeOpacity={0.7}
               onPress={() => router.push('/group/create' as any)}
             >
-              <Pencil size={16} color="#fff" />
+              <Plus size={16} color="#fff" />
               <Text style={styles.emptyBtnPrimaryText}>Create Group</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -404,7 +390,7 @@ export default function GroupsScreen() {
               activeOpacity={0.7}
               onPress={() => router.push('/group/join' as any)}
             >
-              <LogIn size={16} color={TG.accent} />
+              <UserPlus size={16} color={TG.accent} />
               <Text style={styles.emptyBtnSecondaryText}>Join Group</Text>
             </TouchableOpacity>
           </View>
@@ -436,20 +422,22 @@ export default function GroupsScreen() {
 
       {/* FAB row – Create & Join */}
       {!loading && groups.length > 0 && (
-        <View style={styles.fabRow}>
+        <View style={styles.fabStack}>
           <TouchableOpacity
             style={styles.fabSecondary}
-            activeOpacity={0.8}
+            activeOpacity={0.85}
             onPress={() => router.push('/group/join' as any)}
           >
-            <LogIn size={20} color={TG.accent} />
+            <UserPlus size={16} color={TG.accent} />
+            <Text style={styles.fabSecondaryText}>Join</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={styles.fab}
-            activeOpacity={0.8}
+            style={styles.fabPrimary}
+            activeOpacity={0.9}
             onPress={() => router.push('/group/create' as any)}
           >
-            <Pencil size={22} color="#fff" />
+            <Plus size={18} color="#fff" strokeWidth={2.4} />
+            <Text style={styles.fabPrimaryText}>Create</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -471,15 +459,6 @@ const styles = StyleSheet.create({
     backgroundColor: TG.headerBg,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.12,
-        shadowRadius: 4,
-      },
-      android: { elevation: 4 },
-    }),
   },
   headerTitle: {
     fontSize: 20,
@@ -500,18 +479,16 @@ const styles = StyleSheet.create({
   searchBarWrap: {
     backgroundColor: TG.bg,
     overflow: 'hidden',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: TG.separator,
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: TG.bgSecondary,
-    marginHorizontal: 12,
+    marginHorizontal: 16,
     marginVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    height: 36,
+    paddingHorizontal: 14,
+    borderRadius: 18,
+    height: 42,
     gap: 8,
   },
   searchInput: {
@@ -522,20 +499,20 @@ const styles = StyleSheet.create({
   },
 
   // List
-  list: { paddingBottom: 110 },
+  list: { paddingHorizontal: 14, paddingTop: 8, paddingBottom: 110 },
   separator: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: TG.separator,
-    marginLeft: 16 + AVATAR_SIZE + 14,
+    height: 10,
+    backgroundColor: 'transparent',
   },
 
   // Row (group item)
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: TG.bg,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderRadius: 22,
+    backgroundColor: TG.bgSecondary,
     gap: 14,
   },
 
@@ -569,23 +546,6 @@ const styles = StyleSheet.create({
     flex: 1,
     lineHeight: 19,
   },
-
-  // Row right side
-  rowRight: { alignItems: 'flex-end', justifyContent: 'center', gap: 4 },
-  memberBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: TG.bgSecondary,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 10,
-  },
-  memberBadgeText: { fontSize: 11, fontWeight: '600', color: TG.textSecondary },
-
-  // Role badge
-  roleBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
-  roleText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
 
   // Loading
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
@@ -628,10 +588,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 24,
-    ...Platform.select({
-      ios: { shadowColor: TG.accent, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 },
-      android: { elevation: 4 },
-    }),
   },
   emptyBtnPrimaryText: { fontSize: 15, fontWeight: '600', color: '#fff' },
   emptyBtnSecondary: {
@@ -657,47 +613,44 @@ const styles = StyleSheet.create({
   statusChipText: { fontSize: 12, fontWeight: '600' },
 
   // FABs
-  fabRow: {
+  fabStack: {
     position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 28 : 20,
+    bottom: Platform.OS === 'ios' ? 28 : 22,
     right: 20,
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
-  fab: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+  fabPrimary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    height: 54,
+    paddingHorizontal: 20,
+    borderRadius: 27,
     backgroundColor: TG.accent,
     justifyContent: 'center',
-    alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.25,
-        shadowRadius: 8,
-      },
-      android: { elevation: 6 },
-    }),
+  },
+  fabPrimaryText: {
+    color: TG.textWhite,
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
   fabSecondary: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    height: 46,
+    paddingHorizontal: 14,
+    borderRadius: 23,
     backgroundColor: TG.bg,
     justifyContent: 'center',
-    alignItems: 'center',
     borderWidth: 1,
     borderColor: TG.separator,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: { elevation: 3 },
-    }),
+  },
+  fabSecondaryText: {
+    color: TG.accent,
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

@@ -7,16 +7,18 @@ import { useRouter } from 'expo-router';
 import { ChevronRight, Flame, Heart, MessageCircle, Mic, Star, TrendingUp } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import {
-  ActivityIndicator,
-  FlatList,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    FlatList,
+    Image,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    Pressable,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -34,6 +36,7 @@ export default function CommunityScreen() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [pendingLikeIds, setPendingLikeIds] = useState<Set<string>>(new Set());
 
   const [reviewModal, setReviewModal] = useState(false);
   const [selectedSub, setSelectedSub] = useState<any>(null);
@@ -81,16 +84,44 @@ export default function CommunityScreen() {
   };
 
   const toggleLike = async (item: any) => {
+    if (pendingLikeIds.has(item.id)) return;
+
+    const wasLiked = !!item.isLiked;
+    const prevLikes = Number(item.likes || 0);
+    const nextLiked = !wasLiked;
+    const nextLikes = Math.max(0, prevLikes + (wasLiked ? -1 : 1));
+
+    setSubmissions((prev) =>
+      prev.map((s) =>
+        s.id === item.id ? { ...s, isLiked: nextLiked, likes: nextLikes } : s
+      )
+    );
+    setPendingLikeIds((prev) => {
+      const next = new Set(prev);
+      next.add(item.id);
+      return next;
+    });
+
     try {
-      if (item.isLiked) {
+      if (wasLiked) {
         await apiUnlikeSpeaking(item.id);
-        setSubmissions(prev => prev.map(s => s.id === item.id ? { ...s, isLiked: false, likes: (s.likes || 1) - 1 } : s));
       } else {
         await apiLikeSpeaking(item.id);
-        setSubmissions(prev => prev.map(s => s.id === item.id ? { ...s, isLiked: true, likes: (s.likes || 0) + 1 } : s));
       }
     } catch (e: any) {
+      setSubmissions((prev) =>
+        prev.map((s) =>
+          s.id === item.id ? { ...s, isLiked: wasLiked, likes: prevLikes } : s
+        )
+      );
       console.warn('Like error', e.message);
+      toast.error('Error', e.message || 'Failed to update like');
+    } finally {
+      setPendingLikeIds((prev) => {
+        const next = new Set(prev);
+        next.delete(item.id);
+        return next;
+      });
     }
   };
 
@@ -124,15 +155,28 @@ export default function CommunityScreen() {
     <TouchableOpacity style={styles.card} activeOpacity={0.7} onPress={() => router.push(`/community/${item.id}` as any)}>
       {/* Top row: avatar, name+date, score pill, chevron */}
       <View style={styles.topRow}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{(item.student?.fullName || item.user?.fullName || '?').charAt(0)}</Text>
-        </View>
-        <View style={styles.nameBlock}>
-          <Text style={styles.userName} numberOfLines={1}>{item.student?.fullName || item.user?.fullName || 'Unknown'}</Text>
-          <Text style={styles.dateText}>
-            {new Date(item.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-          </Text>
-        </View>
+        <Pressable
+          style={styles.userTapArea}
+          onPress={(e) => {
+            e.stopPropagation();
+            const userId = item.student?.id || item.user?.id;
+            if (userId) router.push(`/user/${userId}` as any);
+          }}
+        >
+          <View style={styles.avatar}>
+            {(item.student?.avatarUrl || item.user?.avatarUrl) ? (
+              <Image source={{ uri: item.student?.avatarUrl || item.user?.avatarUrl }} style={styles.avatarImage} />
+            ) : (
+              <Text style={styles.avatarText}>{(item.student?.fullName || item.user?.fullName || '?').charAt(0)}</Text>
+            )}
+          </View>
+          <View style={styles.nameBlock}>
+            <Text style={styles.userName} numberOfLines={1}>{item.student?.fullName || item.user?.fullName || 'Unknown'}</Text>
+            <Text style={styles.dateText}>
+              {new Date(item.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+            </Text>
+          </View>
+        </Pressable>
         {item.scoreAvg != null && (
           <View style={styles.scorePill}>
             <Star size={11} color={TG.orange} fill={TG.orange} />
@@ -153,7 +197,12 @@ export default function CommunityScreen() {
           <Mic size={12} color={TG.accent} />
           <Text style={styles.chipText}>{item._count?.responses || 0}</Text>
         </View>
-        <TouchableOpacity style={styles.chip} activeOpacity={0.6} onPress={() => toggleLike(item)}>
+        <TouchableOpacity
+          style={[styles.chip, pendingLikeIds.has(item.id) && styles.chipDisabled]}
+          activeOpacity={0.6}
+          onPress={() => toggleLike(item)}
+          disabled={pendingLikeIds.has(item.id)}
+        >
           <Heart size={12} color={item.isLiked ? TG.red : TG.textHint} fill={item.isLiked ? TG.red : 'none'} />
           <Text style={[styles.chipText, item.isLiked && { color: TG.red }]}>{item.likes || 0}</Text>
         </TouchableOpacity>
@@ -295,7 +344,9 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   topRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
+  userTapArea: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   avatar: { width: 34, height: 34, borderRadius: 17, backgroundColor: TG.accentLight, justifyContent: 'center', alignItems: 'center' },
+  avatarImage: { width: '100%', height: '100%', borderRadius: 17 },
   avatarText: { fontSize: 14, fontWeight: '700', color: TG.accent },
   nameBlock: { flex: 1 },
   userName: { fontSize: 14, fontWeight: '600', color: TG.textPrimary },
@@ -305,6 +356,7 @@ const styles = StyleSheet.create({
   titleText: { fontSize: 14, fontWeight: '500', color: TG.textPrimary, lineHeight: 20, marginBottom: 8 },
   bottomRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  chipDisabled: { opacity: 0.55 },
   chipText: { fontSize: 12, color: TG.textHint, fontWeight: '500' },
   reviewBtn: { marginLeft: 'auto', backgroundColor: TG.accent, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 10 },
   reviewBtnText: { fontSize: 12, fontWeight: '600', color: TG.textWhite },

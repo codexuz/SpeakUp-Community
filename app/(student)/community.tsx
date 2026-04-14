@@ -1,6 +1,6 @@
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
-import { apiFetchCommunityFeed, apiLikeSpeaking, apiPostReview, apiUnlikeSpeaking } from '@/lib/api';
+import { apiFetchCommunityFeed, apiPostReview } from '@/lib/api';
 import { useAuth } from '@/store/auth';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
@@ -9,9 +9,11 @@ import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
+  Pressable,
   StyleSheet,
   Text,
   TextInput,
@@ -80,20 +82,6 @@ export default function CommunityScreen() {
     }
   };
 
-  const toggleLike = async (item: any) => {
-    try {
-      if (item.isLiked) {
-        await apiUnlikeSpeaking(item.id);
-        setSubmissions(prev => prev.map(s => s.id === item.id ? { ...s, isLiked: false, likes: (s.likes || 1) - 1 } : s));
-      } else {
-        await apiLikeSpeaking(item.id);
-        setSubmissions(prev => prev.map(s => s.id === item.id ? { ...s, isLiked: true, likes: (s.likes || 0) + 1 } : s));
-      }
-    } catch (e: any) {
-      console.warn('Like error', e.message);
-    }
-  };
-
   const openReviewModal = (sub: any) => {
     setSelectedSub(sub);
     setScore('');
@@ -124,15 +112,27 @@ export default function CommunityScreen() {
     <TouchableOpacity style={styles.card} activeOpacity={0.7} onPress={() => router.push(`/community/${item.id}` as any)}>
       {/* Top row: avatar, name+date, score pill, chevron */}
       <View style={styles.topRow}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{(item.user?.fullName || '?').charAt(0)}</Text>
-        </View>
-        <View style={styles.nameBlock}>
-          <Text style={styles.userName} numberOfLines={1}>{item.user?.fullName || 'Unknown'}</Text>
-          <Text style={styles.dateText}>
-            {new Date(item.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-          </Text>
-        </View>
+        <Pressable
+          style={styles.userTapArea}
+          onPress={(e) => {
+            e.stopPropagation();
+            if (item.user?.id) router.push(`/user/${item.user.id}` as any);
+          }}
+        >
+          <View style={styles.avatar}>
+            {item.user?.avatarUrl ? (
+              <Image source={{ uri: item.user.avatarUrl }} style={styles.avatarImage} />
+            ) : (
+              <Text style={styles.avatarText}>{(item.user?.fullName || '?').charAt(0)}</Text>
+            )}
+          </View>
+          <View style={styles.nameBlock}>
+            <Text style={styles.userName} numberOfLines={1}>{item.user?.fullName || 'Unknown'}</Text>
+            <Text style={styles.dateText}>
+              {new Date(item.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+            </Text>
+          </View>
+        </Pressable>
         {item.scoreAvg != null && (
           <View style={styles.scorePill}>
             <Star size={11} color={TG.orange} fill={TG.orange} />
@@ -153,10 +153,10 @@ export default function CommunityScreen() {
           <Mic size={12} color={TG.accent} />
           <Text style={styles.chipText}>{item._count?.responses || 0}</Text>
         </View>
-        <TouchableOpacity style={styles.chip} activeOpacity={0.6} onPress={() => toggleLike(item)}>
+        <View style={styles.chip}>
           <Heart size={12} color={item.isLiked ? TG.red : TG.textHint} fill={item.isLiked ? TG.red : 'none'} />
           <Text style={[styles.chipText, item.isLiked && { color: TG.red }]}>{item.likes || 0}</Text>
-        </TouchableOpacity>
+        </View>
         <View style={styles.chip}>
           <MessageCircle size={12} color={TG.textHint} />
           <Text style={styles.chipText}>{item.commentsCount || 0}</Text>
@@ -295,7 +295,9 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   topRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
+  userTapArea: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   avatar: { width: 34, height: 34, borderRadius: 17, backgroundColor: TG.accentLight, justifyContent: 'center', alignItems: 'center' },
+  avatarImage: { width: '100%', height: '100%', borderRadius: 17 },
   avatarText: { fontSize: 14, fontWeight: '700', color: TG.accent },
   nameBlock: { flex: 1 },
   userName: { fontSize: 14, fontWeight: '600', color: TG.textPrimary },

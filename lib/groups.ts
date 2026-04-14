@@ -25,6 +25,7 @@ export interface Group {
   referralCode: string;
   createdById: string;
   createdAt: string;
+  avatarUrl?: string | null;
   creator?: { fullName: string; avatarUrl?: string };
   member_count?: number;
   myRole?: string;

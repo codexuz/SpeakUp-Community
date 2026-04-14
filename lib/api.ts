@@ -528,3 +528,56 @@ export async function apiFetchTeacherGroups(teacherId: string) {
 export async function apiFetchStudentGroups(studentId: string) {
   return request<any[]>(`/groups/student/${studentId}`);
 }
+
+// =============================================
+// Users & Follows
+// =============================================
+
+export interface PublicUser {
+  id: string;
+  username: string;
+  fullName: string;
+  avatarUrl?: string | null;
+  role?: 'student' | 'teacher' | 'admin' | null;
+  verifiedTeacher?: boolean;
+}
+
+export interface UserProfileResponse {
+  user: PublicUser;
+  stats: { followers: number; following: number };
+  relationship: { isMe: boolean; isFollowing: boolean; followsMe: boolean };
+}
+
+export interface FollowListItem extends PublicUser {
+  isFollowing: boolean;
+}
+
+export async function apiGetUserProfile(userId: string) {
+  return request<UserProfileResponse>(`/users/${userId}`);
+}
+
+export async function apiFollowUser(userId: string) {
+  return request<{ success: boolean }>(`/users/${userId}/follow`, { method: 'POST' });
+}
+
+export async function apiUnfollowUser(userId: string) {
+  return request<{ success: boolean }>(`/users/${userId}/follow`, { method: 'DELETE' });
+}
+
+export async function apiGetFollowers(userId: string, page = 1, limit = 20) {
+  return request<{ data: FollowListItem[]; pagination: any }>(
+    `/users/${userId}/followers?page=${page}&limit=${limit}`,
+  );
+}
+
+export async function apiGetFollowing(userId: string, page = 1, limit = 20) {
+  return request<{ data: FollowListItem[]; pagination: any }>(
+    `/users/${userId}/following?page=${page}&limit=${limit}`,
+  );
+}
+
+export async function apiGetUserSessions(userId: string, page = 1, limit = 20) {
+  return request<{ data: TestSession[]; pagination: any }>(
+    `/users/${userId}/sessions?page=${page}&limit=${limit}`,
+  );
+}

@@ -2,33 +2,34 @@ import { useToast } from '@/components/Toast';
 import WaveformPlayer from '@/components/WaveformPlayer';
 import { TG } from '@/constants/theme';
 import {
-    apiFetchSessionDetail,
-    apiLikeSpeaking,
-    apiUnlikeSpeaking,
-    SpeakingResponse,
-    TestSession,
+  apiFetchSessionDetail,
+  apiLikeSpeaking,
+  apiUnlikeSpeaking,
+  SpeakingResponse,
+  TestSession,
 } from '@/lib/api';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
-    ArrowLeft,
-    BarChart3,
-    Calendar,
-    Clock,
-    Heart,
-    Loader,
-    MessageSquare,
-    Mic,
-    Star,
+  ArrowLeft,
+  BarChart3,
+  Calendar,
+  Clock,
+  Heart,
+  Loader,
+  MessageSquare,
+  Mic,
+  Star,
 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Animated,
-    FlatList,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Animated,
+  FlatList,
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -101,6 +102,7 @@ export default function CommunityDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
+  const [likeUpdating, setLikeUpdating] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const loadSession = useCallback(async () => {
@@ -128,19 +130,28 @@ export default function CommunityDetailScreen() {
   }, [loadSession]);
 
   const toggleLike = async () => {
-    if (!session) return;
+    if (!session || likeUpdating) return;
+    const previousLiked = liked;
+    const previousLikeCount = likeCount;
+    const nextLiked = !previousLiked;
+    const nextLikeCount = Math.max(0, previousLikeCount + (previousLiked ? -1 : 1));
+
+    setLiked(nextLiked);
+    setLikeCount(nextLikeCount);
+    setLikeUpdating(true);
+
     try {
-      if (liked) {
+      if (previousLiked) {
         await apiUnlikeSpeaking(session.id);
-        setLiked(false);
-        setLikeCount((c) => Math.max(0, c - 1));
       } else {
         await apiLikeSpeaking(session.id);
-        setLiked(true);
-        setLikeCount((c) => c + 1);
       }
     } catch (e: any) {
+      setLiked(previousLiked);
+      setLikeCount(previousLikeCount);
       toast.error('Error', e.message || 'Failed to update like');
+    } finally {
+      setLikeUpdating(false);
     }
   };
 
@@ -275,19 +286,32 @@ export default function CommunityDetailScreen() {
               <View style={styles.summaryCard}>
                 {/* User info row */}
                 <View style={styles.userRow}>
-                  <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>
-                      {(session.user?.fullName || '?').charAt(0)}
-                    </Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.userName}>{session.user?.fullName || 'Unknown'}</Text>
-                    <Text style={styles.userHandle}>@{session.user?.username || '?'}</Text>
-                  </View>
                   <TouchableOpacity
-                    style={styles.likeBtn}
+                    style={styles.userLeft}
+                    activeOpacity={0.75}
+                    onPress={() => {
+                      if (session.user?.id) router.push(`/user/${session.user.id}` as any);
+                    }}
+                  >
+                    <View style={styles.avatar}>
+                      {session.user?.avatarUrl ? (
+                        <Image source={{ uri: session.user.avatarUrl }} style={styles.avatarImage} />
+                      ) : (
+                        <Text style={styles.avatarText}>
+                          {(session.user?.fullName || '?').charAt(0)}
+                        </Text>
+                      )}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.userName}>{session.user?.fullName || 'Unknown'}</Text>
+                      <Text style={styles.userHandle}>@{session.user?.username || '?'}</Text>
+                    </View>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.likeBtn, likeUpdating && styles.likeBtnDisabled]}
                     activeOpacity={0.6}
                     onPress={toggleLike}
+                    disabled={likeUpdating}
                   >
                     <Heart
                       size={20}
@@ -372,6 +396,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
+  userLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
   avatar: {
     width: 40,
     height: 40,
@@ -380,6 +405,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  avatarImage: { width: '100%', height: '100%', borderRadius: 20 },
   avatarText: { fontSize: 16, fontWeight: '700', color: TG.accent },
   userName: { fontSize: 15, fontWeight: '600', color: TG.textPrimary },
   userHandle: { fontSize: 12, color: TG.textSecondary },
@@ -392,6 +418,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: TG.bgSecondary,
   },
+  likeBtnDisabled: { opacity: 0.55 },
   likeText: { fontSize: 13, fontWeight: '600', color: TG.textHint },
   metaRow: {
     flexDirection: 'row',

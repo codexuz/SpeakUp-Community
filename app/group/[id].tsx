@@ -16,37 +16,44 @@ import {
   regenerateReferralCode,
   rejectJoinRequest,
   removeMember,
+  uploadGroupAvatar,
 } from '@/lib/groups';
 import { useAuth } from '@/store/auth';
+import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   ArrowLeft,
   Award,
+  Camera,
   Check,
   ClipboardCopy,
   Edit2,
   Hash,
   LogOut,
+  MoreVertical,
   RefreshCw,
+  Search,
   Star,
   Trash2,
   UserMinus,
   Users,
   X,
 } from 'lucide-react-native';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Clipboard,
   FlatList,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
+  Pressable,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -67,6 +74,17 @@ export default function GroupDetailScreen() {
   const [activeTab, setActiveTab] = useState<Tab>('members');
   const [subPage, setSubPage] = useState(1);
   const [hasMoreSubs, setHasMoreSubs] = useState(true);
+  const [studentSearchOpen, setStudentSearchOpen] = useState(false);
+  const [memberSearch, setMemberSearch] = useState('');
+  const [studentMenuOpen, setStudentMenuOpen] = useState(false);
+  const [referModalOpen, setReferModalOpen] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
+  // Edit modal
+  const [editModal, setEditModal] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
 
   // Review modal
   const [reviewModal, setReviewModal] = useState(false);
@@ -77,6 +95,17 @@ export default function GroupDetailScreen() {
 
   const myRole = group?.myRole;
   const isOwnerOrTeacher = myRole === 'owner' || myRole === 'teacher';
+  const isStudentView = !!group && !isOwnerOrTeacher;
+
+  const filteredMembers = useMemo(() => {
+    const q = memberSearch.trim().toLowerCase();
+    if (!q) return members;
+    return members.filter((m) => {
+      const fullName = (m.user?.fullName || '').toLowerCase();
+      const username = (m.user?.username || '').toLowerCase();
+      return fullName.includes(q) || username.includes(q);
+    });
+  }, [memberSearch, members]);
 
   const loadData = useCallback(async () => {
     if (!id) return;
@@ -155,6 +184,51 @@ export default function GroupDetailScreen() {
     if (group?.referralCode) {
       Clipboard.setString(group.referralCode);
       toast.success('Copied!', 'Referral code copied to clipboard.');
+    }
+  };
+
+  const handlePickGroupAvatar = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (result.canceled || !result.assets?.[0]?.uri) return;
+    setUploadingAvatar(true);
+    try {
+      const updated = await uploadGroupAvatar(id!, result.assets[0].uri);
+      setGroup(prev => (prev ? { ...prev, avatarUrl: updated.avatarUrl } : prev));
+      toast.success('Done', 'Group image updated');
+    } catch (e: any) {
+      toast.error('Error', e.message);
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const openEditModal = () => {
+    setEditName(group?.name || '');
+    setEditDesc(group?.description || '');
+    setEditModal(true);
+  };
+
+  const handleEditSave = async () => {
+    if (!editName.trim()) {
+      toast.warning('Required', 'Group name is required');
+      return;
+    }
+    setEditSaving(true);
+    try {
+      const { updateGroup } = await import('@/lib/groups');
+      const updated = await updateGroup(id!, editName.trim(), editDesc.trim());
+      setGroup(prev => (prev ? { ...prev, name: updated?.name || editName.trim(), description: updated?.description ?? editDesc.trim() } : prev));
+      setEditModal(false);
+      toast.success('Done', 'Group updated');
+    } catch (e: any) {
+      toast.error('Error', e.message);
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -268,71 +342,150 @@ export default function GroupDetailScreen() {
           <Text style={styles.headerTitle} numberOfLines={1}>{group.name}</Text>
           <Text style={styles.headerSub}>{members.length} members</Text>
         </View>
-        {myRole === 'owner' && (
-          <View style={styles.headerActions}>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            onPress={() => {
+              if (studentSearchOpen) setMemberSearch('');
+              setStudentSearchOpen((prev) => !prev);
+            }}
+            style={styles.headerIconBtn}
+            activeOpacity={0.7}
+          >
+            <Search size={20} color={TG.textWhite} />
+          </TouchableOpacity>
+          {isOwnerOrTeacher && (
             <TouchableOpacity
-              onPress={() => router.push(`/group/create?editId=${id}&name=${encodeURIComponent(group.name)}&description=${encodeURIComponent(group.description || '')}` as any)}
+              onPress={() => setStudentMenuOpen(true)}
               style={styles.headerIconBtn}
               activeOpacity={0.7}
             >
-              <Edit2 size={18} color={TG.textWhite} />
+              <MoreVertical size={20} color={TG.textWhite} />
             </TouchableOpacity>
-            <TouchableOpacity onPress={handleDelete} style={styles.headerIconBtn} activeOpacity={0.7}>
-              <Trash2 size={18} color={TG.red} />
+          )}
+          {isStudentView && (
+            <TouchableOpacity
+              onPress={() => setStudentMenuOpen(true)}
+              style={styles.headerIconBtn}
+              activeOpacity={0.7}
+            >
+              <MoreVertical size={20} color={TG.textWhite} />
             </TouchableOpacity>
-          </View>
-        )}
+          )}
+        </View>
       </View>
 
+      {studentSearchOpen && (
+        <View style={styles.studentSearchWrap}>
+          <Search size={16} color={TG.textHint} />
+          <TextInput
+            style={styles.studentSearchInput}
+            placeholder="Search members..."
+            placeholderTextColor={TG.textHint}
+            value={memberSearch}
+            onChangeText={setMemberSearch}
+            autoCorrect={false}
+            returnKeyType="search"
+          />
+          {memberSearch.length > 0 && (
+            <TouchableOpacity onPress={() => setMemberSearch('')} activeOpacity={0.7}>
+              <X size={16} color={TG.textSecondary} />
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
+      {/* Group Hero Card */}
+      {isOwnerOrTeacher && (
+        <View style={styles.heroCard}>
+          <TouchableOpacity
+            style={styles.heroAvatarWrap}
+            activeOpacity={0.75}
+            onPress={handlePickGroupAvatar}
+            disabled={uploadingAvatar}
+          >
+            {group.avatarUrl ? (
+              <Image source={{ uri: group.avatarUrl }} style={styles.heroAvatarImage} />
+            ) : (
+              <View style={styles.heroAvatarFallback}>
+                <Users size={32} color={TG.accent} strokeWidth={1.5} />
+              </View>
+            )}
+            <View style={styles.heroCameraBadge}>
+              {uploadingAvatar ? (
+                <ActivityIndicator size={12} color={TG.textWhite} />
+              ) : (
+                <Camera size={12} color={TG.textWhite} />
+              )}
+            </View>
+          </TouchableOpacity>
+          <View style={styles.heroInfo}>
+            <Text style={styles.heroName} numberOfLines={1}>{group.name}</Text>
+            {group.description ? (
+              <Text style={styles.heroDesc} numberOfLines={2}>{group.description}</Text>
+            ) : (
+              <Text style={[styles.heroDesc, { fontStyle: 'italic' }]}>No description</Text>
+            )}
+          </View>
+        </View>
+      )}
+
       {/* Referral Code Bar */}
-      <View style={styles.codeBar}>
-        <Hash size={16} color={TG.purple} />
-        <Text style={styles.codeLabel}>Code</Text>
-        <Text style={styles.codeValue}>{group.referralCode}</Text>
-        <TouchableOpacity onPress={handleCopyCode} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <ClipboardCopy size={18} color={TG.textSecondary} />
-        </TouchableOpacity>
-        {isOwnerOrTeacher && (
+      {isOwnerOrTeacher && (
+        <View style={styles.codeBar}>
+          <Hash size={16} color={TG.purple} />
+          <Text style={styles.codeLabel}>Code</Text>
+          <Text style={styles.codeValue}>{group.referralCode}</Text>
+          <TouchableOpacity onPress={handleCopyCode} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <ClipboardCopy size={18} color={TG.textSecondary} />
+          </TouchableOpacity>
           <TouchableOpacity onPress={handleRegenCode} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <RefreshCw size={18} color={TG.orange} />
           </TouchableOpacity>
-        )}
-      </View>
+        </View>
+      )}
 
       {/* Tabs */}
-      <View style={styles.tabRow}>
-        {tabs.map(t => {
-          const active = activeTab === t.key;
-          return (
-            <TouchableOpacity
-              key={t.key}
-              style={[styles.tab, active && styles.tabActive]}
-              onPress={() => setActiveTab(t.key)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.tabText, active && styles.tabTextActive]}>
-                {t.label}{t.count ? ` (${t.count})` : ''}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-      <View style={styles.tabLine} />
+      {tabs.length > 1 && (
+        <>
+          <View style={styles.tabRow}>
+            {tabs.map(t => {
+              const active = activeTab === t.key;
+              return (
+                <TouchableOpacity
+                  key={t.key}
+                  style={[styles.tab, active && styles.tabActive]}
+                  onPress={() => setActiveTab(t.key)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.tabText, active && styles.tabTextActive]}>
+                    {t.label}{t.count ? ` (${t.count})` : ''}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <View style={styles.tabLine} />
+        </>
+      )}
 
       {/* Content */}
       {activeTab === 'members' && (
         <FlatList
-          data={members}
+          data={filteredMembers}
           keyExtractor={(m) => m.id}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={styles.studentListContent}
           showsVerticalScrollIndicator={false}
-          ItemSeparatorComponent={() => <View style={[styles.sep, { marginLeft: 68 }]} />}
+          ItemSeparatorComponent={() => <View style={styles.cardSep} />}
           renderItem={({ item: m }) => (
-            <View style={styles.memberRow}>
+            <View style={styles.memberCard}>
               <View style={styles.memberAvatar}>
-                <Text style={styles.memberAvatarText}>
-                  {(m.user?.fullName || '?').charAt(0).toUpperCase()}
-                </Text>
+                {m.user?.avatarUrl ? (
+                  <Image source={{ uri: m.user.avatarUrl }} style={styles.memberAvatarImage} />
+                ) : (
+                  <Text style={styles.memberAvatarText}>
+                    {(m.user?.fullName || '?').charAt(0).toUpperCase()}
+                  </Text>
+                )}
               </View>
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
@@ -368,18 +521,10 @@ export default function GroupDetailScreen() {
               )}
             </View>
           )}
-          ListFooterComponent={
-            !isOwnerOrTeacher ? (
-              <TouchableOpacity style={styles.leaveBtn} activeOpacity={0.7} onPress={handleLeave}>
-                <LogOut size={18} color={TG.red} />
-                <Text style={styles.leaveBtnText}>Leave Group</Text>
-              </TouchableOpacity>
-            ) : null
-          }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Users size={40} color={TG.separator} />
-              <Text style={styles.emptyText}>No members yet</Text>
+              <Text style={styles.emptyText}>{memberSearch ? 'No members found' : 'No members yet'}</Text>
             </View>
           }
         />
@@ -389,11 +534,11 @@ export default function GroupDetailScreen() {
         <FlatList
           data={submissions}
           keyExtractor={(s) => s.id}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={styles.studentListContent}
           showsVerticalScrollIndicator={false}
           onEndReached={loadMoreSubs}
           onEndReachedThreshold={0.3}
-          ItemSeparatorComponent={() => <View style={styles.sep} />}
+          ItemSeparatorComponent={() => <View style={styles.cardSep} />}
           renderItem={({ item: sub }) => (
             <View style={styles.subCard}>
               <View style={styles.subHeader}>
@@ -437,15 +582,19 @@ export default function GroupDetailScreen() {
         <FlatList
           data={joinRequests}
           keyExtractor={(r) => r.id}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={styles.studentListContent}
           showsVerticalScrollIndicator={false}
-          ItemSeparatorComponent={() => <View style={[styles.sep, { marginLeft: 68 }]} />}
+          ItemSeparatorComponent={() => <View style={styles.cardSep} />}
           renderItem={({ item: req }) => (
-            <View style={styles.memberRow}>
+            <View style={styles.memberCard}>
               <View style={[styles.memberAvatar, { backgroundColor: TG.orangeLight }]}>
-                <Text style={[styles.memberAvatarText, { color: TG.orange }]}>
-                  {(req.user?.fullName || '?').charAt(0).toUpperCase()}
-                </Text>
+                {req.user?.avatarUrl ? (
+                  <Image source={{ uri: req.user.avatarUrl }} style={styles.memberAvatarImage} />
+                ) : (
+                  <Text style={[styles.memberAvatarText, { color: TG.orange }]}>
+                    {(req.user?.fullName || '?').charAt(0).toUpperCase()}
+                  </Text>
+                )}
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.memberName}>{req.user?.fullName}</Text>
@@ -536,6 +685,180 @@ export default function GroupDetailScreen() {
         </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      <Modal
+        visible={studentMenuOpen}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setStudentMenuOpen(false)}
+      >
+        <Pressable style={styles.menuBackdrop} onPress={() => setStudentMenuOpen(false)}>
+          <Pressable style={styles.menuPanel} onPress={(e) => e.stopPropagation()}>
+            {isOwnerOrTeacher && (
+              <>
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    setStudentMenuOpen(false);
+                    openEditModal();
+                  }}
+                >
+                  <Edit2 size={18} color={TG.accent} />
+                  <Text style={styles.menuItemText}>Edit Group</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    setStudentMenuOpen(false);
+                    handlePickGroupAvatar();
+                  }}
+                >
+                  <Camera size={18} color={TG.purple} />
+                  <Text style={styles.menuItemText}>Change Image</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    setStudentMenuOpen(false);
+                    setReferModalOpen(true);
+                  }}
+                >
+                  <ClipboardCopy size={18} color={TG.accent} />
+                  <Text style={styles.menuItemText}>Share Code</Text>
+                </TouchableOpacity>
+                {myRole === 'owner' && (
+                  <TouchableOpacity
+                    style={styles.menuItem}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      setStudentMenuOpen(false);
+                      handleDelete();
+                    }}
+                  >
+                    <Trash2 size={18} color={TG.red} />
+                    <Text style={[styles.menuItemText, { color: TG.red }]}>Delete Group</Text>
+                  </TouchableOpacity>
+                )}
+              </>
+            )}
+            {isStudentView && (
+              <>
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    setStudentMenuOpen(false);
+                    setReferModalOpen(true);
+                  }}
+                >
+                  <ClipboardCopy size={18} color={TG.accent} />
+                  <Text style={styles.menuItemText}>Refer</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    setStudentMenuOpen(false);
+                    handleLeave();
+                  }}
+                >
+                  <LogOut size={18} color={TG.red} />
+                  <Text style={[styles.menuItemText, { color: TG.red }]}>Leave Group</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        visible={referModalOpen}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setReferModalOpen(false)}
+      >
+        <Pressable style={styles.referBackdrop} onPress={() => setReferModalOpen(false)}>
+          <Pressable style={styles.referModal} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.referTitle}>Referral Code</Text>
+            <Text style={styles.referSubtitle}>Share this code so others can request to join.</Text>
+            <View style={styles.referCodeBox}>
+              <Text style={styles.referCodeText}>{group.referralCode}</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.referCopyBtn}
+              activeOpacity={0.75}
+              onPress={handleCopyCode}
+            >
+              <ClipboardCopy size={16} color={TG.textWhite} />
+              <Text style={styles.referCopyBtnText}>Copy Code</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.referCloseBtn}
+              activeOpacity={0.75}
+              onPress={() => setReferModalOpen(false)}
+            >
+              <Text style={styles.referCloseBtnText}>Close</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Edit Group Modal */}
+      <Modal visible={editModal} animationType="slide" transparent>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Edit Group</Text>
+              <Text style={styles.inputLabel}>Group Name</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={editName}
+                onChangeText={setEditName}
+                placeholder="Group name"
+                placeholderTextColor={TG.textHint}
+                maxLength={50}
+              />
+              <Text style={styles.inputLabel}>Description</Text>
+              <TextInput
+                style={[styles.modalInput, styles.textArea]}
+                value={editDesc}
+                onChangeText={setEditDesc}
+                multiline
+                numberOfLines={3}
+                placeholder="What is this group about?"
+                placeholderTextColor={TG.textHint}
+                textAlignVertical="top"
+                maxLength={200}
+              />
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={styles.cancelBtn}
+                  activeOpacity={0.7}
+                  onPress={() => setEditModal(false)}
+                >
+                  <Text style={styles.cancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.submitBtn, (!editName.trim() || editSaving) && { opacity: 0.5 }]}
+                  activeOpacity={0.7}
+                  onPress={handleEditSave}
+                  disabled={!editName.trim() || editSaving}
+                >
+                  {editSaving ? (
+                    <ActivityIndicator size="small" color={TG.textWhite} />
+                  ) : (
+                    <Text style={styles.submitBtnText}>Save</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -557,20 +880,99 @@ const styles = StyleSheet.create({
   headerActions: { flexDirection: 'row', gap: 12 },
   headerIconBtn: { padding: 4 },
 
+  // Hero Card
+  heroCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    marginHorizontal: 14,
+    marginTop: 12,
+    marginBottom: 4,
+    padding: 14,
+    borderRadius: 20,
+    backgroundColor: TG.bgSecondary,
+  },
+  heroAvatarWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    position: 'relative',
+  },
+  heroAvatarImage: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+  },
+  heroAvatarFallback: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: TG.accentLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  heroCameraBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: TG.accent,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: TG.bgSecondary,
+  },
+  heroInfo: {
+    flex: 1,
+  },
+  heroName: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: TG.textPrimary,
+    marginBottom: 2,
+  },
+  heroDesc: {
+    fontSize: 13,
+    color: TG.textSecondary,
+    lineHeight: 18,
+  },
+
+  studentSearchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 14,
+    marginTop: 10,
+    marginBottom: 4,
+    backgroundColor: TG.bgSecondary,
+    paddingHorizontal: 12,
+    borderRadius: 22,
+    height: 40,
+  },
+  studentSearchInput: {
+    flex: 1,
+    color: TG.textPrimary,
+    fontSize: 14,
+    paddingVertical: 0,
+  },
+
   codeBar: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    paddingHorizontal: 16,
+    marginHorizontal: 14,
+    marginTop: 8,
+    paddingHorizontal: 14,
     paddingVertical: 10,
     backgroundColor: TG.bgSecondary,
-    borderBottomWidth: 0.5,
-    borderBottomColor: TG.separator,
+    borderRadius: 16,
   },
   codeLabel: { fontSize: 13, color: TG.textSecondary, fontWeight: '500' },
   codeValue: { fontSize: 15, fontWeight: '700', color: TG.purple, letterSpacing: 2, flex: 1, textAlign: 'right', marginRight: 4 },
 
-  tabRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 4, paddingTop: 8 },
+  tabRow: { flexDirection: 'row', paddingHorizontal: 14, gap: 4, paddingTop: 8 },
   tab: { paddingVertical: 10, paddingHorizontal: 16 },
   tabActive: { borderBottomWidth: 2, borderBottomColor: TG.accent },
   tabText: { fontSize: 14, fontWeight: '600', color: TG.textSecondary },
@@ -578,14 +980,18 @@ const styles = StyleSheet.create({
   tabLine: { height: 0.5, backgroundColor: TG.separator },
 
   listContent: { paddingBottom: 100 },
+  studentListContent: { paddingHorizontal: 14, paddingVertical: 10, paddingBottom: 100 },
   sep: { height: 0.5, backgroundColor: TG.separator },
+  cardSep: { height: 10 },
 
-  memberRow: {
+  memberCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderRadius: 20,
+    backgroundColor: TG.bgSecondary,
   },
   memberAvatar: {
     width: 44,
@@ -594,6 +1000,11 @@ const styles = StyleSheet.create({
     backgroundColor: TG.accentLight,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  memberAvatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 22,
   },
   memberAvatarText: { fontSize: 18, fontWeight: '700', color: TG.accent },
   memberName: { fontSize: 15, fontWeight: '600', color: TG.textPrimary },
@@ -616,21 +1027,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
-  leaveBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    margin: 16,
-    paddingVertical: 14,
-    backgroundColor: TG.redLight,
-    borderRadius: 12,
-  },
-  leaveBtnText: { color: TG.red, fontWeight: '600', fontSize: 15 },
-
   subCard: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 14,
+    borderRadius: 20,
+    backgroundColor: TG.bgSecondary,
   },
   subHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10 },
   subStudent: { fontSize: 15, fontWeight: '600', color: TG.accent, marginBottom: 2 },
@@ -658,7 +1059,7 @@ const styles = StyleSheet.create({
     backgroundColor: TG.accent,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: 10,
   },
   reviewBtnText: { color: TG.textWhite, fontWeight: '600', fontSize: 14 },
 
@@ -709,4 +1110,105 @@ const styles = StyleSheet.create({
     backgroundColor: TG.accent,
   },
   submitBtnText: { color: TG.textWhite, fontWeight: '600' },
+
+  menuBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.18)',
+  },
+  menuPanel: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 96 : 84,
+    right: 14,
+    backgroundColor: TG.bg,
+    borderRadius: 14,
+    minWidth: 170,
+    paddingVertical: 6,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.14,
+        shadowRadius: 12,
+      },
+      android: { elevation: 8 },
+    }),
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+  },
+  menuItemText: {
+    fontSize: 14,
+    color: TG.textPrimary,
+    fontWeight: '600',
+  },
+
+  referBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.28)',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  referModal: {
+    backgroundColor: TG.bg,
+    borderRadius: 18,
+    padding: 18,
+  },
+  referTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: TG.textPrimary,
+    marginBottom: 6,
+  },
+  referSubtitle: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: TG.textSecondary,
+    marginBottom: 14,
+  },
+  referCodeBox: {
+    backgroundColor: TG.bgSecondary,
+    borderWidth: 1,
+    borderColor: TG.separator,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  referCodeText: {
+    fontSize: 22,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+    color: TG.accent,
+  },
+  referCopyBtn: {
+    backgroundColor: TG.accent,
+    borderRadius: 12,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  referCopyBtnText: {
+    color: TG.textWhite,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  referCloseBtn: {
+    marginTop: 10,
+    backgroundColor: TG.bgSecondary,
+    borderRadius: 12,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  referCloseBtnText: {
+    color: TG.textSecondary,
+    fontSize: 14,
+    fontWeight: '600',
+  },
 });

@@ -4,26 +4,26 @@ import { TG } from '@/constants/theme';
 import { apiFetchSessionDetail, apiUpdateSpeaking, SpeakingResponse, TestSession } from '@/lib/api';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
-    ArrowLeft,
-    BarChart3,
-    Calendar,
-    Clock,
-    Globe,
-    Loader,
-    Lock,
-    MessageSquare,
-    Mic,
-    Star,
+  ArrowLeft,
+  BarChart3,
+  Calendar,
+  Clock,
+  Globe,
+  Loader,
+  Lock,
+  MessageSquare,
+  Mic,
+  Star,
 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Animated,
-    FlatList,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Animated,
+  FlatList,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -94,6 +94,7 @@ export default function SessionDetailScreen() {
   const toast = useToast();
   const [session, setSession] = useState<TestSession | null>(null);
   const [loading, setLoading] = useState(true);
+  const [visibilityUpdating, setVisibilityUpdating] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const loadSession = useCallback(async () => {
@@ -117,6 +118,29 @@ export default function SessionDetailScreen() {
   useEffect(() => {
     loadSession();
   }, [loadSession]);
+
+  const handleToggleVisibility = async () => {
+    if (!session || visibilityUpdating) return;
+
+    const previousVisibility = session.visibility;
+    const nextVisibility = previousVisibility === 'community' ? 'private' : 'community';
+    const sessionId = session.id;
+
+    // Optimistic update so icon/state changes immediately.
+    setSession((prev) => (prev ? { ...prev, visibility: nextVisibility } : prev));
+    setVisibilityUpdating(true);
+
+    try {
+      await apiUpdateSpeaking(sessionId, nextVisibility);
+      toast.success('Visibility', nextVisibility === 'community' ? 'Shared to community' : 'Set to private');
+    } catch (e: any) {
+      // Roll back if API call fails.
+      setSession((prev) => (prev ? { ...prev, visibility: previousVisibility } : prev));
+      toast.error('Error', e.message || 'Failed to update visibility');
+    } finally {
+      setVisibilityUpdating(false);
+    }
+  };
 
   const responses = session?.responses || [];
 
@@ -225,21 +249,15 @@ export default function SessionDetailScreen() {
           )}
         </View>
         <TouchableOpacity
-          onPress={async () => {
-            if (!session) return;
-            const next = session.visibility === 'community' ? 'private' : 'community';
-            try {
-              await apiUpdateSpeaking(session.id, next);
-              setSession({ ...session, visibility: next });
-              toast.success('Visibility', next === 'community' ? 'Shared to community' : 'Set to private');
-            } catch (e: any) {
-              toast.error('Error', e.message || 'Failed to update visibility');
-            }
-          }}
+          onPress={handleToggleVisibility}
           activeOpacity={0.7}
+          disabled={visibilityUpdating}
+          style={visibilityUpdating ? { opacity: 0.7 } : undefined}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          {session?.visibility === 'community' ? (
+          {visibilityUpdating ? (
+            <ActivityIndicator size="small" color={TG.textWhite} />
+          ) : session?.visibility === 'community' ? (
             <Globe size={22} color={TG.textWhite} />
           ) : (
             <Lock size={22} color={'rgba(255,255,255,0.5)'} />
