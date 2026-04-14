@@ -1,68 +1,85 @@
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
 import {
-    ChatAttachment,
-    ChatMessage,
-    deleteMessage,
-    editMessage,
-    useGroupChat,
+  ChatAttachment,
+  ChatMessage,
+  deleteMessage,
+  editMessage,
+  useGroupChat,
 } from '@/lib/chat';
 import { fetchGroupById, Group } from '@/lib/groups';
 import { useAuth } from '@/store/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {
-    RecordingPresets,
-    requestRecordingPermissionsAsync,
-    setIsAudioActiveAsync,
-    useAudioRecorder,
-    useAudioRecorderState,
-} from 'expo-audio';
 import { File as ExpoFile, Paths } from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import { openBrowserAsync } from 'expo-web-browser';
 import {
-    ArrowLeft,
-    CheckCheck,
-    CornerUpLeft,
-    Download,
-    File,
-    Image as ImageIcon,
-    MessageSquare,
-    Mic,
-    Pencil,
-    Play,
-    Send,
-    Trash2,
-    Video,
-    X
+  ArrowLeft,
+  CheckCheck,
+  CornerUpLeft,
+  Download,
+  File,
+  Image as ImageIcon,
+  MessageSquare,
+  Pencil,
+  Play,
+  Send,
+  Trash2,
+  Video,
+  X
 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Dimensions,
-    FlatList,
-    Image,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    Pressable,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Dimensions,
+  FlatList,
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, {
-    runOnJS,
-    useAnimatedStyle,
-    useSharedValue,
-    withSpring,
-    withTiming,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
 } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
+
+const URL_REGEX = /(https?:\/\/[^\s]+)/g;
+
+function LinkedText({ text, style }: { text: string; style: any }) {
+  const parts = text.split(URL_REGEX);
+  if (parts.length === 1) return <Text style={style}>{text}</Text>;
+  return (
+    <Text style={style}>
+      {parts.map((part, i) =>
+        URL_REGEX.test(part) ? (
+          <Text
+            key={i}
+            style={{ color: TG.accent, textDecorationLine: 'underline' }}
+            onPress={() => openBrowserAsync(part)}
+          >
+            {part}
+          </Text>
+        ) : (
+          <Text key={i}>{part}</Text>
+        ),
+      )}
+    </Text>
+  );
+}
 
 const SWIPE_THRESHOLD = -60;
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
@@ -346,13 +363,6 @@ function isSameDay(a: string, b: string) {
   );
 }
 
-function formatRecordingTime(ms: number) {
-  const totalSec = Math.floor(ms / 1000);
-  const m = Math.floor(totalSec / 60);
-  const s = totalSec % 60;
-  return `${m}:${s.toString().padStart(2, '0')}`;
-}
-
 export default function GroupMessagingScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
@@ -368,9 +378,6 @@ export default function GroupMessagingScreen() {
   const [sending, setSending] = useState(false);
   const [viewerAtt, setViewerAtt] = useState<ChatAttachment | null>(null);
   const [viewerOpen, setViewerOpen] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
-  const recorderState = useAudioRecorderState(recorder, 200);
   const inputRef = useRef<TextInput>(null);
   const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flatListRef = useRef<FlatList>(null);
@@ -478,74 +485,6 @@ export default function GroupMessagingScreen() {
       toast.error('Error', e.message);
     } finally {
       setSending(false);
-    }
-  };
-
-  // Audio recording
-  const handleStartRecording = async () => {
-    try {
-      const perm = await requestRecordingPermissionsAsync();
-      if (!perm.granted) {
-        if (perm.canAskAgain === false) {
-          toast.error('Permission blocked', 'Please enable microphone in system Settings.');
-        } else {
-          toast.error('Permission denied', 'Microphone access is required.');
-        }
-        return;
-      }
-      await setIsAudioActiveAsync(true);
-      recorder.record();
-      setIsRecording(true);
-    } catch (e: any) {
-      toast.error('Recording Error', e.message);
-    }
-  };
-
-  const handleCancelRecording = async () => {
-    try {
-      await recorder.stop();
-    } catch { /* ignore */ }
-    setIsRecording(false);
-  };
-
-  const handleSendRecording = async () => {
-    setSending(true);
-    try {
-      await recorder.stop();
-      // uri may be on the recorder or the state; wait briefly for it
-      let uri = recorder.uri;
-      if (!uri) {
-        uri = await new Promise<string>((resolve, reject) => {
-          let attempts = 0;
-          const check = setInterval(() => {
-            attempts++;
-            if (recorder.uri) {
-              clearInterval(check);
-              resolve(recorder.uri);
-            } else if (attempts > 20) {
-              clearInterval(check);
-              reject(new Error('Recording URI not found'));
-            }
-          }, 50);
-        });
-      }
-      // Copy to persistent storage
-      const fileName = `voice_${Date.now()}.m4a`;
-      const src = new ExpoFile(uri);
-      const dest = new ExpoFile(Paths.cache, fileName);
-      src.copy(dest);
-      const files = [{
-        uri: dest.uri,
-        name: fileName,
-        type: 'audio/m4a',
-      }];
-      await sendFiles(files);
-      setReplyTo(null);
-    } catch (e: any) {
-      toast.error('Error', e.message);
-    } finally {
-      setSending(false);
-      setIsRecording(false);
     }
   };
 
@@ -736,7 +675,7 @@ export default function GroupMessagingScreen() {
                         )}
 
                         {/* Text */}
-                        {msg.text && <Text style={styles.msgText}>{msg.text}</Text>}
+                        {msg.text && <LinkedText style={styles.msgText} text={msg.text} />}
                       </>
                     )}
 
@@ -881,36 +820,6 @@ export default function GroupMessagingScreen() {
         )}
 
         {/* Input bar */}
-        {isRecording ? (
-          /* Recording bar */
-          <View style={[styles.inputBar, styles.recordingBar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
-            <TouchableOpacity
-              style={styles.inputIcon}
-              onPress={handleCancelRecording}
-              activeOpacity={0.7}
-            >
-              <Trash2 size={22} color={TG.red} />
-            </TouchableOpacity>
-            <View style={styles.recordingInfo}>
-              <View style={styles.recordingDot} />
-              <Text style={styles.recordingTime}>
-                {formatRecordingTime(recorderState.durationMillis)}
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={styles.sendBtn}
-              onPress={handleSendRecording}
-              activeOpacity={0.7}
-              disabled={sending}
-            >
-              {sending ? (
-                <ActivityIndicator size={18} color={TG.textWhite} />
-              ) : (
-                <Send size={18} color={TG.textWhite} />
-              )}
-            </TouchableOpacity>
-          </View>
-        ) : (
         <View style={[styles.inputBar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
           <TouchableOpacity
             style={styles.inputIcon}
@@ -936,30 +845,19 @@ export default function GroupMessagingScreen() {
             multiline
             maxLength={4000}
           />
-          {text.trim() || editingMsg ? (
-            <TouchableOpacity
-              style={styles.sendBtn}
-              onPress={handleSend}
-              disabled={(!text.trim() && !editingMsg) || sending}
-              activeOpacity={0.7}
-            >
-              {sending ? (
-                <ActivityIndicator size={18} color={TG.textWhite} />
-              ) : (
-                <Send size={18} color={TG.textWhite} />
-              )}
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={styles.micBtn}
-              onPress={handleStartRecording}
-              activeOpacity={0.7}
-            >
-              <Mic size={22} color={TG.accent} />
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity
+            style={styles.sendBtn}
+            onPress={handleSend}
+            disabled={(!text.trim() && !editingMsg) || sending}
+            activeOpacity={0.7}
+          >
+            {sending ? (
+              <ActivityIndicator size={18} color={TG.textWhite} />
+            ) : (
+              <Send size={18} color={TG.textWhite} />
+            )}
+          </TouchableOpacity>
         </View>
-        )}
       </KeyboardAvoidingView>
 
       {/* Message action card */}
@@ -1277,35 +1175,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  micBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  recordingBar: {
-    alignItems: 'center',
-  },
-  recordingInfo: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 8,
-  },
-  recordingDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: TG.red,
-  },
-  recordingTime: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: TG.textPrimary,
-  },
-
   // Action card
   actionOverlay: {
     ...StyleSheet.absoluteFillObject,

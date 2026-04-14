@@ -4,8 +4,8 @@ import { ActivityIndicator, StatusBar, View } from 'react-native';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
-// import { useInAppUpdates } from '@/hooks/useInAppUpdates';
-// import { useNotifications } from '@/hooks/useNotifications';
+import { useInAppUpdates } from '@/hooks/useInAppUpdates';
+import { useNotifications } from '@/hooks/useNotifications';
 import { CustomAlertProvider } from '@/components/CustomAlert';
 import { ToastProvider } from '@/components/Toast';
 import { TG } from '@/constants/theme';
@@ -22,8 +22,8 @@ function RootNavigator() {
   const { isAuthenticated, isLoading, user } = useAuth();
   const segments = useSegments();
 
-  // useNotifications();
-  // useInAppUpdates();
+  useNotifications();
+  useInAppUpdates();
 
   const inAuthGroup = segments[0] === '(auth)';
   const seg = segments[0] as string;
