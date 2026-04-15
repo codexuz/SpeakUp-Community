@@ -172,6 +172,7 @@ export default function SessionsScreen() {
         </View>
       ) : (
         <FlatList
+          style={{ flex: 1, backgroundColor: TG.bgSecondary }}
           data={sessions}
           keyExtractor={(item) => item.sessionId}
           renderItem={({ item }) => (
@@ -209,7 +210,7 @@ export default function SessionsScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: TG.bgSecondary },
+  safeArea: { flex: 1, backgroundColor: TG.headerBg },
   header: {
     backgroundColor: TG.headerBg,
     paddingHorizontal: 16,
@@ -219,7 +220,7 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   headerTitle: { fontSize: 20, fontWeight: '700', color: TG.textWhite, flex: 1 },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: TG.bgSecondary },
   list: { paddingBottom: 40 },
   sectionHint: {
     fontSize: 13,

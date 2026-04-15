@@ -6,16 +6,16 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, Camera, Users } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -50,6 +50,8 @@ export default function EditGroupScreen() {
   }, [id]);
 
   const handlePickAvatar = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') return;
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
@@ -89,7 +91,7 @@ export default function EditGroupScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.safeArea, { justifyContent: 'center', alignItems: 'center' }]}>
+      <SafeAreaView style={[styles.safeArea, { justifyContent: 'center', alignItems: 'center', backgroundColor: TG.bg }]}>
         <ActivityIndicator size="large" color={TG.accent} />
       </SafeAreaView>
     );
@@ -97,7 +99,7 @@ export default function EditGroupScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
@@ -106,7 +108,7 @@ export default function EditGroupScreen() {
           <Text style={styles.headerTitle}>Edit Group</Text>
         </View>
 
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <ScrollView style={{ flex: 1, backgroundColor: TG.bg }} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           {/* Avatar */}
           <TouchableOpacity
             style={styles.avatarWrap}
@@ -176,7 +178,7 @@ export default function EditGroupScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: TG.bg },
+  safeArea: { flex: 1, backgroundColor: TG.headerBg },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

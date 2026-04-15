@@ -9,7 +9,7 @@ import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleShe
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function LoginScreen() {
-  const [username, setUsername] = useState('');
+  const [loginInput, setLoginInput] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -18,11 +18,11 @@ export default function LoginScreen() {
   const toast = useToast();
 
   const handleLogin = async () => {
-    if (!username || !password) return toast.error('Error', 'Please enter both fields.');
+    if (!loginInput || !password) return toast.error('Error', 'Please enter both fields.');
 
     setLoading(true);
     try {
-      const data = await apiLogin(username, password);
+      const data = await apiLogin(loginInput, password);
 
       login({
         token: data.token,
@@ -31,9 +31,11 @@ export default function LoginScreen() {
           username: data.user.username,
           fullName: data.user.fullName,
           role: data.user.role,
+          verifiedTeacher: data.user.verifiedTeacher,
           avatarUrl: data.user.avatarUrl,
           gender: data.user.gender,
           region: data.user.region,
+          phone: data.user.phone,
         },
       });
       router.replace('/(tabs)');
@@ -44,13 +46,13 @@ export default function LoginScreen() {
     }
   };
 
-  const isButtonDisabled = !username || !password || loading;
+  const isButtonDisabled = !loginInput || !password || loading;
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView
           contentContainerStyle={styles.content}
@@ -61,17 +63,17 @@ export default function LoginScreen() {
             <MessageCircle size={44} color={TG.accent} strokeWidth={1.5} />
           </View>
           <Text style={styles.title}>SpeakUp</Text>
-          <Text style={styles.subtitle}>Sign in to continue your IELTS journey</Text>
+          <Text style={styles.subtitle}>Sign in to continue your English journey</Text>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Username</Text>
+            <Text style={styles.label}>Username or Phone</Text>
             <TextInput
               style={styles.input}
-              placeholder="e.g. johndoe"
+              placeholder="e.g. johndoe or +998901234567"
               placeholderTextColor={TG.textHint}
               autoCapitalize="none"
-              value={username}
-              onChangeText={setUsername}
+              value={loginInput}
+              onChangeText={setLoginInput}
             />
           </View>
 

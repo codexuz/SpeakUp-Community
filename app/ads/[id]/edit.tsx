@@ -6,17 +6,17 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, Image as ImageIcon } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Switch,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -53,6 +53,8 @@ export default function EditAdScreen() {
   }, [id]);
 
   const handlePickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') return;
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
@@ -85,7 +87,7 @@ export default function EditAdScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.safeArea, { justifyContent: 'center', alignItems: 'center' }]}>
+      <SafeAreaView style={[styles.safeArea, { justifyContent: 'center', alignItems: 'center', backgroundColor: TG.bgSecondary }]}>
         <ActivityIndicator size="large" color={TG.accent} />
       </SafeAreaView>
     );
@@ -93,7 +95,7 @@ export default function EditAdScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
             <ArrowLeft size={22} color={TG.textWhite} />
@@ -101,7 +103,7 @@ export default function EditAdScreen() {
           <Text style={styles.headerTitle}>Edit Ad</Text>
         </View>
 
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <ScrollView style={{ flex: 1, backgroundColor: TG.bgSecondary }} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <Text style={styles.inputLabel}>Title</Text>
           <TextInput
             style={styles.input}
@@ -175,7 +177,7 @@ export default function EditAdScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: TG.bgSecondary },
+  safeArea: { flex: 1, backgroundColor: TG.headerBg },
   header: {
     backgroundColor: TG.headerBg,
     paddingHorizontal: 16,

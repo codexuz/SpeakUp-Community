@@ -189,7 +189,7 @@ export default function StudentRecordingsScreen() {
               {deleting ? (
                 <ActivityIndicator size="small" color={TG.red} />
               ) : (
-                <Trash2 size={20} color={selected.size > 0 ? TG.red : TG.textHint} />
+                <Trash2 size={20} color={selected.size > 0 ? TG.textWhite : TG.textHint} />
               )}
             </TouchableOpacity>
           </>
@@ -199,9 +199,12 @@ export default function StudentRecordingsScreen() {
       </View>
 
       {loading ? (
-        <ActivityIndicator size="large" color={TG.accent} style={{ marginTop: 60 }} />
+        <View style={{ flex: 1, backgroundColor: TG.bgSecondary, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={TG.accent} />
+        </View>
       ) : (
         <FlatList
+          style={{ flex: 1, backgroundColor: TG.bgSecondary }}
           data={responses}
           keyExtractor={(item, i) => item.id?.toString() || i.toString()}
           renderItem={renderItem}
@@ -224,7 +227,7 @@ export default function StudentRecordingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: TG.bgSecondary },
+  safeArea: { flex: 1, backgroundColor: TG.headerBg },
   header: { backgroundColor: TG.headerBg, paddingHorizontal: 16, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', gap: 12 },
   headerTitle: { fontSize: 20, fontWeight: '700', color: TG.textWhite },
   headerBtn: { padding: 4 },

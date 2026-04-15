@@ -14,6 +14,7 @@ import {
   uploadGroupAvatar
 } from '@/lib/groups';
 import { useAuth } from '@/store/auth';
+import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
@@ -31,7 +32,7 @@ import {
   UserPlus,
   Users,
 } from 'lucide-react-native';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Clipboard,
@@ -98,9 +99,11 @@ export default function GroupTopicsScreen() {
     }
   }, [id]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
 
   // ─── Handlers ─────────────────────────────────────────
   const handleDelete = () => {
@@ -167,6 +170,8 @@ export default function GroupTopicsScreen() {
   };
 
   const handlePickGroupAvatar = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') return;
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
@@ -228,7 +233,7 @@ export default function GroupTopicsScreen() {
   if (loading) {
     return (
       <SafeAreaView
-        style={[styles.safe, { justifyContent: 'center', alignItems: 'center' }]}
+        style={[styles.safe, { justifyContent: 'center', alignItems: 'center', backgroundColor: TG.bg }]}
       >
         <ActivityIndicator size="large" color={TG.accent} />
       </SafeAreaView>
@@ -238,7 +243,7 @@ export default function GroupTopicsScreen() {
   if (!group) {
     return (
       <SafeAreaView
-        style={[styles.safe, { justifyContent: 'center', alignItems: 'center' }]}
+        style={[styles.safe, { justifyContent: 'center', alignItems: 'center', backgroundColor: TG.bg }]}
       >
         <Text style={{ color: TG.textSecondary, fontSize: 16 }}>
           Group not found
@@ -320,7 +325,7 @@ export default function GroupTopicsScreen() {
 
       {/* Topic list */}
       <ScrollView
-        style={{ flex: 1 }}
+        style={{ flex: 1, backgroundColor: TG.bg }}
         contentContainerStyle={styles.topicList}
         showsVerticalScrollIndicator={false}
       >
@@ -514,7 +519,7 @@ export default function GroupTopicsScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: TG.bg },
+  safe: { flex: 1, backgroundColor: TG.headerBg },
 
   /* Header */
   header: {

@@ -216,6 +216,33 @@ export default function CommunityScreen() {
           </TouchableOpacity>
         )}
       </View>
+
+      {/* Reviews Footer */}
+      <TouchableOpacity style={styles.reviewsFooter} activeOpacity={0.7} onPress={() => router.push(`/review/${item.id}` as any)}>
+          <View style={styles.reviewsFooterLeft}>
+            <View style={styles.reviewAvatars}>
+              {item.reviews?.length > 0 ? (
+                item.reviews.slice(0, 3).map((r: any, i: number) => (
+                  <View key={i} style={[styles.reviewAvatarCircle, i === 0 && { marginLeft: 0 }]}>
+                    {r.reviewer?.avatarUrl ? (
+                      <Image source={{ uri: r.reviewer.avatarUrl }} style={styles.reviewAvatarImage} />
+                    ) : (
+                      <Text style={styles.reviewAvatarInitials}>{(r.reviewer?.fullName || '?').charAt(0)}</Text>
+                    )}
+                  </View>
+                ))
+              ) : (
+                <View style={[styles.reviewAvatarCircle, { marginLeft: 0 }]}>
+                  <Text style={styles.reviewAvatarInitials}>R</Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.reviewsFooterText}>
+              {item._count?.reviews || 0} review{(item._count?.reviews || 0) !== 1 ? 's' : ''}
+            </Text>
+          </View>
+          <ChevronRight size={16} color={TG.textHint} />
+      </TouchableOpacity>
     </TouchableOpacity>
   );
 
@@ -246,9 +273,12 @@ export default function CommunityScreen() {
       </View>
 
       {loading ? (
-        <ActivityIndicator size="large" color={TG.accent} style={{ marginTop: 60 }} />
+        <View style={{ flex: 1, backgroundColor: TG.bgSecondary, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={TG.accent} />
+        </View>
       ) : (
         <FlatList
+          style={{ flex: 1, backgroundColor: TG.bgSecondary }}
           data={submissions}
           keyExtractor={item => item.id}
           renderItem={renderItem}
@@ -267,7 +297,7 @@ export default function CommunityScreen() {
       )}
 
       <Modal visible={reviewModal} animationType="slide" transparent>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Review Submission</Text>
@@ -323,7 +353,7 @@ export default function CommunityScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: TG.bgSecondary },
+  safeArea: { flex: 1, backgroundColor: TG.headerBg },
   header: { backgroundColor: TG.headerBg, paddingHorizontal: 16, paddingVertical: 14 },
   headerTitle: { fontSize: 20, fontWeight: '700', color: TG.textWhite },
   tabBar: { flexDirection: 'row', backgroundColor: TG.bg, paddingHorizontal: 12, paddingVertical: 8, gap: 8, borderBottomWidth: 0.5, borderBottomColor: TG.separator },
@@ -359,8 +389,13 @@ const styles = StyleSheet.create({
   chipDisabled: { opacity: 0.55 },
   chipText: { fontSize: 12, color: TG.textHint, fontWeight: '500' },
   reviewBtn: { marginLeft: 'auto', backgroundColor: TG.accent, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 10 },
-  reviewBtnText: { fontSize: 12, fontWeight: '600', color: TG.textWhite },
-  emptyContainer: { alignItems: 'center', marginTop: 80, gap: 12 },
+  reviewBtnText: { fontSize: 12, fontWeight: '600', color: TG.textWhite },  reviewsFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: TG.bgSecondary, borderBottomLeftRadius: 14, borderBottomRightRadius: 14, paddingHorizontal: 14, paddingVertical: 12, marginTop: 12, marginHorizontal: -12, marginBottom: -12, borderTopWidth: 1, borderTopColor: TG.separator },
+  reviewsFooterLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  reviewAvatars: { flexDirection: 'row', alignItems: 'center' },
+  reviewAvatarCircle: { width: 24, height: 24, borderRadius: 12, backgroundColor: TG.accentLight, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: TG.bgSecondary, marginLeft: -8 },
+  reviewAvatarImage: { width: '100%', height: '100%', borderRadius: 12 },
+  reviewAvatarInitials: { fontSize: 10, color: TG.accent, fontWeight: '700' },
+  reviewsFooterText: { fontSize: 13, color: TG.textPrimary, fontWeight: '600' },  emptyContainer: { alignItems: 'center', marginTop: 80, gap: 12 },
   emptyText: { color: TG.textSecondary, fontSize: 15 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   modalContent: { backgroundColor: TG.bg, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20 },

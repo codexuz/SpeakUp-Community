@@ -48,6 +48,8 @@ export default function QuestionFormScreen() {
   const displayImage = imageUri || imageUrl;
 
   const handlePickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') return;
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
@@ -146,9 +148,9 @@ export default function QuestionFormScreen() {
       ) : (
         <KeyboardAvoidingView
           style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-          <ScrollView contentContainerStyle={styles.form} showsVerticalScrollIndicator={false}>
+          <ScrollView style={{ flex: 1, backgroundColor: TG.bgSecondary }} contentContainerStyle={styles.form} showsVerticalScrollIndicator={false}>
             <Text style={styles.label}>Question Text *</Text>
             <TextInput
               style={[styles.input, { height: 100, textAlignVertical: 'top' }]}
@@ -306,7 +308,7 @@ export default function QuestionFormScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: TG.bgSecondary },
+  safeArea: { flex: 1, backgroundColor: TG.headerBg },
   header: {
     backgroundColor: TG.headerBg,
     paddingHorizontal: 16,
@@ -316,7 +318,7 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   headerTitle: { fontSize: 20, fontWeight: '700', color: TG.textWhite, flex: 1 },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: TG.bgSecondary },
 
   form: {
     padding: 16,

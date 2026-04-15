@@ -6,6 +6,7 @@ export interface Question {
   q_text: string;
   part: string;
   image: string | null;
+  audio_url: string | null;
   speaking_timer: number;
   prep_timer: number;
 }
@@ -23,6 +24,7 @@ const normalizeQuestion = (q: any): Question => ({
   q_text: q.qText ?? q.q_text,
   part: q.part,
   image: q.image,
+  audio_url: q.audioUrl ?? q.audio_url ?? null,
   speaking_timer: q.speakingTimer ?? q.speaking_timer,
   prep_timer: q.prepTimer ?? q.prep_timer,
 });

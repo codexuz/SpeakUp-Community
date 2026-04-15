@@ -67,7 +67,7 @@ function RootNavigator() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="speaking/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="session/[id]" options={{ headerShown: false }} />
-        <Stack.Screen name="review/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="review/[id]/index" options={{ headerShown: false }} />
         <Stack.Screen name="review/[id]/edit" options={{ headerShown: false }} />
         <Stack.Screen name="community/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="comment/[id]" options={{ headerShown: false }} />

@@ -10,6 +10,7 @@ import {
     rejectJoinRequest,
 } from '@/lib/groups';
 import { useAuth } from '@/store/auth';
+import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
     ArrowLeft,
@@ -17,7 +18,7 @@ import {
     Users,
     X,
 } from 'lucide-react-native';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
     ActivityIndicator,
     FlatList,
@@ -57,9 +58,11 @@ export default function GroupRequestsScreen() {
     }
   }, [id]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
 
   const handleApprove = async (req: JoinRequest) => {
     try {
@@ -100,6 +103,7 @@ export default function GroupRequestsScreen() {
         </View>
       ) : (
         <FlatList
+          style={{ flex: 1, backgroundColor: TG.bg }}
           data={joinRequests}
           keyExtractor={(r) => r.id}
           contentContainerStyle={styles.listContent}
@@ -156,8 +160,8 @@ export default function GroupRequestsScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: TG.bg },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
+  safe: { flex: 1, backgroundColor: TG.headerBg },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, backgroundColor: TG.bg },
 
   header: {
     flexDirection: 'row',

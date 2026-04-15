@@ -1,32 +1,32 @@
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
 import {
-    apiFetchCommunityFeed,
-    apiFollowUser,
-    apiGetFollowers,
-    apiGetFollowing,
-    apiGetUserProfile,
-    apiGetUserSessions,
-    apiUnfollowUser,
-    FollowListItem,
-    TestSession,
-    UserProfileResponse,
+  apiFetchCommunityFeed,
+  apiFollowUser,
+  apiGetFollowers,
+  apiGetFollowing,
+  apiGetUserProfile,
+  apiGetUserSessions,
+  apiUnfollowUser,
+  FollowListItem,
+  TestSession,
+  UserProfileResponse,
 } from '@/lib/api';
 import { useAuth } from '@/store/auth';
 import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, Heart, Users } from 'lucide-react-native';
+import { ArrowLeft, Heart, Shield, Users } from 'lucide-react-native';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-    ActivityIndicator,
-    FlatList,
-    Image,
-    Modal,
-    Pressable,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  Image,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -191,6 +191,7 @@ export default function PublicUserProfileScreen() {
       </View>
 
       <FlatList
+        style={{ flex: 1, backgroundColor: TG.bgSecondary }}
         data={cardData}
         keyExtractor={(item) => item.id}
         numColumns={2}
@@ -214,6 +215,12 @@ export default function PublicUserProfileScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.fullName}>{profile.user.fullName}</Text>
                 <Text style={styles.username}>@{profile.user.username}</Text>
+                {profile.user.verifiedTeacher && (
+                  <View style={styles.verifiedBadge}>
+                    <Shield size={12} color={TG.green} />
+                    <Text style={styles.verifiedBadgeText}>Verified Teacher</Text>
+                  </View>
+                )}
               </View>
 
               {!profile.relationship.isMe && (
@@ -325,8 +332,8 @@ export default function PublicUserProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: TG.bgSecondary },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  safeArea: { flex: 1, backgroundColor: TG.headerBg },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: TG.bgSecondary },
 
   header: {
     backgroundColor: TG.headerBg,
@@ -359,6 +366,8 @@ const styles = StyleSheet.create({
   avatarFallbackText: { color: TG.accent, fontWeight: '700', fontSize: 20 },
   fullName: { fontSize: 18, fontWeight: '700', color: TG.textPrimary },
   username: { fontSize: 13, color: TG.textSecondary, marginTop: 2 },
+  verifiedBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: TG.greenLight, alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, marginTop: 4 },
+  verifiedBadgeText: { fontSize: 11, fontWeight: '600', color: TG.green },
 
   followBtn: {
     height: 34,

@@ -1,10 +1,10 @@
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
 import {
-  apiFollowUser,
-  apiGetFollowing,
-  apiUnfollowUser,
-  FollowListItem,
+    apiFollowUser,
+    apiGetFollowing,
+    apiUnfollowUser,
+    FollowListItem,
 } from '@/lib/api';
 import { useAuth } from '@/store/auth';
 import { useFocusEffect } from '@react-navigation/native';
@@ -12,13 +12,13 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import {
-  ActivityIndicator,
-  FlatList,
-  Image,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    FlatList,
+    Image,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -118,6 +118,7 @@ export default function FollowingListScreen() {
         </View>
       ) : (
         <FlatList
+          style={{ flex: 1, backgroundColor: TG.bgSecondary }}
           data={data}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
@@ -177,8 +178,8 @@ export default function FollowingListScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: TG.bgSecondary },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  safeArea: { flex: 1, backgroundColor: TG.headerBg },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: TG.bgSecondary },
 
   header: {
     backgroundColor: TG.headerBg,

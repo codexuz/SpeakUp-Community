@@ -2,10 +2,8 @@ import { TG } from '@/constants/theme';
 import { apiSubmitSpeaking } from '@/lib/api';
 import { fetchQuestionsByTestId, Question } from '@/lib/data';
 import { useAuth } from '@/store/auth';
-import { AudioModule, RecordingPresets, useAudioRecorder } from 'expo-audio';
-import * as FileSystem from 'expo-file-system/legacy';
+import { AudioModule, createAudioPlayer, RecordingPresets, useAudioRecorder } from 'expo-audio';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import * as Speech from 'expo-speech';
 import {
   ArrowLeft,
   BookOpen,
@@ -18,7 +16,9 @@ import {
   Pause,
   Play,
   Send,
-  Shield,
+  Settings,
+  Timer,
+  TimerOff,
   Volume2,
 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -29,6 +29,7 @@ import {
   Image,
   StatusBar,
   StyleSheet,
+  Switch,
   Text,
   TouchableOpacity,
   View
@@ -39,48 +40,12 @@ const { width: SCREEN_W } = Dimensions.get('window');
 const RING_SIZE = 140;
 const RING_STROKE = 6;
 
-const BEEP_PATH = (FileSystem.cacheDirectory || '') + 'beep.wav';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const beepAsset = require('@/assets/audios/beep.mp3');
 
-async function ensureBeepFile() {
-  const info = await FileSystem.getInfoAsync(BEEP_PATH);
-  if (info.exists) return BEEP_PATH;
-  const sampleRate = 8000;
-  const duration = 0.4;
-  const freq = 1000;
-  const numSamples = Math.floor(sampleRate * duration);
-  const fileSize = 44 + numSamples;
-  const bytes = new Uint8Array(fileSize);
-  const view = new DataView(bytes.buffer);
-  const writeStr = (off: number, s: string) => {
-    for (let i = 0; i < s.length; i++) bytes[off + i] = s.charCodeAt(i);
-  };
-  writeStr(0, 'RIFF');
-  view.setUint32(4, 36 + numSamples, true);
-  writeStr(8, 'WAVE');
-  writeStr(12, 'fmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, 1, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate, true);
-  view.setUint16(32, 1, true);
-  view.setUint16(34, 8, true);
-  writeStr(36, 'data');
-  view.setUint32(40, numSamples, true);
-  for (let i = 0; i < numSamples; i++) {
-    const env = i < 200 ? i / 200 : i > numSamples - 200 ? (numSamples - i) / 200 : 1;
-    bytes[44 + i] = 128 + Math.floor(96 * env * Math.sin(2 * Math.PI * freq * i / sampleRate));
-  }
-  let binary = '';
-  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-  await FileSystem.writeAsStringAsync(BEEP_PATH, btoa(binary), { encoding: FileSystem.EncodingType.Base64 });
-  return BEEP_PATH;
-}
-
-async function playBeep() {
+function playBeep() {
   try {
-    const path = await ensureBeepFile();
-    const player = new AudioModule.AudioPlayer(path, 0, false);
+    const player = createAudioPlayer(beepAsset);
     player.play();
     setTimeout(() => { try { player.remove(); } catch {} }, 1000);
   } catch (e) {
@@ -136,13 +101,17 @@ export default function SpeakingScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loadingQ, setLoadingQ] = useState(true);
   const [screen, setScreen] = useState<'intro' | 'test'>('intro');
-  const [phase, setPhase] = useState<'prep' | 'beep' | 'speak' | 'done'>('prep');
+  const [phase, setPhase] = useState<'audio' | 'prep' | 'beep' | 'speak' | 'done'>('audio');
   const [timeLeft, setTimeLeft] = useState(0);
+  const [timeElapsed, setTimeElapsed] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [micGranted, setMicGranted] = useState(false);
+  const [prepTimerEnabled, setPrepTimerEnabled] = useState(true);
+  const [speakTimerEnabled, setSpeakTimerEnabled] = useState(true);
 
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const audioPlayerRef = useRef<any>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const waveAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -175,7 +144,7 @@ export default function SpeakingScreen() {
 
   const startTest = useCallback(() => {
     setScreen('test');
-    setPhase('prep');
+    setPhase('audio');
   }, []);
 
   const saveAndAdvance = useCallback(async () => {
@@ -204,14 +173,13 @@ export default function SpeakingScreen() {
       router.back();
     } else {
       setCurrentIndex(prev => prev + 1);
-      setPhase('prep');
+      setPhase('audio');
     }
   }, [audioRecorder, id, isLastQuestion, question, router, sessionId, user]);
 
   useEffect(() => {
     (async () => {
       const qs = await fetchQuestionsByTestId(Number(id));
-      console.log(qs)
       setQuestions(qs);
       setLoadingQ(false);
     })();
@@ -223,25 +191,66 @@ export default function SpeakingScreen() {
     Animated.timing(fadeAnim, { toValue: 1, duration: 350, useNativeDriver: true }).start();
   }, [currentIndex, fadeAnim]);
 
-  // Pre-generate beep file on mount
-  useEffect(() => { ensureBeepFile(); }, []);
-
   // Check mic permission on mount
   useEffect(() => {
     AudioModule.getRecordingPermissionsAsync().then((p) => setMicGranted(p.status === 'granted'));
   }, []);
 
+  // Cleanup audio player on unmount
+  useEffect(() => {
+    return () => {
+      try { audioPlayerRef.current?.remove(); } catch {}
+    };
+  }, []);
+
   useEffect(() => {
     if (screen !== 'test' || !question) return;
-    if (phase === 'prep') {
-      setTimeLeft(question.prep_timer);
-      Speech.speak(question.q_text, { language: 'en-GB', rate: 0.9 });
+    if (phase === 'audio') {
+      // Play the question audio_url, then move to prep
+      try { audioPlayerRef.current?.remove(); } catch {}
+      if (question.audio_url) {
+        const player = createAudioPlayer(question.audio_url);
+        audioPlayerRef.current = player;
+        const sub = player.addListener('playbackStatusUpdate', (status: any) => {
+          if (status.didJustFinish || (status.currentTime > 0 && status.playing === false && status.currentTime >= (status.duration || 0) - 0.1)) {
+            sub?.remove();
+            try { player.remove(); } catch {}
+            audioPlayerRef.current = null;
+            setPhase('prep');
+          }
+        });
+        player.play();
+        // Fallback: if audio is short or status doesn't fire, move after a max wait
+        const fallback = setTimeout(() => {
+          sub?.remove();
+          try { player.remove(); } catch {}
+          audioPlayerRef.current = null;
+          setPhase(prev => prev === 'audio' ? 'prep' : prev);
+        }, 30000);
+        return () => {
+          clearTimeout(fallback);
+          sub?.remove();
+        };
+      } else {
+        // No audio_url, skip to prep immediately
+        setPhase('prep');
+      }
+    } else if (phase === 'prep') {
+      if (prepTimerEnabled) {
+        setTimeLeft(question.prep_timer);
+        setTimeElapsed(0);
+      } else {
+        setTimeElapsed(0);
+      }
     } else if (phase === 'beep') {
       playBeep();
       const t = setTimeout(() => setPhase('speak'), 500);
       return () => clearTimeout(t);
     } else if (phase === 'speak') {
-      setTimeLeft(question.speaking_timer);
+      if (speakTimerEnabled) {
+        setTimeLeft(question.speaking_timer);
+      }
+      setTimeElapsed(0);
       startRecording();
       Animated.loop(
         Animated.sequence([
@@ -268,27 +277,46 @@ export default function SpeakingScreen() {
       lastTimerPhaseRef.current = `${phase}-${currentIndex}`;
       return;
     }
-    if (timeLeft <= 0) {
-      if (phase === 'prep') setPhase('beep');
-      else if (phase === 'speak') saveAndAdvance();
-      return;
-    }
-    const timer = setInterval(() => setTimeLeft(p => p - 1), 1000);
-    return () => clearInterval(timer);
-  }, [screen, phase, currentIndex, question, saveAndAdvance, timeLeft]);
+    if (phase === 'audio') return; // no timer during audio playback
 
+    const isCountdown = phase === 'prep' ? prepTimerEnabled : phase === 'speak' ? speakTimerEnabled : true;
+
+    if (isCountdown) {
+      if (timeLeft <= 0) {
+        if (phase === 'prep') setPhase('beep');
+        else if (phase === 'speak') saveAndAdvance();
+        return;
+      }
+      const timer = setInterval(() => setTimeLeft(p => p - 1), 1000);
+      return () => clearInterval(timer);
+    } else {
+      // Count-up mode: no auto-advance, just count up
+      const timer = setInterval(() => setTimeElapsed(p => p + 1), 1000);
+      return () => clearInterval(timer);
+    }
+  }, [screen, phase, currentIndex, question, saveAndAdvance, timeLeft, prepTimerEnabled, speakTimerEnabled]);
+
+  const isCurrentCountdown = phase === 'prep' || phase === 'beep'
+    ? prepTimerEnabled
+    : phase === 'speak'
+    ? speakTimerEnabled
+    : true;
+  const displayTime = isCurrentCountdown ? timeLeft : timeElapsed;
   const totalTime = question
     ? (phase === 'prep' || phase === 'beep') ? question.prep_timer : question.speaking_timer
     : 1;
-  const progress = totalTime > 0 ? (totalTime - timeLeft) / totalTime : 0;
-  const minutes = Math.floor(timeLeft / 60);
-  const seconds = (timeLeft % 60).toString().padStart(2, '0');
+  const progress = isCurrentCountdown
+    ? (totalTime > 0 ? (totalTime - timeLeft) / totalTime : 0)
+    : 0; // No progress ring for count-up
+  const minutes = Math.floor(displayTime / 60);
+  const seconds = (displayTime % 60).toString().padStart(2, '0');
   const ringColor = phase === 'speak' ? TG.red : TG.accent;
+  const statusBg = screen === 'test' && phase === 'speak' ? '#c62828' : TG.headerBg;
 
   // ─── Intro Screen ─────────────────────────────────
   if (screen === 'intro') return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: TG.bg }]}>
-      <StatusBar barStyle="light-content" backgroundColor={TG.headerBg} />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: statusBg }]}>
+      <StatusBar barStyle="light-content" backgroundColor={statusBg} />
       <View style={[styles.header]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
           <ArrowLeft size={22} color={TG.textWhite} />
@@ -337,18 +365,46 @@ export default function SpeakingScreen() {
           )}
         </TouchableOpacity>
 
-        {/* Step 2 */}
-        <View style={[styles.introStep, { opacity: micGranted ? 1 : 0.5 }]}>
-          <View style={styles.introStepNum}>
-            <Text style={styles.introStepNumText}>2</Text>
+        {/* Step 2 — Timer Settings */}
+        <View style={styles.introSettingsCard}>
+          <View style={styles.introSettingsHeader}>
+            <Settings size={16} color={TG.accent} />
+            <Text style={styles.introSettingsTitle}>Timer Settings</Text>
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.introStepTitle}>Start Test</Text>
-            <Text style={styles.introStepHint}>
-              {loadingQ ? 'Loading questions...' : `${questions.length} questions · prep time + recording`}
-            </Text>
+          <View style={styles.introSettingRow}>
+            <View style={styles.introSettingInfo}>
+              {prepTimerEnabled ? <Timer size={18} color={TG.accent} /> : <TimerOff size={18} color={TG.textHint} />}
+              <View style={{ flex: 1 }}>
+                <Text style={styles.introSettingLabel}>Prep Timer</Text>
+                <Text style={styles.introSettingHint}>
+                  {prepTimerEnabled ? 'Countdown — auto-starts recording' : 'Count up — you decide when to speak'}
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={prepTimerEnabled}
+              onValueChange={setPrepTimerEnabled}
+              trackColor={{ false: TG.separator, true: TG.accent + '60' }}
+              thumbColor={prepTimerEnabled ? TG.accent : TG.textHint}
+            />
           </View>
-          <Shield size={20} color={TG.textHint} />
+          <View style={[styles.introSettingRow, { borderBottomWidth: 0 }]}>
+            <View style={styles.introSettingInfo}>
+              {speakTimerEnabled ? <Timer size={18} color={TG.red} /> : <TimerOff size={18} color={TG.textHint} />}
+              <View style={{ flex: 1 }}>
+                <Text style={styles.introSettingLabel}>Speaking Timer</Text>
+                <Text style={styles.introSettingHint}>
+                  {speakTimerEnabled ? 'Countdown — auto-submits when done' : 'Count up — you decide when to stop'}
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={speakTimerEnabled}
+              onValueChange={setSpeakTimerEnabled}
+              trackColor={{ false: TG.separator, true: TG.red + '60' }}
+              thumbColor={speakTimerEnabled ? TG.red : TG.textHint}
+            />
+          </View>
         </View>
 
         <View style={{ flex: 1 }} />
@@ -368,8 +424,8 @@ export default function SpeakingScreen() {
   );
 
   if (loadingQ) return (
-    <SafeAreaView style={[styles.safeArea, styles.centerFull]}>
-      <StatusBar barStyle="light-content" backgroundColor={TG.headerBg} />
+    <SafeAreaView style={[styles.safeArea, styles.centerFull, { backgroundColor: statusBg }]}>
+      <StatusBar barStyle="light-content" backgroundColor={statusBg} />
       <View style={styles.loadingContainer}>
         <View style={styles.loadingIcon}>
           <BookOpen size={32} color={TG.accent} />
@@ -381,15 +437,15 @@ export default function SpeakingScreen() {
   );
 
   if (questions.length === 0 || !question) return (
-    <SafeAreaView style={[styles.safeArea, styles.centerFull]}>
-      <StatusBar barStyle="light-content" backgroundColor={TG.headerBg} />
+    <SafeAreaView style={[styles.safeArea, styles.centerFull, { backgroundColor: statusBg }]}>
+      <StatusBar barStyle="light-content" backgroundColor={statusBg} />
       <Text style={{ color: TG.textSecondary, fontSize: 16 }}>No questions found</Text>
     </SafeAreaView>
   );
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor={phase === 'speak' ? '#c62828' : TG.headerBg} />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: statusBg }]}>
+      <StatusBar barStyle="light-content" backgroundColor={statusBg} />
 
       {/* Header */}
       <View style={[styles.header, phase === 'speak' && styles.headerRecording]}>
@@ -404,7 +460,7 @@ export default function SpeakingScreen() {
         </View>
         <View style={styles.headerBadge}>
           <Text style={styles.headerBadgeText}>
-            {phase === 'prep' || phase === 'beep' ? 'PREP' : phase === 'speak' ? 'REC' : 'DONE'}
+            {phase === 'audio' ? 'LISTEN' : phase === 'prep' || phase === 'beep' ? 'PREP' : phase === 'speak' ? 'REC' : 'DONE'}
           </Text>
         </View>
       </View>
@@ -433,29 +489,33 @@ export default function SpeakingScreen() {
       <Animated.ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
-        style={{ opacity: fadeAnim }}
+        style={{ opacity: fadeAnim, flex: 1, backgroundColor: TG.bgSecondary }}
       >
         {/* Phase indicator pill */}
         <View style={styles.phaseRow}>
-          <View style={[styles.phasePill, phase === 'speak' && styles.phasePillRec]}>
-            {phase === 'prep' ? (
+          <View style={[styles.phasePill, phase === 'speak' && styles.phasePillRec, phase === 'audio' && styles.phasePillAudio]}>
+            {phase === 'audio' ? (
+              <Volume2 size={14} color={TG.orange} />
+            ) : phase === 'prep' ? (
               <Clock size={14} color={TG.accent} />
             ) : (
               <Mic size={14} color={TG.red} />
             )}
-            <Text style={[styles.phasePillText, phase === 'speak' && { color: TG.red }]}>
-              {phase === 'prep' ? 'Read & prepare your answer' : 'Speak now — recording in progress'}
+            <Text style={[styles.phasePillText, phase === 'speak' && { color: TG.red }, phase === 'audio' && { color: TG.orange }]}>
+              {phase === 'audio' ? 'Listen to the question' : phase === 'prep' ? 'Read & prepare your answer' : 'Speak now — recording in progress'}
             </Text>
           </View>
         </View>
 
         {/* Question card */}
-        <View style={[styles.questionCard, phase === 'speak' && styles.questionCardRec]}>
+        <View style={[styles.questionCard, phase === 'speak' && styles.questionCardRec, phase === 'audio' && styles.questionCardAudio]}>
           <View style={styles.questionCardInner}>
-            {phase === 'prep' && (
+            {(phase === 'audio' || phase === 'prep') && (
               <View style={styles.speakerRow}>
-                <Volume2 size={16} color={TG.accent} />
-                <Text style={styles.speakerHint}>Listening...</Text>
+                <Volume2 size={16} color={phase === 'audio' ? TG.orange : TG.accent} />
+                <Text style={[styles.speakerHint, phase === 'audio' && { color: TG.orange }]}>
+                  {phase === 'audio' ? 'Playing audio...' : 'Prepare your answer'}
+                </Text>
               </View>
             )}
             <Text style={styles.questionText}>{question.q_text}</Text>
@@ -498,6 +558,17 @@ export default function SpeakingScreen() {
 
       {/* Footer panel */}
       <View style={[styles.footer, phase === 'speak' && styles.footerRec]}>
+        {phase === 'audio' ? (
+          /* Audio playing indicator */
+          <View style={styles.audioPlayingArea}>
+            <View style={styles.audioPlayingIcon}>
+              <Volume2 size={28} color={TG.orange} />
+            </View>
+            <Text style={styles.audioPlayingText}>Playing question audio...</Text>
+            <ActivityIndicator size="small" color={TG.orange} style={{ marginTop: 8 }} />
+          </View>
+        ) : (
+        <>
         {/* Circular timer */}
         <View style={styles.timerArea}>
           <CircularProgress progress={progress} color={ringColor}>
@@ -515,11 +586,16 @@ export default function SpeakingScreen() {
           </CircularProgress>
           <View style={styles.timerTextArea}>
             <Text style={styles.timerLabel}>
-              {phase === 'prep' || phase === 'beep' ? 'Preparation Time' : 'Recording Time'}
+              {phase === 'prep' || phase === 'beep'
+                ? (prepTimerEnabled ? 'Preparation Time' : 'Prep Time (no limit)')
+                : (speakTimerEnabled ? 'Recording Time' : 'Recording (no limit)')}
             </Text>
-            <Text style={[styles.timerValue, phase === 'speak' && { color: TG.red }]}>
+            <Text style={[styles.timerValue, phase === 'speak' && { color: TG.red }, !isCurrentCountdown && { color: TG.textSecondary }]}>
               {minutes}:{seconds}
             </Text>
+            {!isCurrentCountdown && (
+              <Text style={styles.timerCountUpHint}>▲ counting up</Text>
+            )}
           </View>
         </View>
 
@@ -560,7 +636,7 @@ export default function SpeakingScreen() {
             <ChevronRight size={20} color="rgba(255,255,255,0.6)" />
           </TouchableOpacity>
         ) : phase === 'speak' ? (
-          <TouchableOpacity style={styles.stopBtn} onPress={() => setTimeLeft(0)} activeOpacity={0.8}>
+          <TouchableOpacity style={styles.stopBtn} onPress={() => speakTimerEnabled ? setTimeLeft(0) : saveAndAdvance()} activeOpacity={0.8}>
             <View style={styles.btnIconCircleStop}>
               {isLastQuestion ? <Send size={20} color={TG.textWhite} /> : <Pause size={20} color={TG.textWhite} />}
             </View>
@@ -578,13 +654,15 @@ export default function SpeakingScreen() {
             <Text style={styles.uploadingText}>Uploading recording...</Text>
           </View>
         ) : null}
+        </>
+        )}
       </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: TG.bgSecondary },
+  safeArea: { flex: 1, backgroundColor: TG.headerBg },
   centerFull: { justifyContent: 'center', alignItems: 'center' },
 
   // Loading
@@ -631,12 +709,14 @@ const styles = StyleSheet.create({
     backgroundColor: TG.accentLight, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
   },
   phasePillRec: { backgroundColor: TG.redLight },
+  phasePillAudio: { backgroundColor: TG.orangeLight },
   phasePillText: { fontSize: 13, fontWeight: '600', color: TG.accent },
 
   questionCard: {
     backgroundColor: TG.bg, borderRadius: 16, marginBottom: 16,
   },
   questionCardRec: { borderWidth: 1.5, borderColor: TG.red + '30' },
+  questionCardAudio: { borderWidth: 1.5, borderColor: TG.orange + '30' },
   questionCardInner: { padding: 20 },
   speakerRow: {
     flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12,
@@ -694,6 +774,18 @@ const styles = StyleSheet.create({
     fontSize: 44, fontWeight: '800', color: TG.textPrimary,
     fontVariant: ['tabular-nums'], letterSpacing: -1,
   },
+  timerCountUpHint: { fontSize: 11, color: TG.textHint, fontWeight: '600', marginTop: 2 },
+
+  // Audio playing
+  audioPlayingArea: {
+    alignItems: 'center', justifyContent: 'center', paddingVertical: 20, gap: 8,
+  },
+  audioPlayingIcon: {
+    width: 60, height: 60, borderRadius: 30,
+    backgroundColor: TG.orangeLight, justifyContent: 'center', alignItems: 'center',
+    marginBottom: 4,
+  },
+  audioPlayingText: { fontSize: 15, fontWeight: '600', color: TG.orange },
 
   // Wave bars
   waveBars: {
@@ -735,7 +827,7 @@ const styles = StyleSheet.create({
   // Intro screen
   introContent: {
     flex: 1, paddingHorizontal: 24, paddingTop: 32, paddingBottom: 28,
-    alignItems: 'center',
+    alignItems: 'center', backgroundColor: TG.bgSecondary,
   },
   introIconWrap: {
     width: 88, height: 88, borderRadius: 44,
@@ -763,6 +855,24 @@ const styles = StyleSheet.create({
   introStepNumText: { fontSize: 14, fontWeight: '800', color: TG.textWhite },
   introStepTitle: { fontSize: 16, fontWeight: '700', color: TG.textPrimary },
   introStepHint: { fontSize: 12, color: TG.textSecondary, marginTop: 2 },
+  introSettingsCard: {
+    width: '100%', backgroundColor: TG.bgSecondary, borderRadius: 14,
+    borderWidth: 1, borderColor: TG.separator, marginBottom: 12,
+    paddingHorizontal: 16, paddingTop: 14, paddingBottom: 4,
+  },
+  introSettingsHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12,
+  },
+  introSettingsTitle: { fontSize: 14, fontWeight: '700', color: TG.textPrimary },
+  introSettingRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: TG.separator,
+  },
+  introSettingInfo: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, marginRight: 12,
+  },
+  introSettingLabel: { fontSize: 14, fontWeight: '600', color: TG.textPrimary },
+  introSettingHint: { fontSize: 11, color: TG.textHint, marginTop: 2 },
   introStartBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
     backgroundColor: TG.accent, borderRadius: 14,

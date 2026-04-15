@@ -7,13 +7,13 @@ import { useRouter } from 'expo-router';
 import { ChevronRight, ClipboardList, Shield } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import {
-    ActivityIndicator,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -63,9 +63,12 @@ export default function AdminHomeScreen() {
       </View>
 
       {loading ? (
-        <ActivityIndicator size="large" color={TG.accent} style={{ marginTop: 60 }} />
+        <View style={{ flex: 1, backgroundColor: TG.bg, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={TG.accent} />
+        </View>
       ) : (
         <ScrollView
+          style={{ flex: 1, backgroundColor: TG.bg }}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -139,7 +142,7 @@ export default function AdminHomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: TG.bg },
+  safeArea: { flex: 1, backgroundColor: TG.headerBg },
   header: {
     backgroundColor: TG.headerBg,
     paddingHorizontal: 16,

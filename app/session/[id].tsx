@@ -4,26 +4,26 @@ import { TG } from '@/constants/theme';
 import { apiFetchSessionDetail, apiUpdateSpeaking, SpeakingResponse, TestSession } from '@/lib/api';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
-  ArrowLeft,
-  BarChart3,
-  Calendar,
-  Clock,
-  Globe,
-  Loader,
-  Lock,
-  MessageSquare,
-  Mic,
-  Star,
+    ArrowLeft,
+    BarChart3,
+    Calendar,
+    Clock,
+    Globe,
+    Loader,
+    Lock,
+    MessageSquare,
+    Mic,
+    Star,
 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Animated,
-  FlatList,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Animated,
+    FlatList,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -275,7 +275,7 @@ export default function SessionDetailScreen() {
           <Text style={styles.emptyText}>Session not found</Text>
         </View>
       ) : (
-        <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
+        <Animated.View style={{ flex: 1, opacity: fadeAnim, backgroundColor: TG.bgSecondary }}>
           <FlatList
             data={responses}
             keyExtractor={(item) => item.id}
@@ -330,7 +330,7 @@ export default function SessionDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: TG.bgSecondary },
+  safeArea: { flex: 1, backgroundColor: TG.headerBg },
   header: {
     backgroundColor: TG.headerBg,
     paddingHorizontal: 16,
@@ -342,7 +342,7 @@ const styles = StyleSheet.create({
   headerCenter: { flex: 1 },
   headerTitle: { fontSize: 18, fontWeight: '700', color: TG.textWhite },
   headerSub: { fontSize: 12, color: 'rgba(255,255,255,0.65)', marginTop: 1 },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, backgroundColor: TG.bgSecondary },
 
   // ─── Summary card ───
   summaryCard: {

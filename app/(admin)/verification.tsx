@@ -5,12 +5,12 @@ import { apiFetchAllVerifications, apiReviewVerification } from '@/lib/api';
 import { Check, Shield, X } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  FlatList,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    FlatList,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -103,6 +103,7 @@ export default function AdminVerificationScreen() {
         </View>
       ) : (
         <FlatList
+          style={{ flex: 1, backgroundColor: TG.bgSecondary }}
           data={requests}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ paddingBottom: 40 }}
@@ -168,14 +169,14 @@ export default function AdminVerificationScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: TG.bgSecondary },
+  safeArea: { flex: 1, backgroundColor: TG.headerBg },
   header: {
     backgroundColor: TG.headerBg,
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
   headerTitle: { fontSize: 20, fontWeight: '700', color: TG.textWhite },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, backgroundColor: TG.bgSecondary },
 
   filterRow: {
     flexDirection: 'row',

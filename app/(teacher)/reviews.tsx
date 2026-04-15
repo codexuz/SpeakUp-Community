@@ -86,9 +86,12 @@ export default function TeacherReviewsScreen() {
       </View>
 
       {loading ? (
-        <ActivityIndicator size="large" color={TG.accent} style={{ marginTop: 60 }} />
+        <View style={{ flex: 1, backgroundColor: TG.bgSecondary, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={TG.accent} />
+        </View>
       ) : (
         <FlatList
+          style={{ flex: 1, backgroundColor: TG.bgSecondary }}
           data={sessions}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
@@ -107,7 +110,7 @@ export default function TeacherReviewsScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: TG.bgSecondary },
+  safeArea: { flex: 1, backgroundColor: TG.headerBg },
   header: { backgroundColor: TG.headerBg, paddingHorizontal: 16, paddingVertical: 14 },
   headerTitle: { fontSize: 20, fontWeight: '700', color: TG.textWhite },
   listContent: { paddingBottom: 100 },

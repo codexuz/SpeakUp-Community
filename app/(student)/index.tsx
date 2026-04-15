@@ -4,7 +4,7 @@ import { useAuth } from '@/store/auth';
 import { useRouter } from 'expo-router';
 import { BookOpen, ChevronRight } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, RefreshControl, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function StudentHomeScreen() {
@@ -44,10 +44,12 @@ export default function StudentHomeScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="light-content" backgroundColor={TG.headerBg} />
       <View style={styles.header}>
         <Text style={styles.headerTitle}>SpeakUp</Text>
       </View>
       <ScrollView
+        style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -91,7 +93,7 @@ export default function StudentHomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: TG.bg },
+  safeArea: { flex: 1, backgroundColor: TG.headerBg },
   header: {
     backgroundColor: TG.headerBg,
     paddingHorizontal: 16,
@@ -102,6 +104,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: TG.textWhite,
   },
+  scrollView: { flex: 1, backgroundColor: TG.bg },
   scrollContent: { paddingBottom: 100 },
   greeting: { fontSize: 22, fontWeight: '700', color: TG.textPrimary, paddingHorizontal: 16, paddingTop: 20 },
   subGreeting: { fontSize: 14, color: TG.textSecondary, paddingHorizontal: 16, marginBottom: 20, marginTop: 4 },

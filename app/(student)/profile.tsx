@@ -4,7 +4,7 @@ import { apiGetUserProfile, apiLogout } from '@/lib/api';
 import { useAuth } from '@/store/auth';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { ChevronRight, Edit2, LogOut, MapPin, Monitor, User as UserIcon } from 'lucide-react-native';
+import { ChevronRight, Edit2, LogOut, MapPin, Monitor, Phone, User as UserIcon } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -52,7 +52,7 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+      <ScrollView style={{ flex: 1, backgroundColor: TG.bgSecondary }} contentContainerStyle={{ paddingBottom: 40 }}>
         <View style={styles.profileSection}>
           <Image
             source={{ uri: user?.avatarUrl || 'https://i.ibb.co/68vS1zZ/default-avatar.png' }}
@@ -99,6 +99,11 @@ export default function ProfileScreen() {
             <Text style={styles.infoLabel}>Gender</Text>
             <Text style={styles.infoValue}>{user?.gender || 'Not set'}</Text>
           </View>
+          <View style={styles.infoRow}>
+            <Phone size={18} color={TG.textSecondary} />
+            <Text style={styles.infoLabel}>Phone</Text>
+            <Text style={styles.infoValue}>{user?.phone || 'Not set'}</Text>
+          </View>
         </View>
 
         <View style={styles.divider} />
@@ -121,7 +126,7 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: TG.bgSecondary },
+  safeArea: { flex: 1, backgroundColor: TG.headerBg },
   header: {
     backgroundColor: TG.headerBg,
     paddingHorizontal: 16,

@@ -46,7 +46,7 @@ export default function JoinGroupScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, backgroundColor: TG.bg }}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
@@ -100,7 +100,7 @@ export default function JoinGroupScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: TG.bg },
+  safeArea: { flex: 1, backgroundColor: TG.headerBg },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -8,9 +8,10 @@ import {
   apiPostReview,
 } from '@/lib/api';
 import { useAuth } from '@/store/auth';
+import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, Star, Trash2 } from 'lucide-react-native';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -76,9 +77,11 @@ export default function ReviewEditScreen() {
     }
   }, [sessionId, user?.id]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
 
   const scoreNum = parseInt(score, 10);
   const scorePreview =
@@ -156,25 +159,14 @@ export default function ReviewEditScreen() {
         <Text style={styles.headerTitle}>
           {hasExisting ? 'Edit Review' : 'Add Review'}
         </Text>
-        {hasExisting ? (
-          <TouchableOpacity
-            onPress={handleDelete}
-            activeOpacity={0.7}
-            disabled={deleting}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Trash2 size={19} color={TG.red} />
-          </TouchableOpacity>
-        ) : (
-          <View style={{ width: 22 }} />
-        )}
+        <View style={{ width: 22 }} />
       </View>
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView style={{ flex: 1, backgroundColor: TG.bgSecondary }} contentContainerStyle={styles.content}>
           {/* Session info card */}
           <View style={styles.sessionCard}>
             <Star size={18} color={TG.orange} />
@@ -260,8 +252,8 @@ export default function ReviewEditScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: TG.bgSecondary },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  safeArea: { flex: 1, backgroundColor: TG.headerBg },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: TG.bgSecondary },
 
   header: {
     backgroundColor: TG.headerBg,

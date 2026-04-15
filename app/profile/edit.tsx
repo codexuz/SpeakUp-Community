@@ -7,16 +7,16 @@ import { useRouter } from 'expo-router';
 import { ArrowLeft, Camera, User as UserIcon } from 'lucide-react-native';
 import React, { useState } from 'react';
 import {
-    ActivityIndicator,
-    Image,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -28,11 +28,14 @@ export default function EditProfileScreen() {
   const [fullName, setFullName] = useState(user?.fullName || '');
   const [gender, setGender] = useState(user?.gender || '');
   const [region, setRegion] = useState(user?.region || '');
+  const [phone, setPhone] = useState(user?.phone || '');
   const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl || null);
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   const handlePickAvatar = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') return;
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
@@ -65,11 +68,13 @@ export default function EditProfileScreen() {
         fullName: fullName.trim() || undefined,
         gender: gender.trim() || undefined,
         region: region.trim() || undefined,
+        phone: phone.trim() || undefined,
       });
       updateUser({
         fullName: updated.fullName,
         gender: updated.gender,
         region: updated.region,
+        phone: updated.phone,
       });
       toast.success('Done', 'Profile updated');
       router.back();
@@ -82,7 +87,7 @@ export default function EditProfileScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
@@ -91,7 +96,7 @@ export default function EditProfileScreen() {
           <Text style={styles.headerTitle}>Edit Profile</Text>
         </View>
 
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <ScrollView style={{ flex: 1, backgroundColor: TG.bg }} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           {/* Avatar */}
           <TouchableOpacity
             style={styles.avatarWrap}
@@ -153,6 +158,18 @@ export default function EditProfileScreen() {
             maxLength={50}
           />
 
+          {/* Phone */}
+          <Text style={styles.inputLabel}>Phone</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="+998901234567"
+            placeholderTextColor={TG.textHint}
+            keyboardType="phone-pad"
+            value={phone}
+            onChangeText={setPhone}
+            maxLength={20}
+          />
+
           {/* Save */}
           <TouchableOpacity
             style={[styles.saveBtn, (!fullName.trim() || saving) && { opacity: 0.5 }]}
@@ -173,7 +190,7 @@ export default function EditProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: TG.bg },
+  safeArea: { flex: 1, backgroundColor: TG.headerBg },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

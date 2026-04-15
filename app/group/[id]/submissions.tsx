@@ -1,32 +1,29 @@
 import { useAlert } from '@/components/CustomAlert';
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
-import { apiPostReview } from '@/lib/api';
 import {
-    fetchGroupById,
-    fetchGroupSubmissions,
-    Group,
+  fetchGroupById,
+  fetchGroupSubmissions,
+  Group,
 } from '@/lib/groups';
 import { useAuth } from '@/store/auth';
+import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
-    ArrowLeft,
-    Award,
-    ChevronRight,
-    Star,
+  ArrowLeft,
+  Award,
+  ChevronRight,
+  Star,
 } from 'lucide-react-native';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
-    ActivityIndicator,
-    FlatList,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -62,9 +59,11 @@ export default function GroupSubmissionsScreen() {
     }
   }, [id]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
 
   const loadMoreSubs = async () => {
     if (!hasMoreSubs || !id) return;
@@ -100,6 +99,7 @@ export default function GroupSubmissionsScreen() {
         </View>
       ) : (
         <FlatList
+          style={{ flex: 1, backgroundColor: TG.bgSecondary }}
           data={submissions}
           keyExtractor={(s) => s.id}
           contentContainerStyle={styles.listContent}
@@ -115,7 +115,11 @@ export default function GroupSubmissionsScreen() {
             >
               <View style={styles.subHeader}>
                 <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>{(sub.user?.fullName || '?').charAt(0)}</Text>
+                  {sub.user?.avatarUrl ? (
+                    <Image source={{ uri: sub.user.avatarUrl }} style={styles.avatarImage} />
+                  ) : (
+                    <Text style={styles.avatarText}>{(sub.user?.fullName || '?').charAt(0)}</Text>
+                  )}
                 </View>
 
                 <View style={{ flex: 1 }}>
@@ -169,8 +173,8 @@ export default function GroupSubmissionsScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: TG.bgSecondary },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
+  safe: { flex: 1, backgroundColor: TG.headerBg },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, backgroundColor: TG.bgSecondary },
 
   header: {
     flexDirection: 'row',
@@ -200,6 +204,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   avatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: TG.accentLight, justifyContent: 'center', alignItems: 'center' },
+  avatarImage: { width: 38, height: 38, borderRadius: 19 },
   avatarText: { fontSize: 15, fontWeight: '700', color: TG.accent },
   topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 },
   subStudent: {

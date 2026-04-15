@@ -1,6 +1,6 @@
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
-import { apiFetchCommunityFeed, apiLikeSpeaking, apiPostReview, apiUnlikeSpeaking } from '@/lib/api';
+import { apiFetchCommunityFeed, apiLikeSpeaking, apiUnlikeSpeaking } from '@/lib/api';
 import { useAuth } from '@/store/auth';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
@@ -10,12 +10,8 @@ import {
   ActivityIndicator,
   FlatList,
   Image,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View
 } from 'react-native';
@@ -25,7 +21,6 @@ type Strategy = 'latest' | 'trending' | 'top';
 
 export default function CommunityScreen() {
   const { user } = useAuth();
-  const isTeacher = user?.role === 'teacher';
   const toast = useToast();
   const router = useRouter();
 
@@ -36,12 +31,6 @@ export default function CommunityScreen() {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [pendingLikeIds, setPendingLikeIds] = useState<Set<string>>(new Set());
-
-  const [reviewModal, setReviewModal] = useState(false);
-  const [selectedSub, setSelectedSub] = useState<any>(null);
-  const [score, setScore] = useState('');
-  const [feedback, setFeedback] = useState('');
-  const [submitting, setSubmitting] = useState(false);
 
   const loadFeed = async (s: Strategy = strategy, p = 1, append = false) => {
     if (p === 1) setLoading(true);
@@ -124,32 +113,6 @@ export default function CommunityScreen() {
     }
   };
 
-  const openReviewModal = (sub: any) => {
-    setSelectedSub(sub);
-    setScore('');
-    setFeedback('');
-    setReviewModal(true);
-  };
-
-  const handleReview = async () => {
-    if (!selectedSub || !score) return;
-    const numScore = parseInt(score, 10);
-    if (isNaN(numScore) || numScore < 0 || numScore > 75) {
-      toast.warning('Invalid', 'Score must be between 0 and 75');
-      return;
-    }
-    setSubmitting(true);
-    try {
-      await apiPostReview(selectedSub.id, numScore, feedback);
-      setReviewModal(false);
-      loadFeed(strategy, 1);
-    } catch (e: any) {
-      toast.error('Error', e.message);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   const renderItem = ({ item }: { item: any }) => (
     <TouchableOpacity style={styles.card} activeOpacity={0.7} onPress={() => router.push(`/community/${item.id}` as any)}>
       {/* Top row: avatar, name+date, score pill, chevron */}
@@ -202,12 +165,34 @@ export default function CommunityScreen() {
           <MessageCircle size={12} color={TG.textHint} />
           <Text style={styles.chipText}>{item.commentsCount || 0}</Text>
         </View>
-        {isTeacher && (
-          <TouchableOpacity style={styles.reviewBtn} activeOpacity={0.7} onPress={() => openReviewModal(item)}>
-            <Text style={styles.reviewBtnText}>Review</Text>
-          </TouchableOpacity>
-        )}
       </View>
+
+      {/* Reviews Footer */}
+      <TouchableOpacity style={styles.reviewsFooter} activeOpacity={0.7} onPress={() => router.push(`/review/${item.id}` as any)}>
+          <View style={styles.reviewsFooterLeft}>
+            <View style={styles.reviewAvatars}>
+              {item.reviews?.length > 0 ? (
+                item.reviews.slice(0, 3).map((r: any, i: number) => (
+                  <View key={i} style={[styles.reviewAvatarCircle, i === 0 && { marginLeft: 0 }]}>
+                    {r.reviewer?.avatarUrl ? (
+                      <Image source={{ uri: r.reviewer.avatarUrl }} style={styles.reviewAvatarImage} />
+                    ) : (
+                      <Text style={styles.reviewAvatarInitials}>{(r.reviewer?.fullName || '?').charAt(0)}</Text>
+                    )}
+                  </View>
+                ))
+              ) : (
+                <View style={[styles.reviewAvatarCircle, { marginLeft: 0 }]}>
+                  <Text style={styles.reviewAvatarInitials}>R</Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.reviewsFooterText}>
+              {item._count?.reviews || 0} review{(item._count?.reviews || 0) !== 1 ? 's' : ''}
+            </Text>
+          </View>
+          <ChevronRight size={16} color={TG.textHint} />
+      </TouchableOpacity>
     </TouchableOpacity>
   );
 
@@ -238,9 +223,12 @@ export default function CommunityScreen() {
       </View>
 
       {loading ? (
-        <ActivityIndicator size="large" color={TG.accent} style={{ marginTop: 60 }} />
+        <View style={{ flex: 1, backgroundColor: TG.bgSecondary, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={TG.accent} />
+        </View>
       ) : (
         <FlatList
+          style={{ flex: 1, backgroundColor: TG.bgSecondary }}
           data={submissions}
           keyExtractor={item => item.id}
           renderItem={renderItem}
@@ -258,64 +246,12 @@ export default function CommunityScreen() {
         />
       )}
 
-      <Modal visible={reviewModal} animationType="slide" transparent>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Review Submission</Text>
-            {selectedSub && (
-              <Text style={styles.modalSubtitle} numberOfLines={2}>
-                {selectedSub.user?.fullName} - {selectedSub.test?.title}
-              </Text>
-            )}
-            <Text style={styles.inputLabel}>Score (0-75)</Text>
-            <TextInput
-              style={styles.input}
-              value={score}
-              onChangeText={setScore}
-              keyboardType="number-pad"
-              maxLength={2}
-              placeholder="0-75"
-              placeholderTextColor={TG.textHint}
-            />
-            <Text style={styles.inputLabel}>Feedback</Text>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              value={feedback}
-              onChangeText={setFeedback}
-              multiline
-              numberOfLines={4}
-              placeholder="Write helpful feedback..."
-              placeholderTextColor={TG.textHint}
-              textAlignVertical="top"
-            />
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.cancelBtn} activeOpacity={0.7} onPress={() => setReviewModal(false)}>
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.submitBtn, (!score || submitting) && { opacity: 0.5 }]}
-                activeOpacity={0.7}
-                onPress={handleReview}
-                disabled={!score || submitting}
-              >
-                {submitting ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text style={styles.submitBtnText}>Submit</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-        </KeyboardAvoidingView>
-      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: TG.bgSecondary },
+  safeArea: { flex: 1, backgroundColor: TG.headerBg },
   header: { backgroundColor: TG.headerBg, paddingHorizontal: 16, paddingVertical: 14 },
   headerTitle: { fontSize: 20, fontWeight: '700', color: TG.textWhite },
   tabBar: { flexDirection: 'row', backgroundColor: TG.bg, paddingHorizontal: 12, paddingVertical: 8, gap: 8, borderBottomWidth: 0.5, borderBottomColor: TG.separator },
@@ -350,20 +286,12 @@ const styles = StyleSheet.create({
   chip: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   chipDisabled: { opacity: 0.55 },
   chipText: { fontSize: 12, color: TG.textHint, fontWeight: '500' },
-  reviewBtn: { marginLeft: 'auto', backgroundColor: TG.accent, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 10 },
-  reviewBtnText: { fontSize: 12, fontWeight: '600', color: TG.textWhite },
-  emptyContainer: { alignItems: 'center', marginTop: 80, gap: 12 },
+  reviewsFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: TG.bg, borderBottomLeftRadius: 14, borderBottomRightRadius: 14, paddingHorizontal: 14, paddingVertical: 12, marginTop: 12, marginHorizontal: -12, marginBottom: -12, borderTopWidth: 1, borderTopColor: TG.separator },
+  reviewsFooterLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  reviewAvatars: { flexDirection: 'row', alignItems: 'center' },
+  reviewAvatarCircle: { width: 24, height: 24, borderRadius: 12, backgroundColor: TG.accentLight, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: TG.bgSecondary, marginLeft: -8 },
+  reviewAvatarImage: { width: '100%', height: '100%', borderRadius: 12 },
+  reviewAvatarInitials: { fontSize: 10, color: TG.accent, fontWeight: '700' },
+  reviewsFooterText: { fontSize: 13, color: TG.textPrimary, fontWeight: '600' },  emptyContainer: { alignItems: 'center', marginTop: 80, gap: 12 },
   emptyText: { color: TG.textSecondary, fontSize: 15 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: TG.bg, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20 },
-  modalTitle: { fontSize: 18, fontWeight: '700', color: TG.textPrimary, marginBottom: 4 },
-  modalSubtitle: { fontSize: 13, color: TG.textSecondary, marginBottom: 16, lineHeight: 18 },
-  inputLabel: { fontSize: 13, color: TG.textSecondary, fontWeight: '600', marginBottom: 6 },
-  input: { backgroundColor: TG.bgSecondary, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: TG.textPrimary, borderWidth: 0.5, borderColor: TG.separator, marginBottom: 12 },
-  textArea: { minHeight: 80 },
-  modalActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
-  cancelBtn: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 10, backgroundColor: TG.bgSecondary },
-  cancelBtnText: { color: TG.textSecondary, fontWeight: '600' },
-  submitBtn: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 10, backgroundColor: TG.accent },
-  submitBtnText: { color: TG.textWhite, fontWeight: '600' },
 });

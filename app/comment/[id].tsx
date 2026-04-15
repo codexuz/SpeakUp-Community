@@ -353,7 +353,7 @@ export default function CommentsScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: TG.bgChat },
+  safe: { flex: 1, backgroundColor: TG.headerBg },
 
   // Header
   header: {
@@ -368,7 +368,7 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 16, fontWeight: '700', color: TG.textWhite },
   headerSub: { fontSize: 12, color: 'rgba(255,255,255,0.7)' },
 
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: TG.bgChat },
 
   // Messages
   messageList: { flex: 1, backgroundColor: TG.bgChat },

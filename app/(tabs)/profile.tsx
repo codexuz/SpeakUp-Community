@@ -1,16 +1,17 @@
 import { useAlert } from '@/components/CustomAlert';
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
-import { apiFetchMyVerificationStatus, apiLogout, apiRequestTeacherVerification } from '@/lib/api';
+import { apiFetchMyVerificationStatus, apiGetUserProfile, apiLogout, apiRequestTeacherVerification } from '@/lib/api';
 import { useAuth } from '@/store/auth';
+import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { Award, ChevronRight, Edit2, LogOut, MapPin, Monitor, Shield, User as UserIcon } from 'lucide-react-native';
-import React, { useCallback, useEffect, useState } from 'react';
+import { Award, ChevronRight, Edit2, LogOut, MapPin, Monitor, Phone, Shield, User as UserIcon } from 'lucide-react-native';
+import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, Image, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ProfileScreen() {
-  const { user, logout } = useAuth();
+  const { user, logout, updateUser } = useAuth();
   const router = useRouter();
   const toast = useToast();
   const { alert } = useAlert();
@@ -18,20 +19,41 @@ export default function ProfileScreen() {
   const [verificationLoading, setVerificationLoading] = useState(false);
   const [verifyModal, setVerifyModal] = useState(false);
   const [verifyReason, setVerifyReason] = useState('');
+  const [stats, setStats] = useState({ followers: 0, following: 0 });
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!user?.id) return;
+      apiGetUserProfile(user.id)
+        .then((p) => {
+          setStats(p.stats);
+          if (p.user.verifiedTeacher && !user.verifiedTeacher) {
+            updateUser({ verifiedTeacher: true });
+          }
+        })
+        .catch(() => {});
+    }, [user?.id]),
+  );
 
   const loadVerificationStatus = useCallback(async () => {
     if (user?.role === 'teacher' || user?.verifiedTeacher) return;
     try {
       const result = await apiFetchMyVerificationStatus();
-      setVerificationStatus(result?.status || null);
+      const status = result?.status || null;
+      setVerificationStatus(status);
+      if (status === 'approved') {
+        updateUser({ verifiedTeacher: true });
+      }
     } catch {
       setVerificationStatus(null);
     }
   }, [user?.role, user?.verifiedTeacher]);
 
-  useEffect(() => {
-    loadVerificationStatus();
-  }, [loadVerificationStatus]);
+  useFocusEffect(
+    useCallback(() => {
+      loadVerificationStatus();
+    }, [loadVerificationStatus]),
+  );
 
   const handleLogout = async () => {
     alert('Log Out', 'Are you sure you want to log out?', [
@@ -101,7 +123,7 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+      <ScrollView style={{ flex: 1, backgroundColor: TG.bgSecondary }} contentContainerStyle={{ paddingBottom: 40 }}>
         <View style={styles.profileSection}>
           <Image
             source={{ uri: user?.avatarUrl || 'https://i.ibb.co/68vS1zZ/default-avatar.png' }}
@@ -132,6 +154,11 @@ export default function ProfileScreen() {
             <UserIcon size={18} color={TG.textSecondary} />
             <Text style={styles.infoLabel}>Gender</Text>
             <Text style={styles.infoValue}>{user?.gender || 'Not set'}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Phone size={18} color={TG.textSecondary} />
+            <Text style={styles.infoLabel}>Phone</Text>
+            <Text style={styles.infoValue}>{user?.phone || 'Not set'}</Text>
           </View>
         </View>
 
@@ -169,7 +196,7 @@ export default function ProfileScreen() {
 
       {/* Verification Request Modal */}
       <Modal visible={verifyModal} animationType="slide" transparent>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Teacher Verification</Text>
@@ -214,7 +241,7 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: TG.bgSecondary },
+  safeArea: { flex: 1, backgroundColor: TG.headerBg },
   header: {
     backgroundColor: TG.headerBg,
     paddingHorizontal: 16,

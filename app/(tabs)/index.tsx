@@ -50,6 +50,7 @@ export default function HomeScreen() {
           <Text style={styles.headerTitle}>SpeakUp</Text>
         </View>
         <ScrollView
+          style={{ flex: 1, backgroundColor: TG.bg }}
           contentContainerStyle={styles.teacherContainer}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={TG.accent} colors={[TG.accent]} />
@@ -118,6 +119,7 @@ export default function HomeScreen() {
         <Text style={styles.headerTitle}>SpeakUp</Text>
       </View>
       <ScrollView
+        style={{ flex: 1, backgroundColor: TG.bg }}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -163,7 +165,7 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: TG.bg },
+  safeArea: { flex: 1, backgroundColor: TG.headerBg },
   header: {
     backgroundColor: TG.headerBg,
     paddingHorizontal: 16,

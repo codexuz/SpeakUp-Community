@@ -3,9 +3,10 @@ import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
 import { apiDeleteQuestion, apiFetchTests, apiUpdateTest } from '@/lib/api';
 import { useAuth } from '@/store/auth';
+import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, Edit2, MessageSquare, Plus, Trash2 } from 'lucide-react-native';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -81,9 +82,11 @@ export default function TestDetailScreen() {
     }
   }, [id]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
 
   const openEditModal = () => {
     if (!test) return;
@@ -208,6 +211,7 @@ export default function TestDetailScreen() {
       </View>
 
       <FlatList
+        style={{ flex: 1, backgroundColor: TG.bgSecondary }}
         data={test.questions}
         keyExtractor={(item) => String(item.id)}
         contentContainerStyle={{ paddingBottom: 40 }}
@@ -265,7 +269,7 @@ export default function TestDetailScreen() {
 
       {/* Edit Test Modal */}
       <Modal visible={editModal} animationType="slide" transparent>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Edit Test</Text>
@@ -315,7 +319,7 @@ export default function TestDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: TG.bgSecondary },
+  safeArea: { flex: 1, backgroundColor: TG.headerBg },
   header: {
     backgroundColor: TG.headerBg,
     paddingHorizontal: 16,
@@ -325,7 +329,7 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   headerTitle: { fontSize: 20, fontWeight: '700', color: TG.textWhite, flex: 1 },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingTop: 60 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingTop: 60, backgroundColor: TG.bgSecondary },
 
   sectionHeader: {
     flexDirection: 'row',
@@ -334,7 +338,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: TG.textPrimary },
+  sectionTitle: { fontSize: 15, fontWeight: '700', color: TG.textWhite },
   addBtn: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -3,10 +3,11 @@ import { apiFetchAnalyticsOverview, apiFetchPendingSpeaking } from '@/lib/api';
 import { useAuth } from '@/store/auth';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { ChevronRight, Mic, Users } from 'lucide-react-native';
+import { ArrowRight, BellRing, ClipboardList, Mic, Star, Users } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -52,82 +53,138 @@ export default function TeacherHomeScreen() {
     setRefreshing(false);
   }, [loadData]);
 
+  const firstName = user?.fullName?.split(' ')[0] || 'Teacher';
+
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>SpeakUp</Text>
-      </View>
-
       {loading ? (
-        <ActivityIndicator size="large" color={TG.accent} style={{ marginTop: 60 }} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={TG.accent} />
+        </View>
       ) : (
         <ScrollView
+          style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={TG.accent} colors={[TG.accent]} />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={TG.textWhite} />
           }
         >
-          <View style={styles.avatarContainer}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{user?.fullName?.charAt(0) || 'T'}</Text>
+          {/* Header Banner */}
+          <View style={styles.topBanner}>
+            <View style={styles.greetingHeader}>
+              <View style={styles.greetingTextContainer}>
+                <Text style={styles.greetingTitle}>Hello, {firstName} 👋</Text>
+                <Text style={styles.greetingSubtitle}>Ready to inspire your students?</Text>
+              </View>
+              <TouchableOpacity onPress={() => router.push('/(teacher)/profile' as any)} activeOpacity={0.8}>
+                {user?.avatarUrl ? (
+                  <Image source={{ uri: user.avatarUrl }} style={styles.avatarImg} />
+                ) : (
+                  <View style={styles.avatarFallback}>
+                    <Text style={styles.avatarFallbackText}>{firstName.charAt(0)}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
             </View>
-            <Text style={styles.greeting}>Welcome, {user?.fullName}</Text>
-            <Text style={styles.subGreeting}>Review student submissions and manage your groups</Text>
+
+            {/* Floating Stats Summary */}
+            {overview && (
+              <View style={styles.statsFloatingCard}>
+                <View style={styles.statColumn}>
+                  <View style={[styles.statIconWrap, { backgroundColor: TG.accentLight }]}>
+                    <Star size={18} color={TG.accent} />
+                  </View>
+                  <Text style={styles.statNumber}>{overview.totalReviews ?? 0}</Text>
+                  <Text style={styles.statLabel}>Reviews</Text>
+                </View>
+
+                <View style={styles.statDivider} />
+
+                <View style={styles.statColumn}>
+                  <View style={[styles.statIconWrap, { backgroundColor: TG.greenLight }]}>
+                    <Users size={18} color={TG.green} />
+                  </View>
+                  <Text style={styles.statNumber}>{overview.totalStudents ?? 0}</Text>
+                  <Text style={styles.statLabel}>Students</Text>
+                </View>
+
+                <View style={styles.statDivider} />
+
+                <View style={styles.statColumn}>
+                  <View style={[styles.statIconWrap, { backgroundColor: TG.orangeLight }]}>
+                     <BellRing size={18} color={TG.orange} />
+                  </View>
+                  <Text style={[styles.statNumber, pendingCount > 0 ? { color: TG.orange } : {}]}>
+                    {pendingCount}
+                  </Text>
+                  <Text style={styles.statLabel}>Pending</Text>
+                </View>
+              </View>
+            )}
           </View>
 
-          {/* Stats Row */}
-          {overview && (
-            <View style={styles.statsRow}>
-              <View style={styles.statCard}>
-                <Text style={styles.statNumber}>{overview.totalReviews ?? 0}</Text>
-                <Text style={styles.statLabel}>Reviews</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statNumber}>{overview.totalStudents ?? 0}</Text>
-                <Text style={styles.statLabel}>Students</Text>
-              </View>
-              <View style={styles.statCard}>
-                <Text style={[styles.statNumber, { color: pendingCount > 0 ? TG.orange : TG.textPrimary }]}>
-                  {pendingCount}
-                </Text>
-                <Text style={styles.statLabel}>Pending</Text>
-              </View>
+          {/* Body Content */}
+          <View style={styles.bodyContent}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Your Tasks</Text>
             </View>
-          )}
 
-          {/* Quick Actions */}
-          <TouchableOpacity
-            style={styles.actionCard}
-            activeOpacity={0.7}
-            onPress={() => router.push('/(teacher)/reviews' as any)}
-          >
-            <View style={[styles.actionIcon, { backgroundColor: TG.accentLight }]}>
-              <Mic size={22} color={TG.accent} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.actionTitle}>Pending Reviews</Text>
-              <Text style={styles.actionDesc}>
-                {pendingCount > 0 ? `${pendingCount} submissions waiting` : 'No pending submissions'}
-              </Text>
-            </View>
-            <ChevronRight size={20} color={TG.textHint} />
-          </TouchableOpacity>
+            {/* Pending Priority Card */}
+            <TouchableOpacity
+              style={[styles.taskCard, pendingCount > 0 ? styles.taskCardUrgent : styles.taskCardNormal]}
+              activeOpacity={0.8}
+              onPress={() => router.push('/(teacher)/reviews' as any)}
+            >
+               <View style={[styles.taskIconBg, pendingCount > 0 ? { backgroundColor: 'rgba(255,255,255,0.2)' } : { backgroundColor: TG.accentLight }]}>
+                  <Mic size={24} color={pendingCount > 0 ? '#ffffff' : TG.accent} />
+               </View>
+               <View style={styles.taskTextWrap}>
+                 <Text style={[styles.taskTitle, pendingCount > 0 ? { color: '#ffffff' } : { color: TG.textPrimary }]}>
+                   Pending Reviews
+                 </Text>
+                 <Text style={[styles.taskDesc, pendingCount > 0 ? { color: 'rgba(255,255,255,0.85)' } : { color: TG.textSecondary }]}>
+                   {pendingCount > 0 
+                     ? `You have ${pendingCount} submissions waiting for your feedback.` 
+                     : 'All caught up! No pending submissions.'}
+                 </Text>
+               </View>
+               <ArrowRight size={20} color={pendingCount > 0 ? 'rgba(255,255,255,0.8)' : TG.textHint} />
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.actionCard}
-            activeOpacity={0.7}
-            onPress={() => router.push('/(teacher)/groups' as any)}
-          >
-            <View style={[styles.actionIcon, { backgroundColor: TG.greenLight }]}>
-              <Users size={22} color={TG.green} />
+            <View style={[styles.sectionHeader, { marginTop: 32 }]}>
+              <Text style={styles.sectionTitle}>Management</Text>
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.actionTitle}>My Groups</Text>
-              <Text style={styles.actionDesc}>Manage groups and view analytics</Text>
+            
+            <View style={styles.managementGrid}>
+              <TouchableOpacity
+                style={styles.gridCard}
+                activeOpacity={0.7}
+                onPress={() => router.push('/(teacher)/groups' as any)}
+              >
+                <View style={[styles.gridIcon, { backgroundColor: TG.greenLight }]}>
+                   <Users size={24} color={TG.green} />
+                </View>
+                <Text style={styles.gridTitle}>My Groups</Text>
+                <Text style={styles.gridDesc}>Manage your classes</Text>
+              </TouchableOpacity>
+
+              {user?.verifiedTeacher && (
+                <TouchableOpacity
+                  style={styles.gridCard}
+                  activeOpacity={0.7}
+                  onPress={() => router.push('/test' as any)}
+                >
+                  <View style={[styles.gridIcon, { backgroundColor: TG.purpleLight }]}>
+                     <ClipboardList size={24} color={TG.purple} />
+                  </View>
+                  <Text style={styles.gridTitle}>Tests</Text>
+                  <Text style={styles.gridDesc}>Create speaking tasks</Text>
+                </TouchableOpacity>
+              )}
             </View>
-            <ChevronRight size={20} color={TG.textHint} />
-          </TouchableOpacity>
+
+          </View>
         </ScrollView>
       )}
     </SafeAreaView>
@@ -135,63 +192,100 @@ export default function TeacherHomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: TG.bg },
-  header: {
+  safeArea: { flex: 1, backgroundColor: TG.headerBg },
+  loadingContainer: { flex: 1, backgroundColor: TG.bg, justifyContent: 'center', alignItems: 'center' },
+  scrollView: { flex: 1, backgroundColor: TG.bgSecondary },
+  scrollContent: { paddingBottom: 120 },
+
+  // Top Banner
+  topBanner: {
     backgroundColor: TG.headerBg,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 40,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    zIndex: 10,
   },
-  headerTitle: { fontSize: 20, fontWeight: '700', color: TG.textWhite },
-  scrollContent: { paddingBottom: 100 },
-
-  avatarContainer: { alignItems: 'center', paddingVertical: 24, gap: 6 },
-  avatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: TG.accentLight,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  avatarText: { fontSize: 24, fontWeight: '700', color: TG.accent },
-  greeting: { fontSize: 20, fontWeight: '700', color: TG.textPrimary },
-  subGreeting: { fontSize: 14, color: TG.textSecondary, textAlign: 'center', paddingHorizontal: 40 },
-
-  statsRow: {
+  greetingHeader: {
     flexDirection: 'row',
-    marginHorizontal: 16,
-    marginBottom: 16,
-    gap: 10,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
   },
-  statCard: {
-    flex: 1,
+  greetingTextContainer: { flex: 1, paddingRight: 16 },
+  greetingTitle: { fontSize: 24, fontWeight: '700', color: TG.textWhite, marginBottom: 4 },
+  greetingSubtitle: { fontSize: 15, color: 'rgba(255,255,255,0.85)' },
+  
+  avatarImg: { width: 50, height: 50, borderRadius: 25, backgroundColor: TG.bgSecondary },
+  avatarFallback: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     backgroundColor: TG.bgSecondary,
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-    gap: 2,
-  },
-  statNumber: { fontSize: 22, fontWeight: '700', color: TG.textPrimary },
-  statLabel: { fontSize: 12, color: TG.textSecondary, fontWeight: '500' },
-
-  actionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    backgroundColor: TG.bg,
-    borderBottomWidth: 0.5,
-    borderBottomColor: TG.separatorLight,
-    gap: 14,
-  },
-  actionIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  actionTitle: { fontSize: 16, fontWeight: '600', color: TG.textPrimary },
-  actionDesc: { fontSize: 13, color: TG.textSecondary, marginTop: 2 },
+  avatarFallbackText: { fontSize: 20, fontWeight: '700', color: TG.accent },
+
+  statsFloatingCard: {
+    flexDirection: 'row',
+    backgroundColor: TG.bg,
+    borderRadius: 20,
+    paddingVertical: 18,
+    paddingHorizontal: 10,
+    marginTop: 10,
+    marginBottom: -60, // overlaps with body
+  },
+  statColumn: { flex: 1, alignItems: 'center' },
+  statIconWrap: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
+  statNumber: { fontSize: 20, fontWeight: '700', color: TG.textPrimary, marginBottom: 2 },
+  statLabel: { fontSize: 13, color: TG.textSecondary, fontWeight: '500' },
+  statDivider: { width: 1, backgroundColor: TG.separatorLight, height: '80%', alignSelf: 'center' },
+
+  // Body
+  bodyContent: {
+    paddingHorizontal: 20,
+    paddingTop: 80, // accounts for the overlapping floating card
+  },
+  sectionHeader: { marginBottom: 16 },
+  sectionTitle: { fontSize: 18, fontWeight: '700', color: TG.textPrimary },
+
+  // Task Card
+  taskCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 18,
+    borderRadius: 20,
+  },
+  taskCardNormal: { backgroundColor: TG.bg },
+  taskCardUrgent: { backgroundColor: TG.orange },
+  taskIconBg: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center' },
+  taskTextWrap: { flex: 1, marginLeft: 16, marginRight: 12 },
+  taskTitle: { fontSize: 17, fontWeight: '700', marginBottom: 4 },
+  taskDesc: { fontSize: 14, lineHeight: 20 },
+
+  // Management Grid
+  managementGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+  },
+  gridCard: {
+    flex: 1,
+    minWidth: '45%',
+    backgroundColor: TG.bg,
+    padding: 20,
+    borderRadius: 20,
+  },
+  gridIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  gridTitle: { fontSize: 16, fontWeight: '700', color: TG.textPrimary, marginBottom: 4 },
+  gridDesc: { fontSize: 13, color: TG.textSecondary, lineHeight: 18 },
 });

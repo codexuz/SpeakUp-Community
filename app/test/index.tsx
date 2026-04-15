@@ -3,9 +3,10 @@ import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
 import { apiCreateTest, apiDeleteTest, apiFetchTests } from '@/lib/api';
 import { useAuth } from '@/store/auth';
+import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, BookOpen, ChevronRight, Plus, Trash2 } from 'lucide-react-native';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -53,9 +54,11 @@ export default function TestManagementScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
 
   const handleCreate = async () => {
     if (!title.trim()) {
@@ -125,6 +128,7 @@ export default function TestManagementScreen() {
         </View>
       ) : (
         <FlatList
+          style={{ flex: 1, backgroundColor: TG.bgSecondary }}
           data={tests}
           keyExtractor={(item) => String(item.id)}
           contentContainerStyle={{ paddingBottom: 40 }}
@@ -169,7 +173,7 @@ export default function TestManagementScreen() {
 
       {/* Create Test Modal */}
       <Modal visible={createModal} animationType="slide" transparent>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>New Test</Text>
@@ -227,7 +231,7 @@ export default function TestManagementScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: TG.bgSecondary },
+  safeArea: { flex: 1, backgroundColor: TG.headerBg },
   header: {
     backgroundColor: TG.headerBg,
     paddingHorizontal: 16,
@@ -237,7 +241,7 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   headerTitle: { fontSize: 20, fontWeight: '700', color: TG.textWhite, flex: 1 },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingTop: 80 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingTop: 80, backgroundColor: TG.bgSecondary },
 
   card: {
     flexDirection: 'row',

@@ -12,6 +12,7 @@ export interface UserProfile {
   avatarUrl?: string;
   gender?: string;
   region?: string;
+  phone?: string;
 }
 
 export interface AuthSession {

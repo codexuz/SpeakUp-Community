@@ -1,11 +1,11 @@
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
 import {
-  ChatAttachment,
-  ChatMessage,
-  deleteMessage,
-  editMessage,
-  useGroupChat,
+    ChatAttachment,
+    ChatMessage,
+    deleteMessage,
+    editMessage,
+    useGroupChat,
 } from '@/lib/chat';
 import { fetchGroupById, Group } from '@/lib/groups';
 import { useAuth } from '@/store/auth';
@@ -16,43 +16,43 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { openBrowserAsync } from 'expo-web-browser';
 import {
-  ArrowLeft,
-  CheckCheck,
-  CornerUpLeft,
-  Download,
-  File,
-  MessageSquare,
-  Paperclip,
-  Video,
-  Pencil,
-  Play,
-  Send,
-  Trash2,
-  X
+    ArrowLeft,
+    CheckCheck,
+    CornerUpLeft,
+    Download,
+    File,
+    MessageSquare,
+    Paperclip,
+    Pencil,
+    Play,
+    Send,
+    Trash2,
+    Video,
+    X
 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Dimensions,
-  FlatList,
-  Image,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Dimensions,
+    FlatList,
+    Image,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    Pressable,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, {
-  runOnJS,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withTiming,
+    runOnJS,
+    useAnimatedStyle,
+    useSharedValue,
+    withSpring,
+    withTiming,
 } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
@@ -444,6 +444,8 @@ export default function GroupMessagingScreen() {
 
   // Pick media (images or videos)
   const handlePickMedia = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') return;
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images', 'videos'],
       allowsMultipleSelection: true,
@@ -915,7 +917,7 @@ export default function GroupMessagingScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: TG.bgChat },
+  safe: { flex: 1, backgroundColor: TG.headerBg },
 
   // Header
   header: {

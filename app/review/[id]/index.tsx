@@ -1,35 +1,36 @@
-import { useAlert } from '@/components/CustomAlert';
 import { useToast } from '@/components/Toast';
 import WaveformPlayer from '@/components/WaveformPlayer';
 import { TG } from '@/constants/theme';
 import {
-    apiDeleteReview,
-    apiFetchReviews,
-    apiFetchSessionDetail,
-    SpeakingResponse,
-    TestSession,
+  apiFetchReviews,
+  apiFetchSessionDetail,
+  SpeakingResponse,
+  TestSession,
 } from '@/lib/api';
 import { useAuth } from '@/store/auth';
+import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
-    ArrowLeft,
-    BarChart3,
-    Calendar,
-    Clock,
-    Loader,
-    Mic,
-    Star,
-    Trash2,
+  ArrowLeft,
+  BarChart3,
+  Calendar,
+  ChevronRight,
+  Clock,
+  Loader,
+  MessageSquare,
+  Mic,
+  Star,
 } from 'lucide-react-native';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Animated,
-    FlatList,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Animated,
+  FlatList,
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -93,10 +94,11 @@ export default function ReviewDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const toast = useToast();
-  const { alert } = useAlert();
   const { user } = useAuth();
+  const isTeacher = user?.role === 'teacher';
   const [session, setSession] = useState<TestSession | null>(null);
   const [loading, setLoading] = useState(true);
+  const [reviews, setReviews] = useState<any[]>([]);
   const [hasMyReview, setHasMyReview] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -109,6 +111,7 @@ export default function ReviewDetailScreen() {
         apiFetchReviews(id).catch(() => []),
       ]);
       setSession(data);
+      setReviews(reviews || []);
       setHasMyReview(
         (reviews || []).some((r: any) => r.reviewerId === user?.id),
       );
@@ -124,39 +127,15 @@ export default function ReviewDetailScreen() {
     }
   }, [id, user?.id]);
 
-  useEffect(() => {
-    loadSession();
-  }, [loadSession]);
+  useFocusEffect(
+    useCallback(() => {
+      loadSession();
+    }, [loadSession])
+  );
 
   const openReviewEdit = () => {
     if (!session) return;
     router.push(`/review/${session.id}/edit` as any);
-  };
-
-  const handleDeleteReview = () => {
-    if (!session) return;
-    alert(
-      'Delete Review',
-      'Are you sure you want to delete your review?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await apiDeleteReview(session.id);
-              toast.success('Deleted', 'Review removed');
-              setHasMyReview(false);
-              loadSession();
-            } catch (e: any) {
-              toast.error('Error', e.message || 'Failed to delete review');
-            }
-          },
-        },
-      ],
-      'warning',
-    );
   };
 
   const hasSessionReview = session?.scoreAvg != null;
@@ -251,7 +230,7 @@ export default function ReviewDetailScreen() {
           <Text style={styles.emptyText}>Session not found</Text>
         </View>
       ) : (
-        <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
+        <Animated.View style={{ flex: 1, opacity: fadeAnim, backgroundColor: TG.bgSecondary }}>
           <FlatList
             data={responses}
             keyExtractor={(item) => item.id}
@@ -293,24 +272,69 @@ export default function ReviewDetailScreen() {
             ListFooterComponent={
               responses.length > 0 ? (
                 <View style={{ gap: 10, marginTop: 16 }}>
-                  <TouchableOpacity
-                    style={[styles.reviewBtn, hasSessionReview && styles.reviewBtnEdit]}
-                    activeOpacity={0.7}
-                    onPress={openReviewEdit}
-                  >
-                    <Star size={16} color={hasSessionReview ? TG.accent : TG.textWhite} />
-                    <Text style={[styles.reviewBtnText, hasSessionReview && styles.reviewBtnEditText]}>
-                      {hasMyReview ? 'Edit My Review' : 'Add Review'}
-                    </Text>
-                  </TouchableOpacity>
-                  {hasMyReview && (
+                  {/* Reviews List */}
+                  {reviews.length > 0 && (
+                    <View style={styles.reviewsListSection}>
+                      <Text style={styles.reviewsListTitle}>Reviews ({reviews.length})</Text>
+                      {reviews.map((rev: any) => {
+                        const isOwn = rev.reviewerId === user?.id;
+                        const cefrInfo = getCefrLabel(rev.score);
+                        return (
+                          <TouchableOpacity
+                            key={rev.id}
+                            style={styles.reviewListItem}
+                            activeOpacity={isOwn && isTeacher ? 0.7 : 1}
+                            onPress={() => isOwn && isTeacher ? router.push(`/review/${id}/edit` as any) : null}
+                            disabled={!isOwn || !isTeacher}
+                          >
+                            <View style={styles.reviewListAvatar}>
+                              {rev.reviewer?.avatarUrl ? (
+                                <Image source={{ uri: rev.reviewer.avatarUrl }} style={styles.reviewListAvatarImage} />
+                              ) : (
+                                <Text style={styles.reviewListAvatarText}>
+                                  {(rev.reviewer?.fullName || '?').charAt(0)}
+                                </Text>
+                              )}
+                            </View>
+                            <View style={styles.reviewListBody}>
+                              <View style={styles.reviewListTop}>
+                                <Text style={styles.reviewListName} numberOfLines={1}>
+                                  {rev.reviewer?.fullName || 'Reviewer'}
+                                  {isOwn ? ' (You)' : ''}
+                                </Text>
+                                <View style={[styles.reviewListCefr, { backgroundColor: cefrInfo.bg }]}>
+                                  <Text style={[styles.reviewListCefrText, { color: cefrInfo.color }]}>{cefrInfo.level}</Text>
+                                </View>
+                                <Text style={styles.reviewListScore}>{rev.score}/75</Text>
+                              </View>
+                              {rev.feedback ? (
+                                <View style={styles.reviewListFeedbackRow}>
+                                  <MessageSquare size={11} color={TG.textHint} />
+                                  <Text style={styles.reviewListFeedback} numberOfLines={2}>{rev.feedback}</Text>
+                                </View>
+                              ) : null}
+                              <Text style={styles.reviewListDate}>
+                                {new Date(rev.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              </Text>
+                            </View>
+                            {isOwn && isTeacher && <ChevronRight size={16} color={TG.textHint} />}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  )}
+
+                  {/* Teacher-only: Add/Edit Review button */}
+                  {isTeacher && (
                     <TouchableOpacity
-                      style={styles.deleteReviewBtn}
+                      style={[styles.reviewBtn, hasSessionReview && styles.reviewBtnEdit]}
                       activeOpacity={0.7}
-                      onPress={handleDeleteReview}
+                      onPress={openReviewEdit}
                     >
-                      <Trash2 size={14} color={TG.red} />
-                      <Text style={styles.deleteReviewBtnText}>Delete My Review</Text>
+                      <Star size={16} color={hasSessionReview ? TG.accent : TG.textWhite} />
+                      <Text style={[styles.reviewBtnText, hasSessionReview && styles.reviewBtnEditText]}>
+                        {hasMyReview ? 'Edit My Review' : 'Add Review'}
+                      </Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -331,7 +355,7 @@ export default function ReviewDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: TG.bgSecondary },
+  safeArea: { flex: 1, backgroundColor: TG.headerBg },
   header: {
     backgroundColor: TG.headerBg,
     paddingHorizontal: 16,
@@ -343,7 +367,7 @@ const styles = StyleSheet.create({
   headerCenter: { flex: 1 },
   headerTitle: { fontSize: 18, fontWeight: '700', color: TG.textWhite },
   headerSub: { fontSize: 12, color: 'rgba(255,255,255,0.65)', marginTop: 1 },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, backgroundColor: TG.bgSecondary },
 
   // ─── Summary card ───
   summaryCard: {
@@ -488,20 +512,46 @@ const styles = StyleSheet.create({
   reviewBtnText: { fontSize: 15, fontWeight: '700', color: TG.textWhite },
   reviewBtnEditText: { color: TG.accent },
 
-  deleteReviewBtn: {
+  // ─── Reviews list ───
+  reviewsListSection: {
+    backgroundColor: TG.bg,
+    borderRadius: 14,
+    padding: 14,
+    gap: 0,
+  },
+  reviewsListTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: TG.textPrimary,
+    marginBottom: 12,
+  },
+  reviewListItem: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 10,
+    paddingVertical: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: TG.separator,
+  },
+  reviewListAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: TG.accentLight,
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    borderRadius: 14,
-    backgroundColor: TG.redLight,
+    alignItems: 'center',
   },
-  deleteReviewBtnText: {
-    color: TG.red,
-    fontSize: 14,
-    fontWeight: '600',
-  },
+  reviewListAvatarImage: { width: '100%', height: '100%', borderRadius: 18 },
+  reviewListAvatarText: { fontSize: 14, fontWeight: '700', color: TG.accent },
+  reviewListBody: { flex: 1 },
+  reviewListTop: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
+  reviewListName: { fontSize: 13, fontWeight: '600', color: TG.textPrimary, flexShrink: 1 },
+  reviewListCefr: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6 },
+  reviewListCefrText: { fontSize: 10, fontWeight: '800' },
+  reviewListScore: { fontSize: 12, fontWeight: '700', color: TG.orange },
+  reviewListFeedbackRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 5, marginTop: 2 },
+  reviewListFeedback: { fontSize: 12, color: TG.textSecondary, lineHeight: 17, flex: 1 },
+  reviewListDate: { fontSize: 10, color: TG.textHint, marginTop: 2 },
 
   emptyContainer: {
     alignItems: 'center',

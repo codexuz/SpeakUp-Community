@@ -30,6 +30,7 @@ export default function RegisterScreen() {
   const [formData, setFormData] = useState({
     username: '',
     fullName: '',
+    phone: '+998 ',
     gender: 'Male',
     region: 'Tashkent',
     avatarUrl: GENDER_AVATARS['Male'],
@@ -69,7 +70,22 @@ export default function RegisterScreen() {
     setFormData(prev => ({ ...prev, [key]: value }));
   };
 
+  const formatPhone = (text: string) => {
+    let digits = text.replace(/\D/g, '');
+    if (!digits.startsWith('998')) digits = '998' + digits.replace(/^998*/, '');
+    digits = digits.slice(0, 12);
+    if (digits.length <= 3) return '+998 ';
+    let result = '+998 (' + digits.slice(3, 5);
+    if (digits.length > 5) result += ') ' + digits.slice(5, 8);
+    if (digits.length > 8) result += ' ' + digits.slice(8, 10);
+    if (digits.length > 10) result += '-' + digits.slice(10, 12);
+    return result;
+  };
+
   const nextStep = () => {
+    if (step === 1 && (!formData.username.trim() || !formData.fullName.trim() || !formData.phone.trim())) {
+      return toast.error('Error', 'Please fill all required fields');
+    }
     if (step < TOTAL_STEPS) setStep(prev => prev + 1);
   };
   
@@ -78,7 +94,7 @@ export default function RegisterScreen() {
   };
 
   const handleRegister = async () => {
-    if (!formData.username || !formData.fullName || !formData.password) {
+    if (!formData.username || !formData.fullName || !formData.password || !formData.phone.trim()) {
       return toast.error('Error', 'Please fill all required fields');
     }
     
@@ -92,6 +108,7 @@ export default function RegisterScreen() {
         region: formData.region,
         avatarUrl: formData.avatarUrl,
         role: formData.role,
+        phone: formData.phone.trim(),
       });
       
       login({
@@ -101,9 +118,11 @@ export default function RegisterScreen() {
           username: data.user.username,
           fullName: data.user.fullName,
           role: data.user.role,
+          verifiedTeacher: data.user.verifiedTeacher,
           avatarUrl: data.user.avatarUrl,
           gender: data.user.gender,
           region: data.user.region,
+          phone: data.user.phone,
         },
       });
 
@@ -140,6 +159,16 @@ export default function RegisterScreen() {
               placeholderTextColor={TG.textHint}
               value={formData.fullName}
               onChangeText={(text) => updateForm('fullName', text)}
+            />
+            <Text style={styles.label}>Phone *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="+998 (90) 123 45-67"
+              placeholderTextColor={TG.textHint}
+              keyboardType="phone-pad"
+              value={formData.phone}
+              onChangeText={(text) => updateForm('phone', formatPhone(text))}
+              maxLength={19}
             />
           </View>
         );
@@ -251,14 +280,17 @@ export default function RegisterScreen() {
     }
   };
 
+  const phoneDigits = formData.phone.replace(/\D/g, '');
+  const isPhoneValid = phoneDigits.length === 12;
+
   const getButtonText = () => {
-    if (step === 1 && (!formData.username || !formData.fullName)) return "Fill in required fields";
+    if (step === 1 && (!formData.username || !formData.fullName || !isPhoneValid)) return "Fill in required fields";
     if (step === 4 && !formData.password) return "Password required";
     if (step === 4) return "Create Account";
     return "Continue";
   };
 
-  const isButtonDisabled = (step === 1 && (!formData.username || !formData.fullName)) || (step === 4 && !formData.password) || loading;
+  const isButtonDisabled = (step === 1 && (!formData.username || !formData.fullName || !isPhoneValid)) || (step === 4 && !formData.password) || loading;
 
   const progressWidth = progressAnim.interpolate({
     inputRange: [0, 1],
@@ -269,7 +301,7 @@ export default function RegisterScreen() {
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView 
         style={{ flex: 1 }} 
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         {/* Header & Progress Bar */}
         <View style={styles.header}>
@@ -319,7 +351,7 @@ export default function RegisterScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: TG.bg },
+  safeArea: { flex: 1, backgroundColor: TG.headerBg },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -353,6 +385,7 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: 24,
+    backgroundColor: TG.bg,
   },
   stepContent: {
     flex: 1,
@@ -451,7 +484,7 @@ const styles = StyleSheet.create({
   genderText: { color: TG.textSecondary, fontSize: 16, fontWeight: '600' },
   genderTextActive: { color: TG.accent },
   
-  footer: { padding: 24, paddingBottom: 16, borderTopWidth: 0.5, borderTopColor: TG.separator },
+  footer: { padding: 24, paddingBottom: 16, borderTopWidth: 0.5, borderTopColor: TG.separator, backgroundColor: TG.bg },
   primaryButton: { 
     backgroundColor: TG.accent, 
     borderRadius: 12, 

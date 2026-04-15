@@ -119,6 +119,7 @@ export default function TeacherVerificationScreen() {
         </View>
       ) : (
         <FlatList
+          style={{ flex: 1, backgroundColor: TG.bgSecondary }}
           data={requests}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ paddingBottom: 40 }}
@@ -184,7 +185,7 @@ export default function TeacherVerificationScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: TG.bgSecondary },
+  safeArea: { flex: 1, backgroundColor: TG.headerBg },
   header: {
     backgroundColor: TG.headerBg,
     paddingHorizontal: 16,
@@ -194,7 +195,7 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   headerTitle: { fontSize: 20, fontWeight: '700', color: TG.textWhite, flex: 1 },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, backgroundColor: TG.bgSecondary },
 
   filterRow: {
     flexDirection: 'row',

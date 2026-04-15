@@ -337,6 +337,7 @@ export default function GroupsScreen() {
           </View>
         ) : (
           <FlatList
+            style={{ backgroundColor: TG.bg }}
             data={globalResults}
             keyExtractor={(g) => g.id}
             contentContainerStyle={styles.list}
@@ -442,6 +443,7 @@ export default function GroupsScreen() {
         </View>
       ) : (
         <FlatList
+          style={{ backgroundColor: TG.bg }}
           data={filteredGroups}
           renderItem={renderGroup}
           keyExtractor={(g) => g.id}
@@ -488,7 +490,7 @@ export default function GroupsScreen() {
 const AVATAR_SIZE = 54;
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: TG.bg },
+  safeArea: { flex: 1, backgroundColor: TG.headerBg },
 
   // Header
   header: {
@@ -592,7 +594,7 @@ const styles = StyleSheet.create({
   },
 
   // Loading
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: TG.bg },
 
   // Empty state
   emptyContainer: {
@@ -600,6 +602,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 32,
+    backgroundColor: TG.bg,
   },
   emptyIconWrap: {
     width: 88,

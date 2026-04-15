@@ -39,10 +39,10 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 // Auth
 // =============================================
 
-export async function apiLogin(username: string, password: string) {
+export async function apiLogin(login: string, password: string) {
   return request<any>('/auth/login', {
     method: 'POST',
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ login, password }),
   });
 }
 
@@ -54,6 +54,7 @@ export async function apiRegister(payload: {
   region?: string;
   avatarUrl?: string;
   role?: 'student' | 'teacher';
+  phone?: string;
 }) {
   return request<any>('/auth/register', {
     method: 'POST',
@@ -72,7 +73,7 @@ export async function apiLogout() {
   return request<any>('/auth/logout', { method: 'POST' });
 }
 
-export async function apiUpdateProfile(data: { fullName?: string; gender?: string; region?: string }) {
+export async function apiUpdateProfile(data: { fullName?: string; gender?: string; region?: string; phone?: string }) {
   return request<any>('/auth/profile', {
     method: 'PUT',
     body: JSON.stringify(data),
