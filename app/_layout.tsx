@@ -1,6 +1,8 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Redirect, Stack, useSegments } from 'expo-router';
-import { ActivityIndicator, StatusBar, StyleSheet, View } from 'react-native';
+import * as SplashScreen from 'expo-splash-screen';
+import { useEffect } from 'react';
+import { StatusBar, StyleSheet, View } from 'react-native';
 import 'react-native-reanimated';
 
 import { CustomAlertProvider } from '@/components/CustomAlert';
@@ -10,6 +12,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useInAppUpdates } from '@/hooks/useInAppUpdates';
 import { useNotifications } from '@/hooks/useNotifications';
 import { AuthProvider, useAuth } from '@/store/auth';
+
+SplashScreen.preventAutoHideAsync();
 
 function getRoleRoute(role?: string): '/(student)' | '/(teacher)' | '/(admin)' {
   if (role === 'admin') return '/(admin)';
@@ -25,16 +29,18 @@ function RootNavigator() {
   useNotifications();
   useInAppUpdates();
 
+  useEffect(() => {
+    if (!isLoading) {
+      SplashScreen.hideAsync();
+    }
+  }, [isLoading]);
+
   const inAuthGroup = segments[0] === '(auth)';
   const seg = segments[0] as string;
   const inRoleGroup = seg === '(student)' || seg === '(teacher)' || seg === '(admin)';
 
   if (isLoading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colorScheme === 'dark' ? '#0f172a' : '#ffffff' }}>
-        <ActivityIndicator size="large" color="#3b82f6" />
-      </View>
-    );
+    return null;
   }
 
   const needsRedirect =

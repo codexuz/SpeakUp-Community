@@ -95,11 +95,15 @@ export default function StudentRecordingsScreen() {
 
   const handleDelete = async () => {
     setDeleting(true);
+    const count = selected.size;
     try {
-      await Promise.all([...selected].map((id) => apiDeleteSession(id)));
-      setResponses((prev) => prev.filter((r) => !selected.has(r.id)));
-      toast.success('Deleted', `${selected.size} recording${selected.size > 1 ? 's' : ''} deleted`);
+      for (const id of selected) {
+        await apiDeleteSession(id);
+      }
+      await loadResponses();
+      toast.success('Deleted', `${count} recording${count > 1 ? 's' : ''} deleted`);
     } catch (e: any) {
+      await loadResponses();
       toast.error('Error', e.message || 'Failed to delete');
     } finally {
       setDeleting(false);

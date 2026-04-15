@@ -635,8 +635,6 @@ const styles = StyleSheet.create({
 
   questionCard: {
     backgroundColor: TG.bg, borderRadius: 16, marginBottom: 16,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8,
-    elevation: 3,
   },
   questionCardRec: { borderWidth: 1.5, borderColor: TG.red + '30' },
   questionCardInner: { padding: 20 },
@@ -650,8 +648,6 @@ const styles = StyleSheet.create({
 
   imageCard: {
     backgroundColor: TG.bg, borderRadius: 16, overflow: 'hidden', marginBottom: 16,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8,
-    elevation: 3,
   },
   imageLabel: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
@@ -677,8 +673,6 @@ const styles = StyleSheet.create({
   footer: {
     backgroundColor: TG.bg, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 28,
     borderTopWidth: 0.5, borderTopColor: TG.separator,
-    shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.04, shadowRadius: 8,
-    elevation: 8,
   },
   footerRec: { borderTopColor: TG.red + '30' },
 
