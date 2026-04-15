@@ -229,6 +229,10 @@ export async function apiFetchPendingSpeaking(page = 1, limit = 20) {
   return request<{ data: TestSession[]; pagination: any }>(`/speaking/pending?page=${page}&limit=${limit}`);
 }
 
+export async function apiFetchMyGroupReviews(page = 1, limit = 20) {
+  return request<{ data: TestSession[]; pagination: any }>(`/reviews/my-groups?page=${page}&limit=${limit}`);
+}
+
 export async function apiFetchSessionDetail(sessionId: string) {
   return request<TestSession>(`/speaking/sessions/${sessionId}`);
 }
@@ -237,8 +241,8 @@ export async function apiFetchSpeakingById(id: string) {
   return request<any>(`/speaking/${id}`);
 }
 
-export async function apiUpdateSpeaking(id: string, visibility: string) {
-  return request<any>(`/speaking/${id}`, {
+export async function apiUpdateSpeaking(sessionId: string, visibility: string) {
+  return request<any>(`/speaking/sessions/${sessionId}`, {
     method: 'PUT',
     body: JSON.stringify({ visibility }),
   });
@@ -361,10 +365,10 @@ export async function apiFetchGroupSubmissions(groupId: string, page = 1, limit 
   return request<{ data: any[]; pagination: any }>(`/groups/${groupId}/submissions?page=${page}&limit=${limit}`);
 }
 
-export async function apiCreateGroup(name: string, description: string) {
+export async function apiCreateGroup(name: string, description: string, isGlobal?: boolean) {
   return request<any>('/groups', {
     method: 'POST',
-    body: JSON.stringify({ name, description }),
+    body: JSON.stringify({ name, description, ...(isGlobal != null ? { isGlobal } : {}) }),
   });
 }
 
@@ -395,6 +399,10 @@ export async function apiRequestJoinGroup(groupId: string, message?: string) {
     method: 'POST',
     body: JSON.stringify({ message }),
   });
+}
+
+export async function apiJoinGlobalGroup(groupId: string) {
+  return request<any>(`/groups/${groupId}/join`, { method: 'POST' });
 }
 
 export async function apiFetchJoinRequests(groupId: string) {
@@ -515,22 +523,106 @@ export async function apiDeleteTest(testId: number) {
   return request<any>(`/tests/${testId}`, { method: 'DELETE' });
 }
 
-export async function apiCreateQuestion(testId: number, data: { qText: string; part: string; image?: string; speakingTimer?: number; prepTimer?: number }) {
+export async function apiCreateQuestion(
+  testId: number,
+  data: { qText: string; part: string; imageUri?: string; audioUrl?: string; speakingTimer?: number; prepTimer?: number },
+) {
   const user = await getStoredUser();
   if (user?.role !== 'admin' && !(user?.role === 'teacher' && user?.verifiedTeacher)) {
     throw new Error('Only verified teachers can create questions');
   }
-  return request<any>(`/tests/${testId}/questions`, {
+  const url = `${API_URL}/tests/${testId}/questions`;
+  const token = await getStoredAuthToken();
+  const headers: Record<string, string> = {
+    'User-Agent': getUserAgent(),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+
+  let body: any;
+  if (data.imageUri) {
+    const formData = new FormData();
+    formData.append('qText', data.qText);
+    formData.append('part', data.part);
+    if (data.audioUrl) formData.append('audioUrl', data.audioUrl);
+    if (data.speakingTimer != null) formData.append('speakingTimer', String(data.speakingTimer));
+    if (data.prepTimer != null) formData.append('prepTimer', String(data.prepTimer));
+    formData.append('image', {
+      uri: data.imageUri,
+      name: `question_${Date.now()}.jpg`,
+      type: 'image/jpeg',
+    } as any);
+    body = formData;
+  } else {
+    headers['Content-Type'] = 'application/json';
+    body = JSON.stringify({
+      qText: data.qText,
+      part: data.part,
+      audioUrl: data.audioUrl,
+      speakingTimer: data.speakingTimer,
+      prepTimer: data.prepTimer,
+    });
+  }
+
+  const res = await fetch(url, {
     method: 'POST',
-    body: JSON.stringify(data),
+    headers,
+    body,
   });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(body.error || `Upload failed: ${res.status}`);
+  }
+  return res.json();
 }
 
-export async function apiUpdateQuestion(questionId: number, data: { qText?: string; part?: string; image?: string; speakingTimer?: number; prepTimer?: number }) {
-  return request<any>(`/tests/questions/${questionId}`, {
+export async function apiUpdateQuestion(
+  questionId: number,
+  data: { qText?: string; part?: string; imageUri?: string; audioUrl?: string; speakingTimer?: number; prepTimer?: number },
+) {
+  const url = `${API_URL}/tests/questions/${questionId}`;
+  const token = await getStoredAuthToken();
+  const headers: Record<string, string> = {
+    'User-Agent': getUserAgent(),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+
+  let body: any;
+  if (data.imageUri) {
+    const formData = new FormData();
+    if (data.qText != null) formData.append('qText', data.qText);
+    if (data.part != null) formData.append('part', data.part);
+    if (data.audioUrl != null) formData.append('audioUrl', data.audioUrl);
+    if (data.speakingTimer != null) formData.append('speakingTimer', String(data.speakingTimer));
+    if (data.prepTimer != null) formData.append('prepTimer', String(data.prepTimer));
+    formData.append('image', {
+      uri: data.imageUri,
+      name: `question_${Date.now()}.jpg`,
+      type: 'image/jpeg',
+    } as any);
+    body = formData;
+  } else {
+    headers['Content-Type'] = 'application/json';
+    const json: any = {};
+    if (data.qText != null) json.qText = data.qText;
+    if (data.part != null) json.part = data.part;
+    if (data.audioUrl != null) json.audioUrl = data.audioUrl;
+    if (data.speakingTimer != null) json.speakingTimer = data.speakingTimer;
+    if (data.prepTimer != null) json.prepTimer = data.prepTimer;
+    body = JSON.stringify(json);
+  }
+
+  const res = await fetch(url, {
     method: 'PUT',
-    body: JSON.stringify(data),
+    headers,
+    body,
   });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(body.error || `Upload failed: ${res.status}`);
+  }
+  return res.json();
 }
 
 export async function apiDeleteQuestion(questionId: number) {
@@ -597,4 +689,121 @@ export async function apiGetUserSessions(userId: string, page = 1, limit = 20) {
   return request<{ data: TestSession[]; pagination: any }>(
     `/users/${userId}/sessions?page=${page}&limit=${limit}`,
   );
+}
+
+// =============================================
+// Ads
+// =============================================
+
+export interface Ad {
+  id: number;
+  title: string;
+  imageUrl: string;
+  linkUrl: string | null;
+  adText: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function apiFetchActiveAds() {
+  return request<Ad[]>('/ads');
+}
+
+export async function apiFetchAllAds() {
+  return request<Ad[]>('/ads/all');
+}
+
+export async function apiFetchAdById(id: number) {
+  return request<Ad>(`/ads/${id}`);
+}
+
+export async function apiCreateAd(title: string, imageUri: string, linkUrl?: string, adText?: string) {
+  const url = `${API_URL}/ads`;
+  const token = await getStoredAuthToken();
+
+  const formData = new FormData();
+  formData.append('title', title);
+  formData.append('image', {
+    uri: imageUri,
+    name: `ad_${Date.now()}.jpg`,
+    type: 'image/jpeg',
+  } as any);
+  if (linkUrl) formData.append('linkUrl', linkUrl);
+  if (adText) formData.append('adText', adText);
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'User-Agent': getUserAgent(),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(body.error || `Upload failed: ${res.status}`);
+  }
+
+  return res.json() as Promise<Ad>;
+}
+
+export async function apiUpdateAd(id: number, data: { title?: string; imageUri?: string; linkUrl?: string; adText?: string; isActive?: boolean }) {
+  const url = `${API_URL}/ads/${id}`;
+  const token = await getStoredAuthToken();
+
+  const formData = new FormData();
+  if (data.title != null) formData.append('title', data.title);
+  if (data.linkUrl != null) formData.append('linkUrl', data.linkUrl);
+  if (data.adText != null) formData.append('adText', data.adText);
+  if (data.isActive != null) formData.append('isActive', String(data.isActive));
+  if (data.imageUri) {
+    formData.append('image', {
+      uri: data.imageUri,
+      name: `ad_${Date.now()}.jpg`,
+      type: 'image/jpeg',
+    } as any);
+  }
+
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      'User-Agent': getUserAgent(),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(body.error || `Upload failed: ${res.status}`);
+  }
+
+  return res.json() as Promise<Ad>;
+}
+
+export async function apiDeleteAd(id: number) {
+  return request<any>(`/ads/${id}`, { method: 'DELETE' });
+}
+
+// =============================================
+// Text-to-Speech
+// =============================================
+
+export type TTSVoice = 'erin' | 'george' | 'lisa' | 'emily' | 'nick';
+
+export async function apiTextToSpeech(text: string, voice: TTSVoice = 'erin') {
+  const res = await fetch('https://backend.impulselc.uz/api/voice-chat-bot/text-to-voice-url', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, voice }),
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(body.error || `TTS failed: ${res.status}`);
+  }
+
+  return res.json() as Promise<{ success: boolean; url: string; filename: string }>;
 }

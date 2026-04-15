@@ -8,7 +8,7 @@ import { Platform } from 'react-native';
 export default function StudentTabLayout() {
   return (
     <>
-      <StatusBar style="light" backgroundColor={TG.headerBg} />
+      <StatusBar style="dark" backgroundColor={TG.headerBg} />
       <Tabs
         screenOptions={{
           tabBarActiveTintColor: TG.tabActive,

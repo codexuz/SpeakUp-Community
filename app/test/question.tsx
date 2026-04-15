@@ -1,24 +1,28 @@
 import { useToast } from '@/components/Toast';
+import WaveformPlayer from '@/components/WaveformPlayer';
 import { TG } from '@/constants/theme';
-import { apiCreateQuestion, apiFetchQuestion, apiUpdateQuestion } from '@/lib/api';
+import { apiCreateQuestion, apiFetchQuestion, apiTextToSpeech, apiUpdateQuestion, TTSVoice } from '@/lib/api';
 import { useAuth } from '@/store/auth';
+import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft } from 'lucide-react-native';
+import { ArrowLeft, ImagePlus, Trash2, Volume2, X } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const PARTS = ['Part 1', 'Part 2', 'Part 3'];
+const VOICES: TTSVoice[] = ['erin', 'george', 'lisa', 'emily', 'nick'];
 
 export default function QuestionFormScreen() {
   const { testId, questionId } = useLocalSearchParams<{ testId: string; questionId?: string }>();
@@ -31,11 +35,32 @@ export default function QuestionFormScreen() {
 
   const [qText, setQText] = useState('');
   const [part, setPart] = useState('Part 1');
-  const [image, setImage] = useState('');
+  const [imageUri, setImageUri] = useState<string | null>(null);   // local file URI (new pick)
+  const [imageUrl, setImageUrl] = useState<string | null>(null);   // remote URL (existing)
   const [speakingTimer, setSpeakingTimer] = useState('30');
   const [prepTimer, setPrepTimer] = useState('5');
+  const [audioUrl, setAudioUrl] = useState('');
+  const [voice, setVoice] = useState<TTSVoice>('erin');
+  const [generating, setGenerating] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const displayImage = imageUri || imageUrl;
+
+  const handlePickImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      quality: 0.8,
+    });
+    if (result.canceled || !result.assets?.[0]?.uri) return;
+    setImageUri(result.assets[0].uri);
+  };
+
+  const handleRemoveImage = () => {
+    setImageUri(null);
+    setImageUrl(null);
+  };
 
   useEffect(() => {
     if (isEdit && questionId) {
@@ -44,9 +69,11 @@ export default function QuestionFormScreen() {
         .then((q: any) => {
           setQText(q.qText ?? q.q_text ?? '');
           setPart(q.part ?? 'Part 1');
-          setImage(q.image ?? '');
+          const img = q.image ?? q.imageUrl ?? q.image_url ?? '';
+          if (img) setImageUrl(img);
           setSpeakingTimer(String(q.speakingTimer ?? q.speaking_timer ?? 30));
           setPrepTimer(String(q.prepTimer ?? q.prep_timer ?? 5));
+          setAudioUrl(q.audioUrl ?? q.audio_url ?? '');
         })
         .catch((e: any) => toast.error('Error', e.message))
         .finally(() => setLoading(false));
@@ -75,7 +102,8 @@ export default function QuestionFormScreen() {
       const payload = {
         qText: qText.trim(),
         part,
-        image: image.trim() || undefined,
+        imageUri: imageUri || undefined,
+        audioUrl: (audioUrl || '').trim() || undefined,
         speakingTimer: speak,
         prepTimer: prep,
       };
@@ -145,16 +173,23 @@ export default function QuestionFormScreen() {
               ))}
             </View>
 
-            <Text style={styles.label}>Image URL (optional)</Text>
-            <TextInput
-              style={styles.input}
-              value={image}
-              onChangeText={setImage}
-              placeholder="https://example.com/image.jpg"
-              placeholderTextColor={TG.textHint}
-              autoCapitalize="none"
-              keyboardType="url"
-            />
+            <Text style={styles.label}>Image</Text>
+            {displayImage ? (
+              <View style={styles.imagePreviewContainer}>
+                <Image source={{ uri: displayImage }} style={styles.imagePreview} />
+                <TouchableOpacity style={styles.imageRemoveBtn} onPress={handleRemoveImage} activeOpacity={0.7}>
+                  <X size={16} color={TG.textWhite} />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.imageChangeBtn} onPress={handlePickImage} activeOpacity={0.7}>
+                  <Text style={styles.imageChangeBtnText}>Change</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.imagePickerBtn} onPress={handlePickImage} activeOpacity={0.7}>
+                <ImagePlus size={24} color={TG.textHint} />
+                <Text style={styles.imagePickerText}>Tap to add image</Text>
+              </TouchableOpacity>
+            )}
 
             <View style={styles.timerRow}>
               <View style={{ flex: 1 }}>
@@ -180,6 +215,74 @@ export default function QuestionFormScreen() {
                 />
               </View>
             </View>
+
+            <Text style={styles.label}>Audio</Text>
+            {!!(audioUrl || '').trim() ? (
+              <View style={styles.audioSection}>
+                <View style={styles.playerWrapper}>
+                  <WaveformPlayer uri={(audioUrl || '').trim()} />
+                </View>
+                <TouchableOpacity
+                  style={styles.audioRemoveBtn}
+                  onPress={() => setAudioUrl('')}
+                  activeOpacity={0.7}
+                >
+                  <Trash2 size={15} color={TG.red} />
+                  <Text style={styles.audioRemoveText}>Remove audio</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.audioPlaceholder}>
+                <Volume2 size={20} color={TG.textHint} />
+                <Text style={styles.audioPlaceholderText}>No audio — generate below</Text>
+              </View>
+            )}
+
+            <Text style={[styles.label, { marginTop: 10 }]}>Generate Audio from Text</Text>
+            <View style={styles.voiceRow}>
+              {VOICES.map((v) => (
+                <TouchableOpacity
+                  key={v}
+                  style={[styles.voiceChip, voice === v && styles.voiceChipActive]}
+                  onPress={() => setVoice(v)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.voiceChipText, voice === v && styles.voiceChipTextActive]}>
+                    {v.charAt(0).toUpperCase() + v.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity
+              style={[styles.generateBtn, (generating || !qText.trim()) && { opacity: 0.5 }]}
+              onPress={async () => {
+                if (!qText.trim()) {
+                  toast.warning('Validation', 'Enter question text first');
+                  return;
+                }
+                setGenerating(true);
+                try {
+                  const result = await apiTextToSpeech(qText.trim(), voice);
+                  setAudioUrl(result.url ?? '');
+                  toast.success('Done', 'Audio generated');
+                } catch (e: any) {
+                  toast.error('Error', e.message);
+                } finally {
+                  setGenerating(false);
+                }
+              }}
+              activeOpacity={0.7}
+              disabled={generating || !qText.trim()}
+            >
+              {generating ? (
+                <ActivityIndicator size="small" color={TG.accent} />
+              ) : (
+                <>
+                  <Volume2 size={18} color={TG.accent} />
+                  <Text style={styles.generateBtnText}>Generate Audio</Text>
+                </>
+              )}
+            </TouchableOpacity>
 
             <View style={{ height: 24 }} />
 
@@ -262,9 +365,142 @@ const styles = StyleSheet.create({
     color: TG.textWhite,
   },
 
+  imagePickerBtn: {
+    backgroundColor: TG.bg,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: TG.separator,
+    borderStyle: 'dashed',
+    paddingVertical: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  imagePickerText: {
+    fontSize: 14,
+    color: TG.textHint,
+  },
+  imagePreviewContainer: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: TG.bg,
+  },
+  imagePreview: {
+    width: '100%',
+    height: 180,
+    borderRadius: 12,
+  },
+  imageRemoveBtn: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.03)',
+    borderRadius: 14,
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  imageChangeBtn: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  imageChangeBtnText: {
+    color: TG.textWhite,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+
+  audioSection: {
+    gap: 8,
+  },
+  audioRemoveBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    paddingVertical: 4,
+  },
+  audioRemoveText: {
+    fontSize: 13,
+    color: TG.red,
+    fontWeight: '500',
+  },
+  audioPlaceholder: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: TG.bg,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderWidth: 0.5,
+    borderColor: TG.separator,
+  },
+  audioPlaceholderText: {
+    fontSize: 14,
+    color: TG.textHint,
+  },
+
   timerRow: {
     flexDirection: 'row',
     gap: 12,
+  },
+
+  voiceRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 10,
+  },
+  voiceChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: TG.bg,
+    borderWidth: 0.5,
+    borderColor: TG.separator,
+  },
+  voiceChipActive: {
+    backgroundColor: TG.accent,
+    borderColor: TG.accent,
+  },
+  voiceChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: TG.textSecondary,
+  },
+  voiceChipTextActive: {
+    color: TG.textWhite,
+  },
+  generateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: TG.bg,
+    borderWidth: 0.5,
+    borderColor: TG.accent,
+  },
+  generateBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: TG.accent,
+  },
+  playerWrapper: {
+    marginTop: 14,
+    backgroundColor: TG.bg,
+    borderRadius: 12,
+    padding: 10,
+    borderWidth: 0.5,
+    borderColor: TG.separator,
   },
 
   saveBtn: {

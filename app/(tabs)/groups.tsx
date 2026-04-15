@@ -1,7 +1,7 @@
 import { useAlert } from '@/components/CustomAlert';
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
-import { apiRequestJoinGroup, apiSearchGroups } from '@/lib/api';
+import { apiJoinGlobalGroup, apiRequestJoinGroup, apiSearchGroups } from '@/lib/api';
 import { fetchMyGroups, Group } from '@/lib/groups';
 import { useAuth } from '@/store/auth';
 import { useFocusEffect } from '@react-navigation/native';
@@ -164,6 +164,16 @@ export default function GroupsScreen() {
     ]);
   }, [searchQuery, doGlobalSearch]);
 
+  const handleJoinGlobal = useCallback(async (groupId: string) => {
+    try {
+      await apiJoinGlobalGroup(groupId);
+      toast.success('Joined', 'You joined the group');
+      loadGroups();
+    } catch (e: any) {
+      toast.error('Error', e.message);
+    }
+  }, [loadGroups, toast]);
+
   const filteredGroups = useMemo(() => {
     if (!searchQuery.trim()) return groups;
     const q = searchQuery.toLowerCase();
@@ -200,12 +210,19 @@ export default function GroupsScreen() {
   const renderGroup = ({ item: group }: { item: Group }) => {
     const avatarColor = getAvatarColor(group.name);
     const memberCount = group.member_count ?? 0;
+    const isUnjoined = group.isGlobal && !group.myRole;
 
     return (
       <TouchableOpacity
         style={styles.row}
         activeOpacity={0.6}
-        onPress={() => router.push(`/group/${group.id}` as any)}
+        onPress={() => {
+          if (isUnjoined) {
+            handleJoinGlobal(group.id);
+            return;
+          }
+          router.push(`/group/${group.id}` as any);
+        }}
       >
         {/* Avatar */}
         <View style={[styles.avatar, { backgroundColor: avatarColor.bg }]}>
@@ -216,12 +233,17 @@ export default function GroupsScreen() {
 
         {/* Content */}
         <View style={styles.rowContent}>
-          {/* Top row: name + role */}
+          {/* Top row: name + role/global badge */}
           <View style={styles.rowTop}>
             <Text style={styles.groupName} numberOfLines={1}>
               {group.name}
             </Text>
-            {roleBadge(group.myRole)}
+            {group.isGlobal && (
+              <View style={styles.globalBadge}>
+                <Globe size={10} color={TG.accent} />
+              </View>
+            )}
+            {!isUnjoined && roleBadge(group.myRole)}
           </View>
 
           {/* Bottom row: description / members */}
@@ -234,16 +256,23 @@ export default function GroupsScreen() {
           </View>
         </View>
 
-        {/* Right side: member count badge + chevron */}
-        <View style={styles.rowRight}>
-          {group.description ? (
-            <View style={styles.memberBadge}>
-              <Users size={11} color={TG.textSecondary} />
-              <Text style={styles.memberBadgeText}>{formatMemberCount(memberCount)}</Text>
-            </View>
-          ) : null}
-          <ChevronRight size={18} color={TG.separator} />
-        </View>
+        {/* Right side */}
+        {isUnjoined ? (
+          <View style={[styles.statusChip, { backgroundColor: TG.accentLight }]}>
+            <UserPlus size={14} color={TG.accent} />
+            <Text style={[styles.statusChipText, { color: TG.accent }]}>Join</Text>
+          </View>
+        ) : (
+          <View style={styles.rowRight}>
+            {group.description ? (
+              <View style={styles.memberBadge}>
+                <Users size={11} color={TG.textSecondary} />
+                <Text style={styles.memberBadgeText}>{formatMemberCount(memberCount)}</Text>
+              </View>
+            ) : null}
+            <ChevronRight size={18} color={TG.separator} />
+          </View>
+        )}
       </TouchableOpacity>
     );
   };
@@ -655,6 +684,16 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   statusChipText: { fontSize: 12, fontWeight: '600' },
+
+  // Global badge
+  globalBadge: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: TG.accentLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 
   // FABs
   fabRow: {

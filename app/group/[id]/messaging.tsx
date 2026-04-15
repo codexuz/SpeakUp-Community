@@ -21,13 +21,13 @@ import {
   CornerUpLeft,
   Download,
   File,
-  Image as ImageIcon,
   MessageSquare,
+  Paperclip,
+  Video,
   Pencil,
   Play,
   Send,
   Trash2,
-  Video,
   X
 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -442,31 +442,8 @@ export default function GroupMessagingScreen() {
     }
   };
 
-  // Pick images
-  const handlePickImages = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      allowsMultipleSelection: true,
-      quality: 0.8,
-    });
-    if (result.canceled || !result.assets?.length) return;
-    setSending(true);
-    try {
-      const files = result.assets.map((a) => ({
-        uri: a.uri,
-        name: `photo.${a.uri.split('.').pop() || 'jpg'}`,
-        type: a.mimeType || `image/${a.uri.split('.').pop() || 'jpg'}`,
-      }));
-      await sendFiles(files, text.trim() || undefined);
-      setText('');
-    } catch (e: any) {
-      toast.error('Error', e.message);
-    } finally {
-      setSending(false);
-    }
-  };
-
-  // Pick document
-  const handlePickDoc = async () => {
+  // Pick media (images or videos)
+  const handlePickMedia = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images', 'videos'],
       allowsMultipleSelection: true,
@@ -475,12 +452,20 @@ export default function GroupMessagingScreen() {
     if (result.canceled || !result.assets?.length) return;
     setSending(true);
     try {
-      const files = result.assets.map((a: ImagePicker.ImagePickerAsset) => ({
-        uri: a.uri,
-        name: `file.${a.uri.split('.').pop() || 'bin'}`,
-        type: a.mimeType || 'application/octet-stream',
-      }));
-      await sendFiles(files);
+      const files = result.assets.map((a: ImagePicker.ImagePickerAsset) => {
+        const ext = (a.uri.split('.').pop() || 'jpg').toLowerCase();
+        let defaultMime = `image/${ext}`;
+        if (a.type === 'video' || ['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(ext)) {
+          defaultMime = `video/${ext}`;
+        }
+        return {
+          uri: a.uri,
+          name: `media_${Date.now()}.${ext}`,
+          type: a.mimeType || defaultMime,
+        };
+      });
+      await sendFiles(files, text.trim() || undefined);
+      setText('');
     } catch (e: any) {
       toast.error('Error', e.message);
     } finally {
@@ -823,17 +808,10 @@ export default function GroupMessagingScreen() {
         <View style={[styles.inputBar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
           <TouchableOpacity
             style={styles.inputIcon}
-            onPress={handlePickImages}
+            onPress={handlePickMedia}
             activeOpacity={0.7}
           >
-            <ImageIcon size={22} color={TG.textSecondary} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.inputIcon}
-            onPress={handlePickDoc}
-            activeOpacity={0.7}
-          >
-            <Video size={22} color={TG.textSecondary} />
+            <Paperclip size={22} color={TG.textSecondary} />
           </TouchableOpacity>
           <TextInput
             ref={inputRef}

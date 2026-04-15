@@ -3,7 +3,7 @@ import { TG } from '@/constants/theme';
 import { apiFetchPendingSpeaking, TestSession } from '@/lib/api';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { ChevronRight, Mic, Star } from 'lucide-react-native';
+import { ChevronRight, Mic, Mic2, Users } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
@@ -42,6 +42,7 @@ export default function TeacherReviewsScreen() {
   const renderItem = ({ item }: { item: TestSession }) => {
     const testTitle = item.test?.title || 'Unknown Test';
     const responseCount = item._count?.responses || 0;
+    const groupName = (item as any).group?.name;
 
     return (
       <TouchableOpacity
@@ -59,10 +60,16 @@ export default function TeacherReviewsScreen() {
           </View>
           <Text style={styles.testTitle} numberOfLines={1}>{testTitle}</Text>
           <View style={styles.bottomRow}>
-            {item.scoreAvg != null && (
+            {groupName && (
               <>
-                <Star size={11} color={TG.orange} fill={TG.orange} />
-                <Text style={styles.scoreText}>{item.scoreAvg.toFixed(0)}</Text>
+                <Users size={11} color={TG.textHint} />
+                <Text style={styles.groupText}>{groupName}</Text>
+              </>
+            )}
+            {responseCount > 0 && (
+              <>
+                <Mic2 size={11} color={TG.textHint} />
+                <Text style={styles.groupText}>{responseCount}</Text>
               </>
             )}
           </View>
@@ -125,6 +132,7 @@ const styles = StyleSheet.create({
   bottomRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   metaText: { fontSize: 11, color: TG.textHint, marginRight: 6 },
   scoreText: { fontSize: 11, fontWeight: '700', color: TG.orange },
+  groupText: { fontSize: 11, color: TG.textHint, marginRight: 6 },
 
   emptyContainer: { alignItems: 'center', marginTop: 80, gap: 12 },
   emptyText: { color: TG.textSecondary, fontSize: 15 },

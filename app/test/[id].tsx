@@ -1,7 +1,7 @@
 import { useAlert } from '@/components/CustomAlert';
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
-import { apiDeleteQuestion, apiDeleteTest, apiFetchTests, apiUpdateTest } from '@/lib/api';
+import { apiDeleteQuestion, apiFetchTests, apiUpdateTest } from '@/lib/api';
 import { useAuth } from '@/store/auth';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, Edit2, MessageSquare, Plus, Trash2 } from 'lucide-react-native';
@@ -112,24 +112,6 @@ export default function TestDetailScreen() {
     }
   };
 
-  const handleDeleteTest = () => {
-    alert('Delete Test', 'Delete this test and all its questions?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await apiDeleteTest(test!.id);
-            router.back();
-          } catch (e: any) {
-            toast.error('Error', e.message);
-          }
-        },
-      },
-    ], 'destructive');
-  };
-
   const handleDeleteQuestion = (q: Question) => {
     alert('Delete Question', `Delete this question?\n\n"${q.qText}"`, [
       { text: 'Cancel', style: 'cancel' },
@@ -208,21 +190,6 @@ export default function TestDetailScreen() {
         <Text style={styles.headerTitle} numberOfLines={1}>{test.title}</Text>
         <TouchableOpacity onPress={openEditModal} activeOpacity={0.7}>
           <Edit2 size={18} color={TG.textWhite} />
-        </TouchableOpacity>
-      </View>
-
-      {/* Test info banner */}
-      <View style={styles.infoBanner}>
-        <View style={{ flex: 1 }}>
-          {test.description ? (
-            <Text style={styles.infoDesc}>{test.description}</Text>
-          ) : (
-            <Text style={[styles.infoDesc, { fontStyle: 'italic' }]}>No description</Text>
-          )}
-          <Text style={styles.infoSub}>{test.questions.length} questions</Text>
-        </View>
-        <TouchableOpacity onPress={handleDeleteTest} activeOpacity={0.7}>
-          <Trash2 size={18} color={TG.red} />
         </TouchableOpacity>
       </View>
 
@@ -360,19 +327,6 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 20, fontWeight: '700', color: TG.textWhite, flex: 1 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingTop: 60 },
 
-  infoBanner: {
-    backgroundColor: TG.bg,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    borderBottomWidth: 0.5,
-    borderBottomColor: TG.separator,
-  },
-  infoDesc: { fontSize: 14, color: TG.textSecondary, marginBottom: 4 },
-  infoSub: { fontSize: 12, color: TG.textHint },
-
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -433,7 +387,7 @@ const styles = StyleSheet.create({
   // Modal
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.12)',
     justifyContent: 'flex-end',
   },
   modalContent: {

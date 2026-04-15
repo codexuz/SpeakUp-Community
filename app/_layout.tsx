@@ -68,9 +68,12 @@ function RootNavigator() {
         <Stack.Screen name="speaking/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="session/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="review/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="review/[id]/edit" options={{ headerShown: false }} />
         <Stack.Screen name="community/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="comment/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="user/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="followers/[userId]/index" options={{ headerShown: false }} />
+        <Stack.Screen name="followings/[userId]/index" options={{ headerShown: false }} />
         <Stack.Screen name="group/[id]/index" options={{ headerShown: false }} />
         <Stack.Screen name="group/[id]/detail" options={{ headerShown: false }} />
         <Stack.Screen name="group/[id]/messaging" options={{ headerShown: false }} />
@@ -85,6 +88,8 @@ function RootNavigator() {
         <Stack.Screen name="test/index" options={{ headerShown: false }} />
         <Stack.Screen name="test/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="test/question" options={{ headerShown: false }} />
+        <Stack.Screen name="ads/create" options={{ headerShown: false }} />
+        <Stack.Screen name="ads/[id]/edit" options={{ headerShown: false }} />
       </Stack>
       {needsRedirect && <Redirect href={redirectTarget as any} />}
     </ThemeProvider>

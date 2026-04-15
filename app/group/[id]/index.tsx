@@ -1,3 +1,4 @@
+import AdBanner from '@/components/AdBanner';
 import { useAlert } from '@/components/CustomAlert';
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
@@ -8,10 +9,9 @@ import {
   fetchJoinRequests,
   Group,
   GroupMember,
-  JoinRequest,
   leaveGroup,
   regenerateReferralCode,
-  uploadGroupAvatar,
+  uploadGroupAvatar
 } from '@/lib/groups';
 import { useAuth } from '@/store/auth';
 import * as ImagePicker from 'expo-image-picker';
@@ -355,6 +355,9 @@ export default function GroupTopicsScreen() {
             </TouchableOpacity>
           );
         })}
+
+        {/* Ad banner for non-global groups */}
+        {!group.isGlobal && <AdBanner />}
       </ScrollView>
 
       {/* Menu */}

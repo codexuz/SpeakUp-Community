@@ -2,32 +2,32 @@ import { useAlert } from '@/components/CustomAlert';
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
 import {
-    fetchGroupById,
-    fetchGroupMembers,
-    Group,
-    GroupMember,
-    removeMember,
+  fetchGroupById,
+  fetchGroupMembers,
+  Group,
+  GroupMember,
+  removeMember,
 } from '@/lib/groups';
 import { useAuth } from '@/store/auth';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, ClipboardCopy, Share2, Users } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Clipboard,
-    Image,
-    Modal,
-    Pressable,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Clipboard,
+  Image,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import Animated, {
-    interpolate,
-    useAnimatedRef,
-    useAnimatedStyle,
-    useScrollOffset,
+  interpolate,
+  useAnimatedRef,
+  useAnimatedStyle,
+  useScrollOffset,
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -131,17 +131,25 @@ export default function GroupDetailInfoScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.safeArea, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={TG.accent} />
-      </SafeAreaView>
+      <View style={styles.safeArea}>
+        <Animated.ScrollView ref={scrollRef} style={{ flex: 1 }}>
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 200 }}>
+            <ActivityIndicator size="large" color={TG.accent} />
+          </View>
+        </Animated.ScrollView>
+      </View>
     );
   }
 
   if (!group) {
     return (
-      <SafeAreaView style={[styles.safeArea, { justifyContent: 'center', alignItems: 'center' }]}>
-        <Text style={{ color: TG.textSecondary, fontSize: 16 }}>Group not found</Text>
-      </SafeAreaView>
+      <View style={styles.safeArea}>
+        <Animated.ScrollView ref={scrollRef} style={{ flex: 1 }}>
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 200 }}>
+            <Text style={{ color: TG.textSecondary, fontSize: 16 }}>Group not found</Text>
+          </View>
+        </Animated.ScrollView>
+      </View>
     );
   }
 

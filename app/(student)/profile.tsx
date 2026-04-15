@@ -1,10 +1,11 @@
 import { useAlert } from '@/components/CustomAlert';
 import { TG } from '@/constants/theme';
-import { apiLogout } from '@/lib/api';
+import { apiGetUserProfile, apiLogout } from '@/lib/api';
 import { useAuth } from '@/store/auth';
+import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { ChevronRight, Edit2, LogOut, MapPin, Monitor, User as UserIcon } from 'lucide-react-native';
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -12,6 +13,16 @@ export default function ProfileScreen() {
   const { user, logout } = useAuth();
   const router = useRouter();
   const { alert } = useAlert();
+  const [stats, setStats] = useState({ followers: 0, following: 0 });
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!user?.id) return;
+      apiGetUserProfile(user.id)
+        .then((p) => setStats(p.stats))
+        .catch(() => {});
+    }, [user?.id]),
+  );
 
   const handleLogout = async () => {
     alert('Log Out', 'Are you sure you want to log out?', [
@@ -30,7 +41,6 @@ export default function ProfileScreen() {
       },
     ], 'warning');
   };
-
 
 
   return (
@@ -55,6 +65,25 @@ export default function ProfileScreen() {
           <View style={[styles.roleBadge, user?.role === 'teacher' && styles.teacherBadge]}>
             <Text style={[styles.roleText, user?.role === 'teacher' && styles.teacherText]}>{user?.role}</Text>
           </View>
+        </View>
+
+        <View style={styles.statsRow}>
+          <TouchableOpacity
+            style={styles.statCard}
+            activeOpacity={0.7}
+            onPress={() => router.push(`/followers/${user?.id}` as any)}
+          >
+            <Text style={styles.statNum}>{stats.followers}</Text>
+            <Text style={styles.statLabel}>Followers</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.statCard}
+            activeOpacity={0.7}
+            onPress={() => router.push(`/followings/${user?.id}` as any)}
+          >
+            <Text style={styles.statNum}>{stats.following}</Text>
+            <Text style={styles.statLabel}>Following</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.divider} />
@@ -128,6 +157,23 @@ const styles = StyleSheet.create({
   roleText: { fontSize: 12, fontWeight: '600', color: TG.accent, textTransform: 'capitalize' },
   teacherBadge: { backgroundColor: TG.greenLight },
   teacherText: { color: TG.green },
+
+  statsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: TG.bg,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: TG.bgSecondary,
+    borderRadius: 12,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  statNum: { fontSize: 18, fontWeight: '700', color: TG.textPrimary },
+  statLabel: { fontSize: 12, color: TG.textSecondary, marginTop: 2 },
 
   divider: { height: 8, backgroundColor: TG.bgSecondary },
 

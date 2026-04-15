@@ -1,8 +1,9 @@
 import { useAlert } from '@/components/CustomAlert';
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
-import { apiFetchMyVerificationStatus, apiLogout, apiRequestTeacherVerification } from '@/lib/api';
+import { apiFetchMyVerificationStatus, apiGetUserProfile, apiLogout, apiRequestTeacherVerification } from '@/lib/api';
 import { useAuth } from '@/store/auth';
+import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { Award, ChevronRight, Edit2, LogOut, MapPin, Monitor, Shield, User as UserIcon } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
@@ -18,6 +19,16 @@ export default function ProfileScreen() {
   const [verificationLoading, setVerificationLoading] = useState(false);
   const [verifyModal, setVerifyModal] = useState(false);
   const [verifyReason, setVerifyReason] = useState('');
+  const [stats, setStats] = useState({ followers: 0, following: 0 });
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!user?.id) return;
+      apiGetUserProfile(user.id)
+        .then((p) => setStats(p.stats))
+        .catch(() => {});
+    }, [user?.id]),
+  );
 
   const loadVerificationStatus = useCallback(async () => {
     if (!user || user.verifiedTeacher || user.role !== 'teacher') return;
@@ -119,6 +130,25 @@ export default function ProfileScreen() {
         {verificationBadge() && (
           <View style={styles.verifyRow}>{verificationBadge()}</View>
         )}
+
+        <View style={styles.statsRow}>
+          <TouchableOpacity
+            style={styles.statCard}
+            activeOpacity={0.7}
+            onPress={() => router.push(`/followers/${user?.id}` as any)}
+          >
+            <Text style={styles.statNum}>{stats.followers}</Text>
+            <Text style={styles.statLabel}>Followers</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.statCard}
+            activeOpacity={0.7}
+            onPress={() => router.push(`/followings/${user?.id}` as any)}
+          >
+            <Text style={styles.statNum}>{stats.following}</Text>
+            <Text style={styles.statLabel}>Following</Text>
+          </TouchableOpacity>
+        </View>
 
         <View style={styles.divider} />
 
@@ -258,6 +288,23 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   verifyBadgeText: { fontSize: 12, fontWeight: '600' },
+
+  statsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: TG.bg,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: TG.bgSecondary,
+    borderRadius: 12,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  statNum: { fontSize: 18, fontWeight: '700', color: TG.textPrimary },
+  statLabel: { fontSize: 12, color: TG.textSecondary, marginTop: 2 },
 
   divider: { height: 8, backgroundColor: TG.bgSecondary },
 

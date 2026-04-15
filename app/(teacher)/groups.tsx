@@ -1,7 +1,7 @@
 import { useAlert } from '@/components/CustomAlert';
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
-import { apiRequestJoinGroup, apiSearchGroups } from '@/lib/api';
+import { apiJoinGlobalGroup, apiRequestJoinGroup, apiSearchGroups } from '@/lib/api';
 import { fetchMyGroups, Group } from '@/lib/groups';
 import { useAuth } from '@/store/auth';
 import { useFocusEffect } from '@react-navigation/native';
@@ -9,17 +9,17 @@ import { useRouter } from 'expo-router';
 import { Globe, Plus, Search, UserPlus, Users, X } from 'lucide-react-native';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Animated,
-  FlatList,
-  Image,
-  Platform,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Animated,
+    FlatList,
+    Image,
+    Platform,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -73,6 +73,7 @@ export default function GroupsScreen() {
     setLoading(true);
     try {
       const data = await fetchMyGroups();
+      console.log('Fetched groups:', data);
       setGroups(data);
     } catch (e) {
       console.error('Failed to load groups', e);
@@ -165,6 +166,16 @@ export default function GroupsScreen() {
     ]);
   }, [searchQuery, doGlobalSearch, alert, toast]);
 
+  const handleJoinGlobal = useCallback(async (groupId: string) => {
+    try {
+      await apiJoinGlobalGroup(groupId);
+      toast.success('Joined', 'You joined the group');
+      loadGroups();
+    } catch (e: any) {
+      toast.error('Error', e.message);
+    }
+  }, [loadGroups, toast]);
+
   const filteredGroups = useMemo(() => {
     if (!searchQuery.trim()) return groups;
     const q = searchQuery.toLowerCase();
@@ -185,12 +196,19 @@ export default function GroupsScreen() {
   const renderGroup = ({ item: group }: { item: Group }) => {
     const avatarColor = getAvatarColor(group.name);
     const memberCount = group.member_count ?? 0;
+    const isUnjoined = group.isGlobal && !group.myRole;
 
     return (
       <TouchableOpacity
         style={styles.row}
         activeOpacity={0.6}
-        onPress={() => router.push(`/group/${group.id}` as any)}
+        onPress={() => {
+          if (isUnjoined) {
+            handleJoinGlobal(group.id);
+            return;
+          }
+          router.push(`/group/${group.id}` as any);
+        }}
       >
         {/* Avatar */}
         {group.avatarUrl ? (
@@ -205,11 +223,16 @@ export default function GroupsScreen() {
 
         {/* Content */}
         <View style={styles.rowContent}>
-          {/* Top row: name */}
+          {/* Top row: name + global badge */}
           <View style={styles.rowTop}>
             <Text style={styles.groupName} numberOfLines={1}>
               {group.name}
             </Text>
+            {group.isGlobal && (
+              <View style={styles.globalBadge}>
+                <Globe size={10} color={TG.accent} />
+              </View>
+            )}
           </View>
 
           {/* Bottom row: description / members */}
@@ -221,6 +244,13 @@ export default function GroupsScreen() {
             </Text>
           </View>
         </View>
+
+        {isUnjoined && (
+          <View style={[styles.statusChip, { backgroundColor: TG.accentLight }]}>
+            <UserPlus size={14} color={TG.accent} />
+            <Text style={[styles.statusChipText, { color: TG.accent }]}>Join</Text>
+          </View>
+        )}
       </TouchableOpacity>
     );
   };
@@ -625,6 +655,16 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   statusChipText: { fontSize: 12, fontWeight: '600' },
+
+  // Global badge
+  globalBadge: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: TG.accentLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 
   // FABs
   fabStack: {

@@ -1,12 +1,15 @@
+import { useAlert } from '@/components/CustomAlert';
 import { useToast } from '@/components/Toast';
 import WaveformPlayer from '@/components/WaveformPlayer';
 import { TG } from '@/constants/theme';
 import {
+    apiDeleteReview,
+    apiFetchReviews,
     apiFetchSessionDetail,
-    apiPostReview,
     SpeakingResponse,
     TestSession,
 } from '@/lib/api';
+import { useAuth } from '@/store/auth';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
     ArrowLeft,
@@ -15,19 +18,16 @@ import {
     Clock,
     Loader,
     Mic,
-    Star
+    Star,
+    Trash2,
 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Animated,
     FlatList,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
     StyleSheet,
     Text,
-    TextInput,
     TouchableOpacity,
     View,
 } from 'react-native';
@@ -93,22 +93,25 @@ export default function ReviewDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const toast = useToast();
+  const { alert } = useAlert();
+  const { user } = useAuth();
   const [session, setSession] = useState<TestSession | null>(null);
   const [loading, setLoading] = useState(true);
+  const [hasMyReview, setHasMyReview] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
-
-  // Review modal state
-  const [reviewModal, setReviewModal] = useState(false);
-  const [score, setScore] = useState('');
-  const [feedback, setFeedback] = useState('');
-  const [submitting, setSubmitting] = useState(false);
 
   const loadSession = useCallback(async () => {
     if (!id) return;
     setLoading(true);
     try {
-      const data = await apiFetchSessionDetail(id);
+      const [data, reviews] = await Promise.all([
+        apiFetchSessionDetail(id),
+        apiFetchReviews(id).catch(() => []),
+      ]);
       setSession(data);
+      setHasMyReview(
+        (reviews || []).some((r: any) => r.reviewerId === user?.id),
+      );
       Animated.timing(fadeAnim, {
         toValue: 1,
         duration: 350,
@@ -119,45 +122,46 @@ export default function ReviewDetailScreen() {
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, user?.id]);
 
   useEffect(() => {
     loadSession();
   }, [loadSession]);
 
-  const openReview = () => {
+  const openReviewEdit = () => {
     if (!session) return;
-    setScore(session.scoreAvg != null ? String(Math.round(session.scoreAvg)) : '');
-    setFeedback('');
-    setReviewModal(true);
+    router.push(`/review/${session.id}/edit` as any);
   };
 
-  const handleSubmitReview = async () => {
-    if (!session || !score) return;
-    const numScore = parseInt(score, 10);
-    if (isNaN(numScore) || numScore < 0 || numScore > 75) {
-      toast.warning('Invalid', 'Score must be between 0 and 75');
-      return;
-    }
-    setSubmitting(true);
-    try {
-      await apiPostReview(session.id, numScore, feedback);
-      toast.success('Reviewed', 'Score submitted successfully');
-      setReviewModal(false);
-      loadSession();
-    } catch (e: any) {
-      toast.error('Error', e.message || 'Failed to submit review');
-    } finally {
-      setSubmitting(false);
-    }
+  const handleDeleteReview = () => {
+    if (!session) return;
+    alert(
+      'Delete Review',
+      'Are you sure you want to delete your review?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await apiDeleteReview(session.id);
+              toast.success('Deleted', 'Review removed');
+              setHasMyReview(false);
+              loadSession();
+            } catch (e: any) {
+              toast.error('Error', e.message || 'Failed to delete review');
+            }
+          },
+        },
+      ],
+      'warning',
+    );
   };
 
   const hasSessionReview = session?.scoreAvg != null;
 
   const responses = session?.responses || [];
-  const scoreNum = parseInt(score, 10);
-  const scorePreview =
-    !isNaN(scoreNum) && scoreNum >= 0 && scoreNum <= 75 ? getCefrLabel(scoreNum) : null;
 
   const renderResponse = ({ item, index }: { item: SpeakingResponse; index: number }) => {
     const question = item.question;
@@ -288,16 +292,28 @@ export default function ReviewDetailScreen() {
             }
             ListFooterComponent={
               responses.length > 0 ? (
-                <TouchableOpacity
-                  style={[styles.reviewBtn, hasSessionReview && styles.reviewBtnEdit]}
-                  activeOpacity={0.7}
-                  onPress={openReview}
-                >
-                  <Star size={16} color={hasSessionReview ? TG.accent : TG.textWhite} />
-                  <Text style={[styles.reviewBtnText, hasSessionReview && styles.reviewBtnEditText]}>
-                    {hasSessionReview ? 'Edit Review' : 'Add Review'}
-                  </Text>
-                </TouchableOpacity>
+                <View style={{ gap: 10, marginTop: 16 }}>
+                  <TouchableOpacity
+                    style={[styles.reviewBtn, hasSessionReview && styles.reviewBtnEdit]}
+                    activeOpacity={0.7}
+                    onPress={openReviewEdit}
+                  >
+                    <Star size={16} color={hasSessionReview ? TG.accent : TG.textWhite} />
+                    <Text style={[styles.reviewBtnText, hasSessionReview && styles.reviewBtnEditText]}>
+                      {hasMyReview ? 'Edit My Review' : 'Add Review'}
+                    </Text>
+                  </TouchableOpacity>
+                  {hasMyReview && (
+                    <TouchableOpacity
+                      style={styles.deleteReviewBtn}
+                      activeOpacity={0.7}
+                      onPress={handleDeleteReview}
+                    >
+                      <Trash2 size={14} color={TG.red} />
+                      <Text style={styles.deleteReviewBtnText}>Delete My Review</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               ) : null
             }
             ListEmptyComponent={
@@ -310,83 +326,6 @@ export default function ReviewDetailScreen() {
         </Animated.View>
       )}
 
-      {/* Review Modal */}
-      <Modal visible={reviewModal} animationType="slide" transparent>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={{ flex: 1 }}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>
-                {hasSessionReview ? 'Edit Review' : 'Add Review'}
-              </Text>
-
-              <Text style={styles.modalQuestion} numberOfLines={1}>
-                {session?.test?.title || 'Session'} · {responses.length} response{responses.length !== 1 ? 's' : ''}
-              </Text>
-
-              <View style={styles.scoreRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.inputLabel}>Score (0-75)</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={score}
-                    onChangeText={setScore}
-                    keyboardType="number-pad"
-                    maxLength={2}
-                    placeholder="0-75"
-                    placeholderTextColor={TG.textHint}
-                  />
-                </View>
-                {scorePreview && (
-                  <View style={[styles.cefrPreview, { backgroundColor: scorePreview.bg }]}>
-                    <Text style={[styles.cefrPreviewText, { color: scorePreview.color }]}>
-                      {scorePreview.level}
-                    </Text>
-                  </View>
-                )}
-              </View>
-
-              <Text style={styles.cefrGuide}>
-                A2: 0-37 · B1: 38-50 · B2: 51-64 · C1: 65-75
-              </Text>
-
-              <Text style={styles.inputLabel}>Feedback</Text>
-              <TextInput
-                style={[styles.input, styles.textArea]}
-                value={feedback}
-                onChangeText={setFeedback}
-                multiline
-                numberOfLines={4}
-                placeholder="Write feedback..."
-                placeholderTextColor={TG.textHint}
-                textAlignVertical="top"
-              />
-
-              <View style={styles.modalActions}>
-                <TouchableOpacity
-                  style={styles.cancelBtn}
-                  onPress={() => setReviewModal(false)}
-                >
-                  <Text style={styles.cancelBtnText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.submitBtn, (!score || submitting) && { opacity: 0.5 }]}
-                  onPress={handleSubmitReview}
-                  disabled={!score || submitting}
-                >
-                  {submitting ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Text style={styles.submitBtnText}>Submit</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -549,71 +488,21 @@ const styles = StyleSheet.create({
   reviewBtnText: { fontSize: 15, fontWeight: '700', color: TG.textWhite },
   reviewBtnEditText: { color: TG.accent },
 
-  // ─── Modal ───
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end',
+  deleteReviewBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: TG.redLight,
   },
-  modalContent: {
-    backgroundColor: TG.bg,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    padding: 20,
-  },
-  modalTitle: { fontSize: 18, fontWeight: '700', color: TG.textPrimary, marginBottom: 6 },
-  modalQuestion: {
-    fontSize: 13,
-    color: TG.textSecondary,
-    lineHeight: 19,
-    marginBottom: 14,
-  },
-  scoreRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 12 },
-  cefrPreview: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 10,
-    marginBottom: 12,
-  },
-  cefrPreviewText: { fontSize: 16, fontWeight: '700' },
-  cefrGuide: { fontSize: 11, color: TG.textHint, marginBottom: 12 },
-  inputLabel: {
-    fontSize: 13,
-    color: TG.textSecondary,
+  deleteReviewBtnText: {
+    color: TG.red,
+    fontSize: 14,
     fontWeight: '600',
-    marginBottom: 6,
   },
-  input: {
-    backgroundColor: TG.bgSecondary,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
-    color: TG.textPrimary,
-    borderWidth: 0.5,
-    borderColor: TG.separator,
-    marginBottom: 12,
-  },
-  textArea: { minHeight: 80 },
-  modalActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
-  cancelBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderRadius: 10,
-    backgroundColor: TG.bgSecondary,
-  },
-  cancelBtnText: { color: TG.textSecondary, fontWeight: '600' },
-  submitBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderRadius: 10,
-    backgroundColor: TG.accent,
-  },
-  submitBtnText: { color: TG.textWhite, fontWeight: '600' },
 
-  // ─── Empty ───
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',

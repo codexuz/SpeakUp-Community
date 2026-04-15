@@ -6,7 +6,7 @@ import { fetchMyGroups, Group } from '@/lib/groups';
 import { useAuth } from '@/store/auth';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { Globe, LogIn, Plus, Search, UserPlus, Users, X } from 'lucide-react-native';
+import { Globe, Plus, Search, UserPlus, Users, X } from 'lucide-react-native';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -163,7 +163,7 @@ export default function GroupsScreen() {
         },
       },
     ]);
-  }, [searchQuery, doGlobalSearch]);
+  }, [searchQuery, doGlobalSearch, alert, toast]);
 
   const handleJoinGlobal = useCallback(async (groupId: string) => {
     try {
@@ -412,16 +412,24 @@ export default function GroupsScreen() {
           </View>
           <Text style={styles.emptyTitle}>No Groups Yet</Text>
           <Text style={styles.emptySubtitle}>
-            Join a group with a referral code
+            Create your own group or join one{'\n'}with a referral code
           </Text>
           <View style={styles.emptyActions}>
             <TouchableOpacity
               style={styles.emptyBtnPrimary}
               activeOpacity={0.7}
+              onPress={() => router.push('/group/create' as any)}
+            >
+              <Plus size={16} color="#fff" />
+              <Text style={styles.emptyBtnPrimaryText}>Create Group</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.emptyBtnSecondary}
+              activeOpacity={0.7}
               onPress={() => router.push('/group/join' as any)}
             >
-              <LogIn size={16} color="#fff" />
-              <Text style={styles.emptyBtnPrimaryText}>Join Group</Text>
+              <UserPlus size={16} color={TG.accent} />
+              <Text style={styles.emptyBtnSecondaryText}>Join Group</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -450,15 +458,26 @@ export default function GroupsScreen() {
         />
       )}
 
-      {/* FAB – Join */}
+      {/* FAB row – Create & Join */}
       {!loading && groups.length > 0 && (
-        <TouchableOpacity
-          style={styles.fab}
-          activeOpacity={0.85}
-          onPress={() => router.push('/group/join' as any)}
-        >
-          <Plus size={24} color="#fff" strokeWidth={2.5} />
-        </TouchableOpacity>
+        <View style={styles.fabStack}>
+          <TouchableOpacity
+            style={styles.fabSecondary}
+            activeOpacity={0.85}
+            onPress={() => router.push('/group/join' as any)}
+          >
+            <UserPlus size={16} color={TG.accent} />
+            <Text style={styles.fabSecondaryText}>Join</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.fabPrimary}
+            activeOpacity={0.9}
+            onPress={() => router.push('/group/create' as any)}
+          >
+            <Plus size={18} color="#fff" strokeWidth={2.4} />
+            <Text style={styles.fabPrimaryText}>Create</Text>
+          </TouchableOpacity>
+        </View>
       )}
     </SafeAreaView>
   );
@@ -646,25 +665,45 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
-  // FAB (Telegram-style)
-  fab: {
+  // FABs
+  fabStack: {
     position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 28 : 24,
+    bottom: Platform.OS === 'ios' ? 28 : 22,
     right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    alignItems: 'center',
+    gap: 10,
+  },
+  fabPrimary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    height: 54,
+    paddingHorizontal: 20,
+    borderRadius: 27,
     backgroundColor: TG.accent,
     justifyContent: 'center',
+  },
+  fabPrimaryText: {
+    color: TG.textWhite,
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  fabSecondary: {
+    flexDirection: 'row',
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.25,
-        shadowRadius: 8,
-      },
-      android: { elevation: 3 },
-    }),
+    gap: 6,
+    height: 46,
+    paddingHorizontal: 14,
+    borderRadius: 23,
+    backgroundColor: TG.bg,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: TG.separator,
+  },
+  fabSecondaryText: {
+    color: TG.accent,
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

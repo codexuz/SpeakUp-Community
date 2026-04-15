@@ -7,6 +7,7 @@ import {
   apiFetchGroupSubmissions,
   apiFetchJoinRequests,
   apiFetchMyGroups,
+  apiJoinGlobalGroup,
   apiJoinGroup,
   apiLeaveGroup,
   apiRegenerateReferralCode,
@@ -26,9 +27,10 @@ export interface Group {
   createdById: string;
   createdAt: string;
   avatarUrl?: string | null;
+  isGlobal?: boolean;
   creator?: { fullName: string; avatarUrl?: string };
   member_count?: number;
-  myRole?: string;
+  myRole?: string | null;
 }
 
 export interface GroupMember {
@@ -75,8 +77,8 @@ export async function fetchGroupSubmissions(groupId: string, page = 1) {
 // CRUD
 // =============================================
 
-export async function createGroup(name: string, description: string): Promise<Group | null> {
-  return apiCreateGroup(name, description);
+export async function createGroup(name: string, description: string, isGlobal?: boolean): Promise<Group | null> {
+  return apiCreateGroup(name, description, isGlobal);
 }
 
 export async function updateGroup(groupId: string, name: string, description: string): Promise<Group | null> {
@@ -98,6 +100,10 @@ export async function regenerateReferralCode(groupId: string): Promise<string> {
 
 export async function joinGroupByCode(referralCode: string): Promise<Group | null> {
   return apiJoinGroup(referralCode);
+}
+
+export async function joinGlobalGroup(groupId: string): Promise<Group | null> {
+  return apiJoinGlobalGroup(groupId);
 }
 
 export async function leaveGroup(groupId: string): Promise<void> {

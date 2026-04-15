@@ -1,14 +1,14 @@
 import { TG } from '@/constants/theme';
 import { Tabs } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { ClipboardList, Home, Shield, User } from 'lucide-react-native';
+import { ClipboardList, Home, Image, Shield, User, Users } from 'lucide-react-native';
 import React from 'react';
 import { Platform } from 'react-native';
 
 export default function AdminTabLayout() {
   return (
     <>
-      <StatusBar style="light" backgroundColor={TG.headerBg} />
+      <StatusBar style="dark" backgroundColor={TG.headerBg} />
       <Tabs
         screenOptions={{
           tabBarActiveTintColor: TG.tabActive,
@@ -53,6 +53,20 @@ export default function AdminTabLayout() {
           options={{
             title: 'Tests',
             tabBarIcon: ({ color, size }) => <ClipboardList size={size ?? 24} color={color} strokeWidth={1.8} />,
+          }}
+        />
+        <Tabs.Screen
+          name="groups"
+          options={{
+            title: 'Groups',
+            tabBarIcon: ({ color, size }) => <Users size={size ?? 24} color={color} strokeWidth={1.8} />,
+          }}
+        />
+        <Tabs.Screen
+          name="ads"
+          options={{
+            title: 'Ads',
+            tabBarIcon: ({ color, size }) => <Image size={size ?? 24} color={color} strokeWidth={1.8} />,
           }}
         />
         <Tabs.Screen
