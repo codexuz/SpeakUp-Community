@@ -3,13 +3,13 @@ import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { Pause, Play } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    Animated,
-    GestureResponderEvent,
-    LayoutChangeEvent,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Animated,
+  GestureResponderEvent,
+  LayoutChangeEvent,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 const BAR_COUNT = 40;
@@ -18,6 +18,11 @@ const BAR_GAP = 1.5;
 const BAR_MIN_H = 4;
 const BAR_MAX_H = 28;
 const BUTTON_SIZE = 42;
+
+// Module-level single-playback guard: only one WaveformPlayer plays at a time
+let _activeInstanceId: number | null = null;
+let _activePause: (() => void) | null = null;
+let _nextInstanceId = 0;
 
 interface WaveformPlayerProps {
   uri: string | null;
@@ -63,6 +68,7 @@ export default function WaveformPlayer({
   const bars = useMemo(() => generateBars(uri || 'default'), [uri]);
 
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  const instanceId = useRef(_nextInstanceId++).current;
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekProgress, setSeekProgress] = useState(0);
   const seekProgressRef = useRef(0);
@@ -75,11 +81,25 @@ export default function WaveformPlayer({
         ? status.currentTime / status.duration
         : 0;
 
+  // Clear module-level reference when this instance unmounts
+  useEffect(() => {
+    return () => {
+      if (_activeInstanceId === instanceId) {
+        _activeInstanceId = null;
+        _activePause = null;
+      }
+    };
+  }, [instanceId]);
+
   // Reset to beginning when playback finishes so user can replay
   useEffect(() => {
     if (status.didJustFinish) {
       player.pause();
       player.seekTo(0);
+      if (_activeInstanceId === instanceId) {
+        _activeInstanceId = null;
+        _activePause = null;
+      }
       onPlaybackEnd?.();
     }
   }, [status.didJustFinish]);
@@ -94,11 +114,21 @@ export default function WaveformPlayer({
 
     if (status.playing) {
       player.pause();
+      if (_activeInstanceId === instanceId) {
+        _activeInstanceId = null;
+        _activePause = null;
+      }
     } else {
+      // Pause any other currently playing instance
+      if (_activeInstanceId !== null && _activeInstanceId !== instanceId && _activePause) {
+        try { _activePause(); } catch {}
+      }
+      _activeInstanceId = instanceId;
+      _activePause = () => player.pause();
       onPlaybackStart?.();
       player.play();
     }
-  }, [disabled, uri, status.playing, player]);
+  }, [disabled, uri, status.playing, player, instanceId]);
 
   const handleWaveformLayout = (e: LayoutChangeEvent) => {
     waveformLayoutRef.current = {

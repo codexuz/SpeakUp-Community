@@ -1,14 +1,14 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Redirect, Stack, useSegments } from 'expo-router';
-import { ActivityIndicator, StatusBar, View } from 'react-native';
+import { ActivityIndicator, StatusBar, StyleSheet, View } from 'react-native';
 import 'react-native-reanimated';
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useInAppUpdates } from '@/hooks/useInAppUpdates';
-import { useNotifications } from '@/hooks/useNotifications';
 import { CustomAlertProvider } from '@/components/CustomAlert';
 import { ToastProvider } from '@/components/Toast';
 import { TG } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useInAppUpdates } from '@/hooks/useInAppUpdates';
+import { useNotifications } from '@/hooks/useNotifications';
 import { AuthProvider, useAuth } from '@/store/auth';
 
 function getRoleRoute(role?: string): '/(student)' | '/(teacher)' | '/(admin)' {
@@ -31,15 +31,28 @@ function RootNavigator() {
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0f172a' }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colorScheme === 'dark' ? '#0f172a' : '#ffffff' }}>
         <ActivityIndicator size="large" color="#3b82f6" />
       </View>
     );
   }
 
+  const needsRedirect =
+    (!isAuthenticated && !inAuthGroup) ||
+    (isAuthenticated && inAuthGroup) ||
+    (isAuthenticated && !inAuthGroup && inRoleGroup && seg !== getRoleRoute(user?.role ?? undefined).slice(1)) ||
+    (isAuthenticated && !inAuthGroup && !inRoleGroup && seg === '(tabs)');
+
+  const redirectTarget = !isAuthenticated
+    ? '/(auth)/login'
+    : getRoleRoute(user?.role ?? undefined);
+
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <StatusBar barStyle="light-content" backgroundColor={TG.headerBg} />
+      {needsRedirect ? (
+        <View style={[StyleSheet.absoluteFill, { zIndex: 1, backgroundColor: colorScheme === 'dark' ? '#0f172a' : '#ffffff' }]} />
+      ) : null}
       <Stack>
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(student)" options={{ headerShown: false }} />
@@ -50,6 +63,7 @@ function RootNavigator() {
         <Stack.Screen name="session/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="review/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="community/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="comment/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="user/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="group/[id]/index" options={{ headerShown: false }} />
         <Stack.Screen name="group/[id]/detail" options={{ headerShown: false }} />
@@ -66,14 +80,7 @@ function RootNavigator() {
         <Stack.Screen name="test/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="test/question" options={{ headerShown: false }} />
       </Stack>
-      {!isAuthenticated && !inAuthGroup && <Redirect href="/(auth)/login" />}
-      {isAuthenticated && inAuthGroup && <Redirect href={getRoleRoute(user?.role ?? undefined) as any} />}
-      {isAuthenticated && !inAuthGroup && inRoleGroup && seg !== getRoleRoute(user?.role ?? undefined).slice(1) && (
-        <Redirect href={getRoleRoute(user?.role ?? undefined) as any} />
-      )}
-      {isAuthenticated && !inAuthGroup && !inRoleGroup && seg === '(tabs)' && (
-        <Redirect href={getRoleRoute(user?.role ?? undefined) as any} />
-      )}
+      {needsRedirect && <Redirect href={redirectTarget as any} />}
     </ThemeProvider>
   );
 }

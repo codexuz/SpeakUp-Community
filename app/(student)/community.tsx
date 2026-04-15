@@ -109,16 +109,10 @@ export default function CommunityScreen() {
   };
 
   const renderItem = ({ item }: { item: any }) => (
-    <TouchableOpacity style={styles.card} activeOpacity={0.7} onPress={() => router.push(`/community/${item.id}` as any)}>
+    <Pressable style={({ pressed }) => [styles.card, pressed && { opacity: 0.7 }]} onPress={() => router.push(`/community/${item.id}` as any)}>
       {/* Top row: avatar, name+date, score pill, chevron */}
       <View style={styles.topRow}>
-        <Pressable
-          style={styles.userTapArea}
-          onPress={(e) => {
-            e.stopPropagation();
-            if (item.user?.id) router.push(`/user/${item.user.id}` as any);
-          }}
-        >
+        <View style={styles.userTapArea}>
           <View style={styles.avatar}>
             {item.user?.avatarUrl ? (
               <Image source={{ uri: item.user.avatarUrl }} style={styles.avatarImage} />
@@ -132,7 +126,7 @@ export default function CommunityScreen() {
               {new Date(item.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
             </Text>
           </View>
-        </Pressable>
+        </View>
         {item.scoreAvg != null && (
           <View style={styles.scorePill}>
             <Star size={11} color={TG.orange} fill={TG.orange} />
@@ -167,7 +161,7 @@ export default function CommunityScreen() {
           </TouchableOpacity>
         )}
       </View>
-    </TouchableOpacity>
+    </Pressable>
   );
 
   const strategies: { key: Strategy; label: string; icon: React.ReactNode }[] = [

@@ -7,18 +7,17 @@ import { useRouter } from 'expo-router';
 import { ChevronRight, Flame, Heart, MessageCircle, Mic, Star, TrendingUp } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import {
-    ActivityIndicator,
-    FlatList,
-    Image,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    Pressable,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -155,13 +154,7 @@ export default function CommunityScreen() {
     <TouchableOpacity style={styles.card} activeOpacity={0.7} onPress={() => router.push(`/community/${item.id}` as any)}>
       {/* Top row: avatar, name+date, score pill, chevron */}
       <View style={styles.topRow}>
-        <Pressable
-          style={styles.userTapArea}
-          onPress={(e) => {
-            e.stopPropagation();
-            if (item.user?.id) router.push(`/user/${item.user.id}` as any);
-          }}
-        >
+        <View style={styles.userTapArea}>
           <View style={styles.avatar}>
             {item.user?.avatarUrl ? (
               <Image source={{ uri: item.user.avatarUrl }} style={styles.avatarImage} />
@@ -175,7 +168,7 @@ export default function CommunityScreen() {
               {new Date(item.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
             </Text>
           </View>
-        </Pressable>
+        </View>
         {item.scoreAvg != null && (
           <View style={styles.scorePill}>
             <Star size={11} color={TG.orange} fill={TG.orange} />

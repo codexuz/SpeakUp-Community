@@ -13,9 +13,11 @@ import {
   ArrowLeft,
   BarChart3,
   Calendar,
+  ChevronRight,
   Clock,
   Heart,
   Loader,
+  MessageCircle,
   MessageSquare,
   Mic,
   Star,
@@ -361,6 +363,20 @@ export default function CommunityDetailScreen() {
               </View>
             }
           />
+          {/* Leave a comment bar */}
+          <TouchableOpacity
+            style={styles.commentBar}
+            activeOpacity={0.7}
+            onPress={() => router.push(`/comment/${session.id}` as any)}
+          >
+            <MessageCircle size={18} color={TG.accent} />
+            <Text style={styles.commentBarText}>Leave a comment</Text>
+            <View style={{ flex: 1 }} />
+            {session.commentsCount > 0 && (
+              <Text style={styles.commentBarCount}>{session.commentsCount}</Text>
+            )}
+            <ChevronRight size={16} color={TG.textHint} />
+          </TouchableOpacity>
         </Animated.View>
       )}
     </SafeAreaView>
@@ -555,4 +571,21 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   emptyText: { color: TG.textSecondary, fontSize: 16, fontWeight: '600' },
+
+  // ─── Comment bar ───
+  commentBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: TG.bg,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 14,
+    gap: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: TG.separator,
+  },
+  commentBarText: { fontSize: 14, color: TG.accent, fontWeight: '600' },
+  commentBarCount: { fontSize: 13, color: TG.textHint, fontWeight: '600' },
 });

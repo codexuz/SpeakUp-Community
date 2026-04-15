@@ -248,6 +248,10 @@ export async function apiDeleteSpeaking(id: string) {
   return request<any>(`/speaking/${id}`, { method: 'DELETE' });
 }
 
+export async function apiDeleteSession(sessionId: string) {
+  return request<any>(`/speaking/sessions/${sessionId}`, { method: 'DELETE' });
+}
+
 // Likes (session-based)
 export async function apiLikeSession(sessionId: string) {
   return request<any>(`/speaking/sessions/${sessionId}/like`, { method: 'POST' });
@@ -258,15 +262,28 @@ export async function apiUnlikeSession(sessionId: string) {
 }
 
 // Comments (session-based)
-export async function apiCommentOnSession(sessionId: string, text: string) {
+export async function apiCommentOnSession(sessionId: string, text: string, replyToId?: string) {
   return request<any>(`/speaking/sessions/${sessionId}/comment`, {
     method: 'POST',
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ text, ...(replyToId ? { replyToId } : {}) }),
   });
 }
 
 export async function apiFetchSessionComments(sessionId: string, page = 1, limit = 20) {
   return request<{ data: any[]; pagination: any }>(`/speaking/sessions/${sessionId}/comments?page=${page}&limit=${limit}`);
+}
+
+export async function apiEditComment(commentId: string, text: string) {
+  return request<any>(`/speaking/comments/${commentId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ text }),
+  });
+}
+
+export async function apiDeleteComment(commentId: string) {
+  return request<any>(`/speaking/comments/${commentId}`, {
+    method: 'DELETE',
+  });
 }
 
 // Deprecated — use session-based versions above

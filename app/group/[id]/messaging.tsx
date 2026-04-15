@@ -1119,8 +1119,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingTop: 80,
     gap: 8,
-    // inverted list: content is from bottom, so this pushes up nicely
-    transform: [{ scaleY: -1 }],
   },
   emptyChatText: { fontSize: 16, fontWeight: '600', color: TG.textSecondary },
   emptyChatSub: { fontSize: 14, color: TG.textHint },

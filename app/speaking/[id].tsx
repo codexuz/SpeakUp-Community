@@ -3,6 +3,7 @@ import { apiSubmitSpeaking } from '@/lib/api';
 import { fetchQuestionsByTestId, Question } from '@/lib/data';
 import { useAuth } from '@/store/auth';
 import { AudioModule, RecordingPresets, useAudioRecorder } from 'expo-audio';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Speech from 'expo-speech';
 import {
@@ -13,8 +14,11 @@ import {
   Clock,
   ImageIcon,
   Mic,
+  MicOff,
   Pause,
+  Play,
   Send,
+  Shield,
   Volume2,
 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -34,6 +38,55 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 const { width: SCREEN_W } = Dimensions.get('window');
 const RING_SIZE = 140;
 const RING_STROKE = 6;
+
+const BEEP_PATH = (FileSystem.cacheDirectory || '') + 'beep.wav';
+
+async function ensureBeepFile() {
+  const info = await FileSystem.getInfoAsync(BEEP_PATH);
+  if (info.exists) return BEEP_PATH;
+  const sampleRate = 8000;
+  const duration = 0.4;
+  const freq = 1000;
+  const numSamples = Math.floor(sampleRate * duration);
+  const fileSize = 44 + numSamples;
+  const bytes = new Uint8Array(fileSize);
+  const view = new DataView(bytes.buffer);
+  const writeStr = (off: number, s: string) => {
+    for (let i = 0; i < s.length; i++) bytes[off + i] = s.charCodeAt(i);
+  };
+  writeStr(0, 'RIFF');
+  view.setUint32(4, 36 + numSamples, true);
+  writeStr(8, 'WAVE');
+  writeStr(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate, true);
+  view.setUint16(32, 1, true);
+  view.setUint16(34, 8, true);
+  writeStr(36, 'data');
+  view.setUint32(40, numSamples, true);
+  for (let i = 0; i < numSamples; i++) {
+    const env = i < 200 ? i / 200 : i > numSamples - 200 ? (numSamples - i) / 200 : 1;
+    bytes[44 + i] = 128 + Math.floor(96 * env * Math.sin(2 * Math.PI * freq * i / sampleRate));
+  }
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  await FileSystem.writeAsStringAsync(BEEP_PATH, btoa(binary), { encoding: FileSystem.EncodingType.Base64 });
+  return BEEP_PATH;
+}
+
+async function playBeep() {
+  try {
+    const path = await ensureBeepFile();
+    const player = new AudioModule.AudioPlayer(path, 0, false);
+    player.play();
+    setTimeout(() => { try { player.remove(); } catch {} }, 1000);
+  } catch (e) {
+    console.warn('Beep failed', e);
+  }
+}
 
 function CircularProgress({
   progress,
@@ -82,18 +135,31 @@ export default function SpeakingScreen() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loadingQ, setLoadingQ] = useState(true);
-  const [phase, setPhase] = useState<'prep' | 'speak' | 'done'>('prep');
+  const [screen, setScreen] = useState<'intro' | 'test'>('intro');
+  const [phase, setPhase] = useState<'prep' | 'beep' | 'speak' | 'done'>('prep');
   const [timeLeft, setTimeLeft] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [micGranted, setMicGranted] = useState(false);
 
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const waveAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const lastTimerPhaseRef = useRef<string | null>(null);
 
   const question = questions[currentIndex] ?? null;
   const isLastQuestion = currentIndex >= questions.length - 1;
+
+  const requestMic = useCallback(async () => {
+    try {
+      const perms = await AudioModule.requestRecordingPermissionsAsync();
+      setMicGranted(perms.status === 'granted');
+      return perms.status === 'granted';
+    } catch {
+      return false;
+    }
+  }, []);
 
   const startRecording = useCallback(async () => {
     try {
@@ -106,6 +172,11 @@ export default function SpeakingScreen() {
       console.warn('Failed to start recording', err);
     }
   }, [audioRecorder]);
+
+  const startTest = useCallback(() => {
+    setScreen('test');
+    setPhase('prep');
+  }, []);
 
   const saveAndAdvance = useCallback(async () => {
     try {
@@ -140,6 +211,7 @@ export default function SpeakingScreen() {
   useEffect(() => {
     (async () => {
       const qs = await fetchQuestionsByTestId(Number(id));
+      console.log(qs)
       setQuestions(qs);
       setLoadingQ(false);
     })();
@@ -151,11 +223,23 @@ export default function SpeakingScreen() {
     Animated.timing(fadeAnim, { toValue: 1, duration: 350, useNativeDriver: true }).start();
   }, [currentIndex, fadeAnim]);
 
+  // Pre-generate beep file on mount
+  useEffect(() => { ensureBeepFile(); }, []);
+
+  // Check mic permission on mount
   useEffect(() => {
-    if (!question) return;
+    AudioModule.getRecordingPermissionsAsync().then((p) => setMicGranted(p.status === 'granted'));
+  }, []);
+
+  useEffect(() => {
+    if (screen !== 'test' || !question) return;
     if (phase === 'prep') {
       setTimeLeft(question.prep_timer);
       Speech.speak(question.q_text, { language: 'en-GB', rate: 0.9 });
+    } else if (phase === 'beep') {
+      playBeep();
+      const t = setTimeout(() => setPhase('speak'), 500);
+      return () => clearTimeout(t);
     } else if (phase === 'speak') {
       setTimeLeft(question.speaking_timer);
       startRecording();
@@ -175,26 +259,113 @@ export default function SpeakingScreen() {
       pulseAnim.setValue(1);
       waveAnim.setValue(0);
     }
-  }, [phase, currentIndex, pulseAnim, waveAnim, question, startRecording]);
+  }, [screen, phase, currentIndex, pulseAnim, waveAnim, question, startRecording]);
 
   useEffect(() => {
-    if (!question) return;
+    if (screen !== 'test' || !question) return;
+    // Skip the first run after phase changes — timeLeft hasn't been updated yet
+    if (lastTimerPhaseRef.current !== `${phase}-${currentIndex}`) {
+      lastTimerPhaseRef.current = `${phase}-${currentIndex}`;
+      return;
+    }
     if (timeLeft <= 0) {
-      if (phase === 'prep') setPhase('speak');
+      if (phase === 'prep') setPhase('beep');
       else if (phase === 'speak') saveAndAdvance();
       return;
     }
     const timer = setInterval(() => setTimeLeft(p => p - 1), 1000);
     return () => clearInterval(timer);
-  }, [phase, question, saveAndAdvance, timeLeft]);
+  }, [screen, phase, currentIndex, question, saveAndAdvance, timeLeft]);
 
   const totalTime = question
-    ? phase === 'prep' ? question.prep_timer : question.speaking_timer
+    ? (phase === 'prep' || phase === 'beep') ? question.prep_timer : question.speaking_timer
     : 1;
   const progress = totalTime > 0 ? (totalTime - timeLeft) / totalTime : 0;
   const minutes = Math.floor(timeLeft / 60);
   const seconds = (timeLeft % 60).toString().padStart(2, '0');
   const ringColor = phase === 'speak' ? TG.red : TG.accent;
+
+  // ─── Intro Screen ─────────────────────────────────
+  if (screen === 'intro') return (
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: TG.bg }]}>
+      <StatusBar barStyle="light-content" backgroundColor={TG.headerBg} />
+      <View style={[styles.header]}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+          <ArrowLeft size={22} color={TG.textWhite} />
+        </TouchableOpacity>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>Speaking Test</Text>
+          <Text style={styles.headerSubtitle}>{questions.length} question{questions.length !== 1 ? 's' : ''}</Text>
+        </View>
+      </View>
+
+      <View style={styles.introContent}>
+        {/* Exam icon */}
+        <View style={styles.introIconWrap}>
+          <Mic size={40} color={TG.accent} />
+        </View>
+        <Text style={styles.introTitle}>Ready to Begin?</Text>
+        <Text style={styles.introDesc}>
+          Complete the steps below before starting your speaking test.
+        </Text>
+
+        {/* Step 1 */}
+        <TouchableOpacity
+          style={[styles.introStep, micGranted && styles.introStepDone]}
+          onPress={requestMic}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.introStepNum, micGranted && styles.introStepNumDone]}>
+            {micGranted ? (
+              <CheckCircle2 size={20} color={TG.textWhite} />
+            ) : (
+              <Text style={styles.introStepNumText}>1</Text>
+            )}
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.introStepTitle, micGranted && { color: TG.green }]}>
+              Microphone Access
+            </Text>
+            <Text style={styles.introStepHint}>
+              {micGranted ? 'Permission granted' : 'Tap to allow microphone access'}
+            </Text>
+          </View>
+          {micGranted ? (
+            <Mic size={20} color={TG.green} />
+          ) : (
+            <MicOff size={20} color={TG.textHint} />
+          )}
+        </TouchableOpacity>
+
+        {/* Step 2 */}
+        <View style={[styles.introStep, { opacity: micGranted ? 1 : 0.5 }]}>
+          <View style={styles.introStepNum}>
+            <Text style={styles.introStepNumText}>2</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.introStepTitle}>Start Test</Text>
+            <Text style={styles.introStepHint}>
+              {loadingQ ? 'Loading questions...' : `${questions.length} questions · prep time + recording`}
+            </Text>
+          </View>
+          <Shield size={20} color={TG.textHint} />
+        </View>
+
+        <View style={{ flex: 1 }} />
+
+        {/* Start button */}
+        <TouchableOpacity
+          style={[styles.introStartBtn, (!micGranted || loadingQ) && { opacity: 0.4 }]}
+          onPress={startTest}
+          disabled={!micGranted || loadingQ}
+          activeOpacity={0.8}
+        >
+          <Play size={22} color={TG.textWhite} />
+          <Text style={styles.introStartText}>Start Test</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
 
   if (loadingQ) return (
     <SafeAreaView style={[styles.safeArea, styles.centerFull]}>
@@ -233,7 +404,7 @@ export default function SpeakingScreen() {
         </View>
         <View style={styles.headerBadge}>
           <Text style={styles.headerBadgeText}>
-            {phase === 'prep' ? 'PREP' : phase === 'speak' ? 'REC' : 'DONE'}
+            {phase === 'prep' || phase === 'beep' ? 'PREP' : phase === 'speak' ? 'REC' : 'DONE'}
           </Text>
         </View>
       </View>
@@ -344,7 +515,7 @@ export default function SpeakingScreen() {
           </CircularProgress>
           <View style={styles.timerTextArea}>
             <Text style={styles.timerLabel}>
-              {phase === 'prep' ? 'Preparation Time' : 'Recording Time'}
+              {phase === 'prep' || phase === 'beep' ? 'Preparation Time' : 'Recording Time'}
             </Text>
             <Text style={[styles.timerValue, phase === 'speak' && { color: TG.red }]}>
               {minutes}:{seconds}
@@ -377,8 +548,8 @@ export default function SpeakingScreen() {
         )}
 
         {/* Action buttons */}
-        {phase === 'prep' ? (
-          <TouchableOpacity style={styles.startBtn} onPress={() => setTimeLeft(0)} activeOpacity={0.8}>
+        {phase === 'prep' || phase === 'beep' ? (
+          <TouchableOpacity style={styles.startBtn} onPress={() => { setPhase('beep'); }} activeOpacity={0.8} disabled={phase === 'beep'}>
             <View style={styles.btnIconCircle}>
               <Mic size={20} color={TG.textWhite} />
             </View>
@@ -566,4 +737,42 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   uploadingText: { fontSize: 14, fontWeight: '600', color: TG.textSecondary },
+
+  // Intro screen
+  introContent: {
+    flex: 1, paddingHorizontal: 24, paddingTop: 32, paddingBottom: 28,
+    alignItems: 'center',
+  },
+  introIconWrap: {
+    width: 88, height: 88, borderRadius: 44,
+    backgroundColor: TG.accentLight, justifyContent: 'center', alignItems: 'center',
+    marginBottom: 20,
+  },
+  introTitle: { fontSize: 24, fontWeight: '800', color: TG.textPrimary, marginBottom: 8 },
+  introDesc: {
+    fontSize: 14, color: TG.textSecondary, textAlign: 'center',
+    lineHeight: 20, marginBottom: 32, paddingHorizontal: 12,
+  },
+  introStep: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    backgroundColor: TG.bgSecondary, borderRadius: 14,
+    paddingVertical: 16, paddingHorizontal: 16,
+    width: '100%', marginBottom: 12,
+    borderWidth: 1, borderColor: TG.separator,
+  },
+  introStepDone: { borderColor: TG.green + '40', backgroundColor: TG.green + '08' },
+  introStepNum: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: TG.accent, justifyContent: 'center', alignItems: 'center',
+  },
+  introStepNumDone: { backgroundColor: TG.green },
+  introStepNumText: { fontSize: 14, fontWeight: '800', color: TG.textWhite },
+  introStepTitle: { fontSize: 16, fontWeight: '700', color: TG.textPrimary },
+  introStepHint: { fontSize: 12, color: TG.textSecondary, marginTop: 2 },
+  introStartBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
+    backgroundColor: TG.accent, borderRadius: 14,
+    paddingVertical: 16, width: '100%',
+  },
+  introStartText: { fontSize: 17, fontWeight: '700', color: TG.textWhite },
 });
