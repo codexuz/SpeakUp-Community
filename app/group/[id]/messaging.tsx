@@ -919,6 +919,7 @@ export default function GroupMessagingScreen() {
           >
             <Paperclip size={22} color={TG.textSecondary} />
           </TouchableOpacity>
+          <View style={styles.inputWrapper}>
           <EnrichedTextInput
             ref={inputRef}
             style={styles.input}
@@ -943,6 +944,7 @@ export default function GroupMessagingScreen() {
               },
             }}
           />
+          </View>
           <TouchableOpacity
             style={styles.sendBtn}
             onPress={handleSend}
@@ -1248,20 +1250,26 @@ const styles = StyleSheet.create({
     backgroundColor: TG.bg,
     paddingHorizontal: 8,
     paddingTop: 6,
-    gap: 4,
+    gap: 6,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: TG.separator,
   },
   inputIcon: { padding: 8 },
-  input: {
+  inputWrapper: {
     flex: 1,
     backgroundColor: TG.bgSecondary,
     borderRadius: 20,
     paddingHorizontal: 14,
-    paddingVertical: Platform.OS === 'ios' ? 10 : 8,
+    paddingVertical: Platform.OS === 'ios' ? 8 : 6,
+    overflow: 'hidden',
+    minHeight: 40,
+    justifyContent: 'center',
+  },
+  input: {
     fontSize: 15,
     color: TG.textPrimary,
     maxHeight: 120,
+    minHeight: 24,
   },
   sendBtn: {
     width: 40,
