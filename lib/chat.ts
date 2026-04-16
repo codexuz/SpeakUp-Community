@@ -10,6 +10,26 @@ const API = `${BASE_URL}/api`;
 // ─── Types ────────────────────────────────────────────────
 export type MessageType = 'text' | 'image' | 'video' | 'file' | 'system';
 
+export type EntityType =
+  | 'mention'
+  | 'hashtag'
+  | 'url'
+  | 'bold'
+  | 'italic'
+  | 'underline'
+  | 'code'
+  | 'pre'
+  | 'text_link'
+  | 'text_mention';
+
+export interface MessageEntity {
+  type: EntityType;
+  offset: number;
+  length: number;
+  url?: string;
+  userId?: string;
+}
+
 export interface ChatAttachment {
   id: string;
   messageId: string;
@@ -33,6 +53,7 @@ export interface ChatMessage {
   senderId: string;
   type: MessageType;
   text: string | null;
+  entities: MessageEntity[] | null;
   replyToId: string | null;
   isEdited: boolean;
   isDeleted: boolean;
@@ -48,8 +69,34 @@ export interface ChatMessage {
   } | null;
 }
 
+export interface UnreadCount {
+  groupId: string;
+  unreadCount: number;
+  lastMessage: {
+    id: string;
+    text: string | null;
+    type: MessageType;
+    createdAt: string;
+    sender: Pick<ChatSender, 'id' | 'fullName' | 'username'>;
+  } | null;
+}
+
 export interface PaginatedMessages {
   data: ChatMessage[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
+export interface PaginatedAttachments {
+  data: (ChatAttachment & {
+    message: {
+      id: string;
+      senderId: string;
+      type: MessageType;
+      createdAt: string;
+      sender: Pick<ChatSender, 'id' | 'fullName' | 'username'>;
+    };
+  })[];
   nextCursor: string | null;
   hasMore: boolean;
 }
@@ -83,14 +130,23 @@ export async function sendTextMessage(
   groupId: string,
   text: string,
   replyToId?: string | null,
+  entities?: MessageEntity[] | null,
 ): Promise<ChatMessage> {
   const h = await authHeaders();
   const res = await fetch(`${API}/group-chat/${groupId}/messages`, {
     method: 'POST',
     headers: h,
-    body: JSON.stringify({ text, replyToId: replyToId ?? null }),
+    body: JSON.stringify({
+      text,
+      replyToId: replyToId ?? null,
+      entities: entities ?? null,
+    }),
   });
-  if (!res.ok) throw new Error('Failed to send message');
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    console.error('sendTextMessage failed:', res.status, body);
+    throw new Error(`Failed to send message: ${res.status}`);
+  }
   return res.json();
 }
 
@@ -118,11 +174,16 @@ export async function editMessage(
   groupId: string,
   messageId: string,
   text: string,
+  entities?: MessageEntity[] | null,
 ): Promise<ChatMessage> {
   const h = await authHeaders();
   const res = await fetch(
     `${API}/group-chat/${groupId}/messages/${messageId}`,
-    { method: 'PUT', headers: h, body: JSON.stringify({ text }) },
+    {
+      method: 'PUT',
+      headers: h,
+      body: JSON.stringify({ text, entities: entities ?? null }),
+    },
   );
   if (!res.ok) throw new Error('Failed to edit message');
   return res.json();
@@ -152,6 +213,72 @@ export async function searchMessages(
   );
   if (!res.ok) throw new Error('Search failed');
   return res.json();
+}
+
+export async function getMessage(
+  groupId: string,
+  messageId: string,
+): Promise<ChatMessage> {
+  const h = await authHeaders();
+  const res = await fetch(
+    `${API}/group-chat/${groupId}/messages/${messageId}`,
+    { headers: h },
+  );
+  if (!res.ok) throw new Error('Failed to get message');
+  return res.json();
+}
+
+export async function fetchMedia(
+  groupId: string,
+  cursor?: string | null,
+  limit = 30,
+): Promise<PaginatedAttachments> {
+  const h = await authHeaders();
+  const qs = cursor
+    ? `?limit=${limit}&cursor=${cursor}`
+    : `?limit=${limit}`;
+  const res = await fetch(
+    `${API}/group-chat/${groupId}/media${qs}`,
+    { headers: h },
+  );
+  if (!res.ok) throw new Error('Failed to load media');
+  return res.json();
+}
+
+export async function fetchFiles(
+  groupId: string,
+  cursor?: string | null,
+  limit = 30,
+): Promise<PaginatedAttachments> {
+  const h = await authHeaders();
+  const qs = cursor
+    ? `?limit=${limit}&cursor=${cursor}`
+    : `?limit=${limit}`;
+  const res = await fetch(
+    `${API}/group-chat/${groupId}/files${qs}`,
+    { headers: h },
+  );
+  if (!res.ok) throw new Error('Failed to load files');
+  return res.json();
+}
+
+export async function fetchUnreadCounts(): Promise<{ data: UnreadCount[] }> {
+  const h = await authHeaders();
+  const res = await fetch(`${API}/group-chat/unread/counts`, { headers: h });
+  if (!res.ok) throw new Error('Failed to load unread counts');
+  return res.json();
+}
+
+export async function markReadREST(
+  groupId: string,
+  lastMessageId: string,
+): Promise<void> {
+  const h = await authHeaders();
+  await fetch(`${API}/group-chat/${groupId}/read`, {
+    method: 'POST',
+    headers: h,
+    body: JSON.stringify({ lastMessageId }),
+  });
 }
 
 // ─── Hook ─────────────────────────────────────────────────
@@ -229,6 +356,14 @@ export function useGroupChat(groupId: string) {
           });
         }
       });
+
+      socket.on('messages-read', (data: { groupId: string; userId: string; lastMessageId: string }) => {
+        // Read receipt received — can be used to update checkmarks
+      });
+
+      socket.on('joined-group', (data: { groupId: string }) => {
+        console.log('Joined group room:', data.groupId);
+      });
     })();
 
     return () => {
@@ -258,8 +393,8 @@ export function useGroupChat(groupId: string) {
 
   // Send text
   const sendText = useCallback(
-    async (text: string, replyToId?: string) => {
-      return sendTextMessage(groupId, text, replyToId);
+    async (text: string, replyToId?: string, entities?: MessageEntity[]) => {
+      return sendTextMessage(groupId, text, replyToId, entities);
     },
     [groupId],
   );
@@ -286,6 +421,9 @@ export function useGroupChat(groupId: string) {
   // Mark read
   const markRead = useCallback(
     (lastMessageId: string) => {
+      // Persist via REST
+      markReadREST(groupId, lastMessageId).catch(() => {});
+      // Also emit for real-time read receipts
       socketRef.current?.emit('mark-read', { groupId, lastMessageId });
     },
     [groupId],

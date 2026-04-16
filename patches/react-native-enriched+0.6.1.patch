@@ -1,0 +1,16 @@
+﻿diff --git a/android/src/main/java/com/swmansion/enriched/textinput/events/OnContextMenuItemPressEvent.kt b/android/src/main/java/com/swmansion/enriched/textinput/events/OnContextMenuItemPressEvent.kt
+--- a/android/src/main/java/com/swmansion/enriched/textinput/events/OnContextMenuItemPressEvent.kt
++++ b/android/src/main/java/com/swmansion/enriched/textinput/events/OnContextMenuItemPressEvent.kt
+@@ -20,7 +20,11 @@
+     eventData.putString("selectedText", selectedText)
+     eventData.putInt("selectionStart", selectionStart)
+     eventData.putInt("selectionEnd", selectionEnd)
+-    eventData.putMap("styleState", styleState)
++    // Copy styleState to avoid ObjectAlreadyConsumedException
++    // when getEventData() is called multiple times by the event dispatcher
++    val styleStateCopy: WritableMap = Arguments.createMap()
++    styleStateCopy.merge(styleState)
++    eventData.putMap("styleState", styleStateCopy)
+     return eventData
+   }
+ 

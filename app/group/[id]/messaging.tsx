@@ -1,80 +1,138 @@
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
 import {
-    ChatAttachment,
-    ChatMessage,
-    deleteMessage,
-    editMessage,
-    useGroupChat,
+  ChatAttachment,
+  ChatMessage,
+  deleteMessage,
+  editMessage,
+  MessageEntity,
+  useGroupChat
 } from '@/lib/chat';
 import { fetchGroupById, Group } from '@/lib/groups';
+import { entitiesToHtml, htmlToEntities } from '@/lib/markdown';
 import { useAuth } from '@/store/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { File as ExpoFile, Paths } from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { openBrowserAsync } from 'expo-web-browser';
 import {
-    ArrowLeft,
-    CheckCheck,
-    CornerUpLeft,
-    Download,
-    File,
-    MessageSquare,
-    Paperclip,
-    Pencil,
-    Play,
-    Send,
-    Trash2,
-    Video,
-    X
+  ArrowLeft,
+  CheckCheck,
+  CornerUpLeft,
+  Download,
+  File,
+  MessageSquare,
+  Paperclip,
+  Pencil,
+  Play,
+  Send,
+  Trash2,
+  Video,
+  X
 } from 'lucide-react-native';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Dimensions,
-    FlatList,
-    Image,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    Pressable,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Dimensions,
+  FlatList,
+  Image,
+  KeyboardAvoidingView,
+  Linking,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
+import type { EnrichedTextInputInstance } from 'react-native-enriched';
+import { EnrichedTextInput } from 'react-native-enriched';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, {
-    runOnJS,
-    useAnimatedStyle,
-    useSharedValue,
-    withSpring,
-    withTiming,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
 } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
 
 const URL_REGEX = /(https?:\/\/[^\s]+)/g;
 
-function LinkedText({ text, style }: { text: string; style: any }) {
-  const parts = text.split(URL_REGEX);
-  if (parts.length === 1) return <Text style={style}>{text}</Text>;
+// ─── Styled segment builder for entity rendering ─────────
+type StyledSegment = { text: string; style: any; url?: string };
+
+function buildStyledSegments(text: string, entities: MessageEntity[]): StyledSegment[] {
+  if (!entities || entities.length === 0) return [{ text, style: {} }];
+  const boundaries = new Set<number>([0, text.length]);
+  for (const ent of entities) {
+    boundaries.add(Math.max(0, ent.offset));
+    boundaries.add(Math.min(text.length, ent.offset + ent.length));
+  }
+  const sorted = [...boundaries].sort((a, b) => a - b);
+  const segments: StyledSegment[] = [];
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const start = sorted[i];
+    const end = sorted[i + 1];
+    if (start >= end) continue;
+    const segText = text.slice(start, end);
+    const style: any = {};
+    let url: string | undefined;
+    for (const ent of entities) {
+      if (ent.offset <= start && ent.offset + ent.length >= end) {
+        switch (ent.type) {
+          case 'bold': style.fontWeight = '700'; break;
+          case 'italic': style.fontStyle = 'italic'; break;
+          case 'underline': style.textDecorationLine = 'underline'; break;
+          case 'code':
+          case 'pre':
+            style.fontFamily = Platform.OS === 'ios' ? 'Menlo' : 'monospace';
+            style.fontSize = 14;
+            style.backgroundColor = 'rgba(0,0,0,0.06)';
+            break;
+          case 'text_link':
+            style.color = TG.accent;
+            style.textDecorationLine = 'underline';
+            url = ent.url;
+            break;
+          case 'mention':
+          case 'text_mention':
+            style.fontWeight = '700';
+            style.color = TG.accent;
+            break;
+        }
+      }
+    }
+    segments.push({ text: segText, style, url });
+  }
+  return segments;
+}
+
+function MessageText({ text, entities }: { text: string; entities?: MessageEntity[] | null }) {
+  const segments = useMemo(() => {
+    let t = text;
+    let ents = entities;
+    // Handle corrupted messages where text is raw HTML
+    if ((!ents || ents.length === 0) && /<[a-z][\s\S]*>/i.test(t)) {
+      const parsed = htmlToEntities(t);
+      t = parsed.text;
+      ents = parsed.entities;
+    }
+    return buildStyledSegments(t, ents || []);
+  }, [text, entities]);
+
   return (
-    <Text style={style}>
-      {parts.map((part, i) =>
-        URL_REGEX.test(part) ? (
-          <Text
-            key={i}
-            style={{ color: TG.accent, textDecorationLine: 'underline' }}
-            onPress={() => openBrowserAsync(part)}
-          >
-            {part}
+    <Text style={{ fontSize: 15, color: TG.textPrimary, lineHeight: 21 }}>
+      {segments.map((seg, i) =>
+        seg.url ? (
+          <Text key={i} style={seg.style} onPress={() => Linking.openURL(seg.url!)}>
+            {seg.text}
           </Text>
         ) : (
-          <Text key={i}>{part}</Text>
+          <Text key={i} style={seg.style}>{seg.text}</Text>
         ),
       )}
     </Text>
@@ -378,9 +436,11 @@ export default function GroupMessagingScreen() {
   const [sending, setSending] = useState(false);
   const [viewerAtt, setViewerAtt] = useState<ChatAttachment | null>(null);
   const [viewerOpen, setViewerOpen] = useState(false);
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<EnrichedTextInputInstance>(null);
   const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flatListRef = useRef<FlatList>(null);
+  const htmlRef = useRef('');
+  const skipNextTextChange = useRef(false);
 
   const {
     messages,
@@ -414,6 +474,10 @@ export default function GroupMessagingScreen() {
 
   // Typing handler
   const handleTextChange = (val: string) => {
+    if (skipNextTextChange.current) {
+      skipNextTextChange.current = false;
+      return;
+    }
     setText(val);
     sendTyping(true);
     if (typingTimeout.current) clearTimeout(typingTimeout.current);
@@ -423,17 +487,48 @@ export default function GroupMessagingScreen() {
   // Send
   const handleSend = async () => {
     const trimmed = text.trim();
+    console.log('Sending message:', { trimmed, replyTo, editingMsg, html: htmlRef.current });
     if (!trimmed && !editingMsg) return;
     setSending(true);
     try {
+      let sendText: string;
+      let entities: MessageEntity[] = [];
+
+      // Use tracked HTML from onChangeHtml, fallback to getHTML()
+      let html = htmlRef.current || (await inputRef.current?.getHTML()) || '';
+      // Strip <html>...</html> wrapper that react-native-enriched adds
+      html = html.replace(/^<html>\s*/i, '').replace(/\s*<\/html>$/i, '');
+      if (html) {
+        const parsed = htmlToEntities(html);
+        const raw = parsed.text;
+        sendText = raw.trim();
+        // Shift entity offsets if leading whitespace was trimmed
+        const leadingTrimmed = raw.length - raw.trimStart().length;
+        if (leadingTrimmed > 0) {
+          entities = parsed.entities
+            .map(e => ({ ...e, offset: e.offset - leadingTrimmed }))
+            .filter(e => e.offset >= 0 && e.offset < sendText.length);
+        } else {
+          entities = parsed.entities;
+        }
+      } else {
+        sendText = trimmed;
+      }
+
+      if (!sendText) return;
+
+      console.log('Sending to API:', JSON.stringify({ sendText, entities }));
+
       if (editingMsg) {
-        await editMessage(id!, editingMsg.id, trimmed);
+        await editMessage(id!, editingMsg.id, sendText, entities.length > 0 ? entities : undefined);
         setEditingMsg(null);
       } else {
-        await sendChatText(trimmed, replyTo?.id);
+        await sendChatText(sendText, replyTo?.id, entities.length > 0 ? entities : undefined);
         setReplyTo(null);
       }
       setText('');
+      htmlRef.current = '';
+      inputRef.current?.setValue('');
       sendTyping(false);
     } catch (e: any) {
       toast.error('Error', e.message);
@@ -468,6 +563,7 @@ export default function GroupMessagingScreen() {
       });
       await sendFiles(files, text.trim() || undefined);
       setText('');
+      inputRef.current?.setValue('');
     } catch (e: any) {
       toast.error('Error', e.message);
     } finally {
@@ -493,7 +589,13 @@ export default function GroupMessagingScreen() {
 
   const handleEdit = (msg: ChatMessage) => {
     setEditingMsg(msg);
+    // Convert entities to HTML for the enriched input
+    // Must wrap in <html> tags — the native parser only recognizes HTML with this wrapper
+    const html = `<html>${entitiesToHtml(msg.text || '', msg.entities)}</html>`;
     setText(msg.text || '');
+    // Skip the onChangeText that fires from setValue (it may contain raw HTML)
+    skipNextTextChange.current = true;
+    inputRef.current?.setValue(html);
     setSelectedMsg(null);
     inputRef.current?.focus();
   };
@@ -662,7 +764,7 @@ export default function GroupMessagingScreen() {
                         )}
 
                         {/* Text */}
-                        {msg.text && <LinkedText style={styles.msgText} text={msg.text} />}
+                        {msg.text && <MessageText text={msg.text} entities={msg.entities} />}
                       </>
                     )}
 
@@ -799,6 +901,8 @@ export default function GroupMessagingScreen() {
                 setReplyTo(null);
                 setEditingMsg(null);
                 setText('');
+                htmlRef.current = '';
+                inputRef.current?.setValue('');
               }}
             >
               <X size={20} color={TG.textSecondary} />
@@ -815,15 +919,29 @@ export default function GroupMessagingScreen() {
           >
             <Paperclip size={22} color={TG.textSecondary} />
           </TouchableOpacity>
-          <TextInput
+          <EnrichedTextInput
             ref={inputRef}
             style={styles.input}
-            value={text}
-            onChangeText={handleTextChange}
+            onChangeText={(e) => handleTextChange(e.nativeEvent.value)}
+            onChangeHtml={(e) => { htmlRef.current = e.nativeEvent.value; }}
             placeholder="Message"
             placeholderTextColor={TG.textHint}
-            multiline
-            maxLength={4000}
+            contextMenuItems={[
+              { text: 'Bold', onPress: () => inputRef.current?.toggleBold() },
+              { text: 'Italic', onPress: () => inputRef.current?.toggleItalic() },
+              { text: 'Underline', onPress: () => inputRef.current?.toggleUnderline() },
+              { text: 'Code', onPress: () => inputRef.current?.toggleInlineCode() },
+            ]}
+            htmlStyle={{
+              code: {
+                color: TG.textPrimary,
+                backgroundColor: 'rgba(0,0,0,0.06)',
+              },
+              a: {
+                color: TG.accent,
+                textDecorationLine: 'underline',
+              },
+            }}
           />
           <TouchableOpacity
             style={styles.sendBtn}
@@ -1203,4 +1321,6 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   actionText: { fontSize: 16, fontWeight: '600', color: TG.textPrimary },
+
+
 });
