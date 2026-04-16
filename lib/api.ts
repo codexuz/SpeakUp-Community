@@ -170,8 +170,18 @@ export async function apiRevokeAllSessions() {
 // Tests
 // =============================================
 
-export async function apiFetchTests() {
-  return request<any[]>('/tests');
+export interface PaginatedTestsResponse {
+  data: any[];
+  meta: { total: number; page: number; limit: number; totalPages: number };
+}
+
+export async function apiFetchTests(opts?: { testType?: 'cefr' | 'ielts'; page?: number; limit?: number }) {
+  const params = new URLSearchParams();
+  if (opts?.testType) params.set('testType', opts.testType);
+  if (opts?.page) params.set('page', String(opts.page));
+  if (opts?.limit) params.set('limit', String(opts.limit));
+  const query = params.toString() ? `?${params.toString()}` : '';
+  return request<PaginatedTestsResponse>(`/tests${query}`);
 }
 
 export async function apiFetchQuestion(id: number) {
@@ -506,7 +516,7 @@ export async function apiReviewVerification(id: string, data: { status: 'approve
 // Tests CRUD (teacher/admin)
 // =============================================
 
-export async function apiCreateTest(data: { title: string; description?: string }) {
+export async function apiCreateTest(data: { title: string; description?: string; testType?: 'cefr' | 'ielts' }) {
   const user = await getStoredUser();
   if (user?.role !== 'admin' && !(user?.role === 'teacher' && user?.verifiedTeacher)) {
     throw new Error('Only verified teachers can create tests');
@@ -517,7 +527,7 @@ export async function apiCreateTest(data: { title: string; description?: string 
   });
 }
 
-export async function apiUpdateTest(testId: number, data: { title?: string; description?: string }) {
+export async function apiUpdateTest(testId: number, data: { title?: string; description?: string; testType?: 'cefr' | 'ielts' }) {
   return request<any>(`/tests/${testId}`, {
     method: 'PUT',
     body: JSON.stringify(data),
@@ -817,7 +827,7 @@ export async function apiTextToSpeech(text: string, voice: TTSVoice = 'erin') {
 // AI Feedback (v2)
 // =============================================
 
-import type { Achievement, AIFeedback, Challenge, ChallengeSubmission, Course, LeaderboardResponse, LessonDetail, SessionFeedbackResponse, UserProgress, UserReputation, WeeklySummary } from './types';
+import type { Achievement, AIFeedback, Challenge, ChallengeSubmission, Course, CourseUnit, Exercise, LeaderboardResponse, Lesson, LessonDetail, SessionFeedbackResponse, UserProgress, UserReputation, WeeklySummary } from './types';
 
 export async function apiFetchAIFeedback(responseId: string) {
   return request<AIFeedback>(`/ai-feedback/${responseId}`);
@@ -914,8 +924,11 @@ export async function apiFetchChallengeHistory(page = 1, limit = 20) {
 // Courses (v2)
 // =============================================
 
-export async function apiFetchCourses(level?: string) {
-  const qs = level ? `?level=${level}` : '';
+export async function apiFetchCourses(level?: string, all?: boolean) {
+  const params = new URLSearchParams();
+  if (level) params.set('level', level);
+  if (all) params.set('all', 'true');
+  const qs = params.toString() ? `?${params.toString()}` : '';
   return request<{ data: Course[] }>(`/courses${qs}`);
 }
 
@@ -932,4 +945,108 @@ export async function apiCompleteLesson(lessonId: string, score?: number) {
     method: 'POST',
     body: JSON.stringify({ score }),
   });
+}
+
+// =============================================
+// Course Admin (v2)
+// =============================================
+
+export async function apiCreateCourse(data: { title: string; description: string; level: string; imageUri?: string; order?: number; isPublished?: boolean }) {
+  const url = `${API_URL}/courses/admin/create`;
+  const token = await getStoredAuthToken();
+  const headers: Record<string, string> = {
+    'User-Agent': getUserAgent(),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+
+  const formData = new FormData();
+  formData.append('title', data.title);
+  formData.append('description', data.description);
+  formData.append('level', data.level);
+  if (data.isPublished != null) formData.append('isPublished', String(data.isPublished));
+  if (data.order != null) formData.append('order', String(data.order));
+  if (data.imageUri) {
+    formData.append('image', {
+      uri: data.imageUri,
+      name: `course_${Date.now()}.jpg`,
+      type: 'image/jpeg',
+    } as any);
+  }
+
+  const res = await fetch(url, { method: 'POST', headers, body: formData });
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(errBody.error || `Create failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function apiUpdateCourse(id: string, data: Partial<{ title: string; description: string; level: string; imageUri: string; isPublished: boolean; order: number }>) {
+  const url = `${API_URL}/courses/admin/${id}`;
+  const token = await getStoredAuthToken();
+  const headers: Record<string, string> = {
+    'User-Agent': getUserAgent(),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+
+  const formData = new FormData();
+  if (data.title != null) formData.append('title', data.title);
+  if (data.description != null) formData.append('description', data.description);
+  if (data.level != null) formData.append('level', data.level);
+  if (data.isPublished != null) formData.append('isPublished', String(data.isPublished));
+  if (data.order != null) formData.append('order', String(data.order));
+  if (data.imageUri) {
+    formData.append('image', {
+      uri: data.imageUri,
+      name: `course_${Date.now()}.jpg`,
+      type: 'image/jpeg',
+    } as any);
+  }
+
+  const res = await fetch(url, { method: 'PUT', headers, body: formData });
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(errBody.error || `Update failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function apiDeleteCourse(id: string) {
+  return request(`/courses/admin/${id}`, { method: 'DELETE' });
+}
+
+export async function apiCreateCourseUnit(data: { courseId: string; title: string; order?: number }) {
+  return request<CourseUnit>('/courses/admin/units', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function apiUpdateCourseUnit(id: string, data: Partial<{ title: string; order: number }>) {
+  return request<CourseUnit>(`/courses/admin/units/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+}
+
+export async function apiDeleteCourseUnit(id: string) {
+  return request(`/courses/admin/units/${id}`, { method: 'DELETE' });
+}
+
+export async function apiCreateLessonAdmin(data: { unitId: string; title: string; order?: number; xpReward?: number }) {
+  return request<Lesson>('/courses/admin/lessons', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function apiUpdateLessonAdmin(id: string, data: Partial<{ title: string; order: number; xpReward: number }>) {
+  return request<Lesson>(`/courses/admin/lessons/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+}
+
+export async function apiDeleteLessonAdmin(id: string) {
+  return request(`/courses/admin/lessons/${id}`, { method: 'DELETE' });
+}
+
+export async function apiCreateExercise(data: { lessonId: string; type: string; prompt: string; order?: number; correctAnswer?: string | null; options?: string[] | null; audioUrl?: string | null; imageUrl?: string | null; hints?: string[] | null }) {
+  return request<Exercise>('/courses/admin/exercises', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function apiUpdateExercise(id: string, data: Partial<{ type: string; prompt: string; order: number; correctAnswer: string | null; options: string[] | null; audioUrl: string | null; imageUrl: string | null; hints: string[] | null }>) {
+  return request<Exercise>(`/courses/admin/exercises/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+}
+
+export async function apiDeleteExercise(id: string) {
+  return request(`/courses/admin/exercises/${id}`, { method: 'DELETE' });
 }

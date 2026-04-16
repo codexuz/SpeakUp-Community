@@ -114,14 +114,16 @@ export default function CommunityScreen() {
       <View style={styles.topRow}>
         <View style={styles.userTapArea}>
           <View style={styles.avatar}>
-            {item.user?.avatarUrl ? (
+            {item.isAnonymous ? (
+              <Text style={styles.avatarText}>A</Text>
+            ) : item.user?.avatarUrl ? (
               <Image source={{ uri: item.user.avatarUrl }} style={styles.avatarImage} />
             ) : (
               <Text style={styles.avatarText}>{(item.user?.fullName || '?').charAt(0)}</Text>
             )}
           </View>
           <View style={styles.nameBlock}>
-            <Text style={styles.userName} numberOfLines={1}>{item.user?.fullName || 'Unknown'}</Text>
+            <Text style={styles.userName} numberOfLines={1}>{item.isAnonymous ? 'Anonymous Student' : (item.user?.fullName || 'Unknown')}</Text>
             <Text style={styles.dateText}>
               {new Date(item.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
             </Text>

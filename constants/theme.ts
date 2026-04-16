@@ -6,7 +6,7 @@ export const TG = {
   bg: '#ffffff',
   bgSecondary: '#f0f2f5',
   bgChat: '#e6ebee',
-  headerBg: '#517da2',
+  headerBg: '#007aff',
   // Text
   textPrimary: '#000000',
   textSecondary: '#707579',

@@ -65,6 +65,7 @@ function RootNavigator() {
         <Stack.Screen name="(teacher)" options={{ headerShown: false }} />
         <Stack.Screen name="(admin)" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="speaking/index" options={{ headerShown: false }} />
         <Stack.Screen name="speaking/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="session/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="review/[id]/index" options={{ headerShown: false }} />
@@ -86,11 +87,18 @@ function RootNavigator() {
         <Stack.Screen name="sessions" options={{ headerShown: false }} />
         <Stack.Screen name="teacher-verification" options={{ headerShown: false }} />
         <Stack.Screen name="test/index" options={{ headerShown: false }} />
-        <Stack.Screen name="test/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="test/create" options={{ headerShown: false }} />
+        <Stack.Screen name="test/[id]/index" options={{ headerShown: false }} />
+        <Stack.Screen name="test/[id]/edit" options={{ headerShown: false }} />
         <Stack.Screen name="test/question" options={{ headerShown: false }} />
         <Stack.Screen name="ads/create" options={{ headerShown: false }} />
+        <Stack.Screen name="ads/index" options={{ headerShown: false }} />
         <Stack.Screen name="ads/[id]/edit" options={{ headerShown: false }} />
         <Stack.Screen name="ai-feedback/[responseId]" options={{ headerShown: false }} />
+        <Stack.Screen name="streak/index" options={{ headerShown: false }} />
+        <Stack.Screen name="admin/courses/create" options={{ headerShown: false }} />
+        <Stack.Screen name="admin/courses/[id]/index" options={{ headerShown: false }} />
+        <Stack.Screen name="admin/courses/lessons/[id]/index" options={{ headerShown: false }} />
       </Stack>
       {needsRedirect && <Redirect href={redirectTarget as any} />}
     </ThemeProvider>

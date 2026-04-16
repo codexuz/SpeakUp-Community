@@ -4,164 +4,236 @@ import { apiFetchAchievements, apiFetchProgress, apiFetchReputation, apiGetUserP
 import type { Achievement, UserProgress, UserReputation } from '@/lib/types';
 import { useAuth } from '@/store/auth';
 import { useFocusEffect } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { Award, ChevronRight, Edit2, Flame, Heart, LogOut, MapPin, Monitor, Phone, Shield, Star, User as UserIcon, Zap } from 'lucide-react-native';
+import {
+  Award,
+  ChevronRight,
+  Edit2,
+  Flame,
+  Heart,
+  LogOut,
+  MapPin,
+  Monitor,
+  Phone,
+  Shield,
+  Star,
+  User as UserIcon,
+  Zap,
+} from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  Dimensions,
+  Image,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+const { width } = Dimensions.get('window');
+
+const COLORS = {
+  background: TG.bgSecondary,
+  surface: TG.bg,
+  text: TG.textPrimary,
+  textMuted: TG.textSecondary,
+  primary: TG.accent,
+  secondary: TG.accentDark,
+  accent: TG.gold,
+  success: TG.scoreGreen,
+  danger: TG.scoreRed,
+  gold: TG.gold,
+  border: TG.separator,
+  gradientPrimary: [TG.headerBg, TG.accentDark] as const,
+  gradientAccent: [TG.streakOrange, TG.scoreOrange] as const,
+  gradientBlue: [TG.mentorTeal, TG.accent] as const,
+};
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
   const router = useRouter();
   const { alert } = useAlert();
+  
+  const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState({ followers: 0, following: 0 });
   const [progress, setProgress] = useState<UserProgress | null>(null);
   const [reputation, setReputation] = useState<UserReputation | null>(null);
   const [achievements, setAchievements] = useState<Achievement[]>([]);
 
+  const loadData = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const [profileRes, progRes, repRes, achRes] = await Promise.allSettled([
+        apiGetUserProfile(user.id),
+        apiFetchProgress(),
+        apiFetchReputation(user.id),
+        apiFetchAchievements(),
+      ]);
+
+      if (profileRes.status === 'fulfilled') setStats(profileRes.value.stats);
+      if (progRes.status === 'fulfilled') setProgress(progRes.value);
+      if (repRes.status === 'fulfilled') setReputation(repRes.value);
+      if (achRes.status === 'fulfilled') setAchievements(achRes.value.data || []);
+    } catch (e) {
+      console.log('Error loading profile data', e);
+    }
+  }, [user?.id]);
+
   useFocusEffect(
     useCallback(() => {
-      if (!user?.id) return;
-      apiGetUserProfile(user.id)
-        .then((p) => setStats(p.stats))
-        .catch(() => {});
-      apiFetchProgress()
-        .then((res) => setProgress(res))
-        .catch(() => {});
-      apiFetchReputation(user.id)
-        .then((res) => setReputation(res))
-        .catch(() => {});
-      apiFetchAchievements()
-        .then((res) => setAchievements(res.data || []))
-        .catch(() => {});
-    }, [user?.id]),
+      loadData();
+    }, [loadData]),
   );
 
-  const handleLogout = async () => {
-    alert('Log Out', 'Are you sure you want to log out?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Log Out',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await apiLogout();
-          } catch {
-            // still logout locally even if API fails
-          }
-          logout();
-        },
-      },
-    ], 'warning');
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
   };
 
+  const handleLogout = async () => {
+    alert(
+      'Log Out',
+      'Are you sure you want to log out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Log Out',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await apiLogout();
+            } catch {
+              // still logout locally even if API fails
+            }
+            logout();
+          },
+        },
+      ],
+      'warning',
+    );
+  };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Profile</Text>
-        <TouchableOpacity onPress={() => router.push('/profile/edit' as any)} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Edit2 size={18} color={TG.textWhite} />
-        </TouchableOpacity>
-      </View>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={TG.accent} />}
+      >
+        {/* ── Header & Hero ── */}
+        <LinearGradient colors={COLORS.gradientPrimary} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={styles.heroBackground}>
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>Profile</Text>
+            <TouchableOpacity onPress={() => router.push('/profile/edit' as any)} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <View style={styles.editButtonIcon}>
+                <Edit2 size={16} color={COLORS.primary} />
+              </View>
+            </TouchableOpacity>
+          </View>
 
-      <ScrollView style={{ flex: 1, backgroundColor: TG.bgSecondary }} contentContainerStyle={{ paddingBottom: 40 }}>
-        <View style={styles.profileSection}>
-          <Image
-            source={{ uri: user?.avatarUrl || 'https://i.ibb.co/68vS1zZ/default-avatar.png' }}
-            style={styles.avatar}
-          />
-          <View style={{ flex: 1 }}>
+          <View style={styles.avatarSection}>
+            <View style={styles.avatarWrapper}>
+              <Image
+                source={{ uri: user?.avatarUrl || 'https://i.ibb.co/68vS1zZ/default-avatar.png' }}
+                style={styles.avatar}
+              />
+            </View>
             <Text style={styles.name}>{user?.fullName}</Text>
             <Text style={styles.username}>@{user?.username}</Text>
-          </View>
-          <View style={[styles.roleBadge, user?.role === 'teacher' && styles.teacherBadge]}>
-            <Text style={[styles.roleText, user?.role === 'teacher' && styles.teacherText]}>{user?.role}</Text>
-          </View>
-        </View>
 
-        <View style={styles.statsRow}>
-          <TouchableOpacity
-            style={styles.statCard}
-            activeOpacity={0.7}
-            onPress={() => router.push(`/followers/${user?.id}` as any)}
-          >
-            <Text style={styles.statNum}>{stats.followers}</Text>
-            <Text style={styles.statLabel}>Followers</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.statCard}
-            activeOpacity={0.7}
-            onPress={() => router.push(`/followings/${user?.id}` as any)}
-          >
-            <Text style={styles.statNum}>{stats.following}</Text>
-            <Text style={styles.statLabel}>Following</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.divider} />
-
-        <View style={styles.section}>
-          <View style={styles.infoRow}>
-            <MapPin size={18} color={TG.textSecondary} />
-            <Text style={styles.infoLabel}>Region</Text>
-            <Text style={styles.infoValue}>{user?.region || 'Not set'}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <UserIcon size={18} color={TG.textSecondary} />
-            <Text style={styles.infoLabel}>Gender</Text>
-            <Text style={styles.infoValue}>{user?.gender || 'Not set'}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Phone size={18} color={TG.textSecondary} />
-            <Text style={styles.infoLabel}>Phone</Text>
-            <Text style={styles.infoValue}>{user?.phone || 'Not set'}</Text>
-          </View>
-        </View>
-
-        <View style={styles.divider} />
-
-        {/* ── Gamification Stats ──────── */}
-        {progress && (
-          <View style={styles.gamificationSection}>
-            <Text style={styles.sectionTitle}>Progress</Text>
-            <View style={styles.gamStatsRow}>
-              <View style={styles.gamStatCard}>
-                <Flame size={20} color={TG.streakOrange} />
-                <Text style={styles.gamStatNum}>{progress.currentStreak}</Text>
-                <Text style={styles.gamStatLabel}>Day Streak</Text>
+            <View style={styles.roleRow}>
+              <View style={[styles.roleBadge, user?.role === 'teacher' && styles.roleBadgeTeacher]}>
+                <Text style={[styles.roleText, user?.role === 'teacher' && styles.roleTextTeacher]}>
+                  {user?.role === 'teacher' ? 'Teacher' : 'Student'}
+                </Text>
               </View>
-              <View style={styles.gamStatCard}>
-                <Zap size={20} color={TG.gold} />
-                <Text style={styles.gamStatNum}>{progress.xp}</Text>
-                <Text style={styles.gamStatLabel}>Total XP</Text>
-              </View>
-              <View style={styles.gamStatCard}>
-                <Star size={20} color={TG.accent} />
-                <Text style={styles.gamStatNum}>Lv.{progress.level}</Text>
-                <Text style={styles.gamStatLabel}>Level</Text>
-              </View>
-              <View style={styles.gamStatCard}>
-                <Text style={{ fontSize: 18 }}>🪙</Text>
-                <Text style={styles.gamStatNum}>{progress.coins}</Text>
-                <Text style={styles.gamStatLabel}>Coins</Text>
-              </View>
-            </View>
-            <View style={styles.xpBarWrap}>
-              <View style={styles.xpBarBg}>
-                <View style={[styles.xpBarFill, { width: `${progress.xpPercent}%` }]} />
-              </View>
-              <Text style={styles.xpBarLabel}>{progress.xpInCurrentLevel}/{progress.xpForNextLevel} XP</Text>
+              {user?.role === 'teacher' && user?.verifiedTeacher && (
+                <View style={[styles.roleBadge, styles.roleBadgeVerified]}>
+                  <Shield size={12} color={TG.textWhite} style={{ marginRight: 4 }} />
+                  <Text style={[styles.roleText, { color: TG.textWhite }]}>Verified</Text>
+                </View>
+              )}
             </View>
           </View>
-        )}
+        </LinearGradient>
 
-        {/* ── Reputation ─────────────── */}
-        {reputation && (
-          <>
-            <View style={styles.divider} />
-            <View style={styles.reputationSection}>
-              <View style={styles.sectionTitleRow}>
+        {/* ── Floating Stats Card ── */}
+        <View style={styles.floatingStatsWrapper}>
+          <View style={styles.floatingStatsCard}>
+            <TouchableOpacity
+              style={styles.floatingStatItem}
+              activeOpacity={0.7}
+              onPress={() => router.push(`/followers/${user?.id}` as any)}
+            >
+              <Text style={styles.floatingStatNum}>{stats.followers}</Text>
+              <Text style={styles.floatingStatLabel}>Followers</Text>
+            </TouchableOpacity>
+            <View style={styles.floatingStatDivider} />
+            <TouchableOpacity
+              style={styles.floatingStatItem}
+              activeOpacity={0.7}
+              onPress={() => router.push(`/followings/${user?.id}` as any)}
+            >
+              <Text style={styles.floatingStatNum}>{stats.following}</Text>
+              <Text style={styles.floatingStatLabel}>Following</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* ── Main Content Area ── */}
+        <View style={styles.mainContent}>
+          {/* Progress / Gamification */}
+          {progress && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Your Progress</Text>
+              <View style={styles.gamStatsRow}>
+                <LinearGradient colors={COLORS.gradientAccent} style={styles.gamStatCard}>
+                  <Flame size={24} color="#fff" />
+                  <Text style={styles.gamStatNumW}>{progress.currentStreak}</Text>
+                  <Text style={styles.gamStatLabelW}>Day Streak</Text>
+                </LinearGradient>
+                <LinearGradient colors={['#F5C542', '#E6A300']} style={styles.gamStatCard}>
+                  <Zap size={24} color="#fff" />
+                  <Text style={styles.gamStatNumW}>{progress.xp}</Text>
+                  <Text style={styles.gamStatLabelW}>Total XP</Text>
+                </LinearGradient>
+                <View style={[styles.gamStatCard, styles.gamStatCardGlass]}>
+                  <Text style={{ fontSize: 24 }}>🪙</Text>
+                  <Text style={styles.gamStatNumD}>{progress.coins}</Text>
+                  <Text style={styles.gamStatLabelD}>Coins</Text>
+                </View>
+              </View>
+
+              <View style={styles.levelCard}>
+                <View style={styles.levelHeader}>
+                  <View style={styles.levelBadge}>
+                    <Star size={14} color="#fff" fill="#fff" />
+                    <Text style={styles.levelBadgeText}>Level {progress.level}</Text>
+                  </View>
+                  <Text style={styles.xpText}>{progress.xpInCurrentLevel} / {progress.xpForNextLevel} XP</Text>
+                </View>
+                <View style={styles.progressBg}>
+                  <LinearGradient
+                    colors={COLORS.gradientPrimary}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={[styles.progressFill, { width: `${Math.max(5, progress.xpPercent)}%` }]}
+                  />
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* Reputation */}
+          {reputation && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeaderRow}>
                 <Text style={styles.sectionTitle}>Reputation</Text>
                 {reputation.mentorLabel ? (
                   <View style={styles.mentorBadge}>
@@ -170,68 +242,107 @@ export default function ProfileScreen() {
                   </View>
                 ) : null}
               </View>
-              <View style={styles.repRow}>
-                <View style={styles.repItem}>
-                  <Heart size={16} color={TG.red} />
-                  <Text style={styles.repNum}>{reputation.helpfulVotes}</Text>
-                  <Text style={styles.repLabel}>Helpful</Text>
+              
+              <View style={styles.repCardsRow}>
+                <View style={styles.repCard}>
+                  <View style={[styles.repIconBox, { backgroundColor: TG.redLight }]}>
+                    <Heart size={20} color={TG.red} />
+                  </View>
+                  <View style={styles.repCardInfo}>
+                    <Text style={styles.repCardNum}>{reputation.helpfulVotes}</Text>
+                    <Text style={styles.repCardLabel}>Helpful</Text>
+                  </View>
                 </View>
-                <View style={styles.repItem}>
-                  <Star size={16} color={TG.gold} />
-                  <Text style={styles.repNum}>{reputation.reviewsGiven}</Text>
-                  <Text style={styles.repLabel}>Reviews</Text>
+                <View style={styles.repCard}>
+                  <View style={[styles.repIconBox, { backgroundColor: TG.goldLight }]}>
+                    <Star size={20} color={TG.gold} />
+                  </View>
+                  <View style={styles.repCardInfo}>
+                    <Text style={styles.repCardNum}>{reputation.reviewsGiven}</Text>
+                    <Text style={styles.repCardLabel}>Reviews</Text>
+                  </View>
                 </View>
-                <View style={styles.repItem}>
-                  <Award size={16} color={TG.accent} />
-                  <Text style={styles.repNum}>{reputation.clarityScore.toFixed(1)}</Text>
-                  <Text style={styles.repLabel}>Clarity</Text>
+              </View>
+              <View style={[styles.repCard, { marginTop: 10 }]}>
+                <View style={[styles.repIconBox, { backgroundColor: TG.accentLight }]}>
+                  <Award size={20} color={TG.accent} />
+                </View>
+                <View style={styles.repCardInfo}>
+                  <Text style={styles.repCardNum}>{reputation.clarityScore.toFixed(1)} / 100</Text>
+                  <Text style={styles.repCardLabel}>Clarity Score</Text>
                 </View>
               </View>
             </View>
-          </>
-        )}
+          )}
 
-        {/* ── Achievements ───────────── */}
-        {achievements.length > 0 && (
-          <>
-            <View style={styles.divider} />
-            <View style={styles.achievementsSection}>
+          {/* Personal Info */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Personal Info</Text>
+            <View style={styles.infoCard}>
+              <View style={styles.infoRow}>
+                <View style={styles.infoIconWrap}>
+                  <MapPin size={18} color={COLORS.textMuted} />
+                </View>
+                <Text style={styles.infoLabel}>Region</Text>
+                <Text style={styles.infoValue}>{user?.region || 'Not set'}</Text>
+              </View>
+              <View style={styles.infoDivider} />
+              <View style={styles.infoRow}>
+                <View style={styles.infoIconWrap}>
+                  <UserIcon size={18} color={COLORS.textMuted} />
+                </View>
+                <Text style={styles.infoLabel}>Gender</Text>
+                <Text style={styles.infoValue}>{user?.gender || 'Not set'}</Text>
+              </View>
+              <View style={styles.infoDivider} />
+              <View style={styles.infoRow}>
+                <View style={styles.infoIconWrap}>
+                  <Phone size={18} color={COLORS.textMuted} />
+                </View>
+                <Text style={styles.infoLabel}>Phone</Text>
+                <Text style={styles.infoValue}>{user?.phone || 'Not set'}</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Achievements */}
+          {achievements.length > 0 && (
+            <View style={styles.section}>
               <Text style={styles.sectionTitle}>Achievements</Text>
-              <View style={styles.achieveGrid}>
-                {achievements.slice(0, 8).map((a) => (
-                  <View key={a.id} style={[styles.achieveCard, !a.unlocked && styles.achieveCardLocked]}>
-                    <Text style={styles.achieveEmoji}>🏆</Text>
-                    <Text style={[styles.achieveTitle, !a.unlocked && styles.achieveTitleLocked]} numberOfLines={1}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.achievementsScroll}>
+                {achievements.map((a, i) => (
+                  <View key={a.id} style={[styles.achievementCard, !a.unlocked && styles.achievementCardLocked]}>
+                    <View style={[styles.achievementIconBg, a.unlocked ? { backgroundColor: TG.goldLight } : {}]}>
+                      <Text style={styles.achievementEmoji}>🏆</Text>
+                    </View>
+                    <Text style={[styles.achievementTitle, !a.unlocked && styles.achievementTitleLocked]} numberOfLines={2}>
                       {a.title}
                     </Text>
-                    <Text style={styles.achieveCategory}>{a.category}</Text>
                   </View>
                 ))}
-              </View>
-              {achievements.length > 8 && (
-                <TouchableOpacity style={styles.showAllBtn}>
-                  <Text style={styles.showAllText}>View all {achievements.length} achievements</Text>
-                  <ChevronRight size={16} color={TG.accent} />
-                </TouchableOpacity>
-              )}
+              </ScrollView>
             </View>
-          </>
-        )}
+          )}
 
-        <View style={styles.divider} />
+          {/* Settings & Admin Menu */}
+          <View style={styles.menuSection}>
+            <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={() => router.push('/sessions' as any)}>
+              <View style={[styles.menuItemIcon, { backgroundColor: TG.accentLight }]}>
+                <Monitor size={18} color={TG.accent} />
+              </View>
+              <Text style={styles.menuItemText}>Active Sessions</Text>
+              <ChevronRight size={18} color={COLORS.textMuted} />
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 0, marginTop: 12 }]} activeOpacity={0.7} onPress={handleLogout}>
+              <View style={[styles.menuItemIcon, { backgroundColor: TG.redLight }]}>
+                <LogOut size={18} color={TG.red} />
+              </View>
+              <Text style={[styles.menuItemText, { color: TG.red }]}>Log Out</Text>
+            </TouchableOpacity>
+          </View>
 
-        <TouchableOpacity style={styles.menuRow} activeOpacity={0.7} onPress={() => router.push('/sessions' as any)}>
-          <Monitor size={18} color={TG.textSecondary} />
-          <Text style={styles.menuText}>Active Sessions</Text>
-          <ChevronRight size={18} color={TG.textHint} style={{ marginLeft: 'auto' }} />
-        </TouchableOpacity>
-
-        <View style={{ height: 24 }} />
-
-        <TouchableOpacity style={styles.logoutRow} onPress={handleLogout} activeOpacity={0.7}>
-          <LogOut size={18} color={TG.red} />
-          <Text style={styles.logoutText}>Log Out</Text>
-        </TouchableOpacity>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -239,118 +350,180 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: TG.headerBg },
-  header: {
-    backgroundColor: TG.headerBg,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  headerTitle: { fontSize: 20, fontWeight: '700', color: TG.textWhite },
+  container: { flex: 1, backgroundColor: COLORS.background },
+  content: { paddingBottom: 60 },
 
-  profileSection: {
+  // Hero Section
+  heroBackground: {
+    paddingTop: 10,
+    paddingBottom: 60,
+    borderBottomLeftRadius: 36,
+    borderBottomRightRadius: 36,
+  },
+  header: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: TG.bg,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    gap: 14,
+    paddingHorizontal: 24,
+    marginBottom: 20,
+  },
+  headerTitle: { fontSize: 22, fontWeight: '800', color: '#fff' },
+  editButtonIcon: {
+    backgroundColor: '#fff',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarSection: {
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  avatarWrapper: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: '#fff',
+    padding: 3,
+    marginBottom: 12,
   },
   avatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: TG.bgSecondary,
+    width: '100%',
+    height: '100%',
+    borderRadius: 45,
   },
-  name: { fontSize: 18, fontWeight: '700', color: TG.textPrimary, marginBottom: 2 },
-  username: { fontSize: 14, color: TG.textSecondary },
+  name: { fontSize: 22, fontWeight: '800', color: '#fff', marginBottom: 4 },
+  username: { fontSize: 14, color: 'rgba(255,255,255,0.8)', marginBottom: 12 },
+  roleRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   roleBadge: {
-    backgroundColor: TG.accentLight,
-    paddingHorizontal: 10,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 12,
     paddingVertical: 4,
-    borderRadius: 10,
-  },
-  roleText: { fontSize: 12, fontWeight: '600', color: TG.accent, textTransform: 'capitalize' },
-  teacherBadge: { backgroundColor: TG.greenLight },
-  teacherText: { color: TG.green },
-
-  statsRow: {
-    flexDirection: 'row',
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: TG.bg,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: TG.bgSecondary,
     borderRadius: 12,
-    paddingVertical: 10,
+    flexDirection: 'row',
     alignItems: 'center',
   },
-  statNum: { fontSize: 18, fontWeight: '700', color: TG.textPrimary },
-  statLabel: { fontSize: 12, color: TG.textSecondary, marginTop: 2 },
+  roleText: { fontSize: 13, fontWeight: '600', color: '#fff' },
+  roleBadgeTeacher: { backgroundColor: TG.green },
+  roleTextTeacher: { color: '#fff' },
+  roleBadgeVerified: { backgroundColor: TG.purple },
 
-  divider: { height: 8, backgroundColor: TG.bgSecondary },
+  // Floating Stats
+  floatingStatsWrapper: {
+    paddingHorizontal: 24,
+    marginTop: -35,
+    zIndex: 10,
+  },
+  floatingStatsCard: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.surface,
+    borderRadius: 20,
+    paddingVertical: 18,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  floatingStatItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  floatingStatDivider: {
+    width: 1,
+    backgroundColor: COLORS.border,
+  },
+  floatingStatNum: { fontSize: 20, fontWeight: '800', color: COLORS.text, marginBottom: 4 },
+  floatingStatLabel: { fontSize: 12, fontWeight: '600', color: COLORS.textMuted },
 
-  section: { backgroundColor: TG.bg },
+  // Main Content
+  mainContent: {
+    paddingHorizontal: 20,
+    paddingTop: 24,
+  },
+  section: {
+    marginBottom: 30,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: COLORS.text,
+    marginBottom: 16,
+  },
+
+  // Info Card
+  infoCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    
+  },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 12,
-    borderBottomWidth: 0.5,
-    borderBottomColor: TG.separatorLight,
+    paddingVertical: 12,
   },
-  infoLabel: { fontSize: 15, color: TG.textPrimary, flex: 1 },
-  infoValue: { fontSize: 15, color: TG.textSecondary },
-
-  menuRow: {
-    flexDirection: 'row',
+  infoIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: TG.bgSecondary,
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    backgroundColor: TG.bg,
-    gap: 12,
-    borderBottomWidth: 0.5,
-    borderBottomColor: TG.separatorLight,
+    justifyContent: 'center',
+    marginRight: 12,
   },
-  menuText: { fontSize: 15, color: TG.textPrimary },
+  infoLabel: { flex: 1, fontSize: 15, fontWeight: '600', color: COLORS.text },
+  infoValue: { fontSize: 15, color: COLORS.textMuted, fontWeight: '500' },
+  infoDivider: { height: 1, backgroundColor: COLORS.border, marginLeft: 48 },
 
-  logoutRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    backgroundColor: TG.bg,
-    gap: 12,
-  },
-  logoutText: { fontSize: 15, color: TG.red, fontWeight: '500' },
-
-  // ── Gamification ──
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: TG.textPrimary, marginBottom: 12 },
-  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  gamificationSection: { backgroundColor: TG.bg, padding: 16 },
-  gamStatsRow: { flexDirection: 'row', gap: 8 },
+  // Gamification
+  gamStatsRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
   gamStatCard: {
     flex: 1,
-    backgroundColor: TG.bgSecondary,
-    borderRadius: 12,
-    paddingVertical: 12,
+    borderRadius: 20,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
     alignItems: 'center',
+  },
+  gamStatCardGlass: {
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  gamStatNumW: { fontSize: 20, fontWeight: '800', color: '#fff', marginTop: 8 },
+  gamStatLabelW: { fontSize: 11, fontWeight: '600', color: 'rgba(255,255,255,0.8)' },
+  gamStatNumD: { fontSize: 20, fontWeight: '800', color: COLORS.text, marginTop: 8 },
+  gamStatLabelD: { fontSize: 11, fontWeight: '600', color: COLORS.textMuted },
+
+  levelCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 20,
+    padding: 16,
+  },
+  levelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  levelBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: TG.accent,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
     gap: 4,
   },
-  gamStatNum: { fontSize: 16, fontWeight: '700', color: TG.textPrimary },
-  gamStatLabel: { fontSize: 10, color: TG.textHint },
-  xpBarWrap: { marginTop: 12 },
-  xpBarBg: { height: 6, backgroundColor: TG.bgSecondary, borderRadius: 3, overflow: 'hidden' },
-  xpBarFill: { height: 6, borderRadius: 3, backgroundColor: TG.gold },
-  xpBarLabel: { fontSize: 11, color: TG.textHint, textAlign: 'right', marginTop: 4 },
+  levelBadgeText: { color: '#fff', fontWeight: '800', fontSize: 13 },
+  xpText: { fontSize: 13, fontWeight: '700', color: COLORS.textMuted },
+  progressBg: { height: 10, backgroundColor: TG.bgSecondary, borderRadius: 5, overflow: 'hidden' },
+  progressFill: { height: '100%', borderRadius: 5 },
 
-  // ── Reputation ──
-  reputationSection: { backgroundColor: TG.bg, padding: 16 },
+  // Reputation
   mentorBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -361,40 +534,70 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   mentorLabel: { fontSize: 12, fontWeight: '600', color: TG.mentorTeal },
-  repRow: { flexDirection: 'row', gap: 10 },
-  repItem: {
+  repCardsRow: { flexDirection: 'row', gap: 10 },
+  repCard: {
     flex: 1,
-    backgroundColor: TG.bgSecondary,
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: 'center',
-    gap: 4,
-  },
-  repNum: { fontSize: 16, fontWeight: '700', color: TG.textPrimary },
-  repLabel: { fontSize: 11, color: TG.textHint },
-
-  // ── Achievements ──
-  achievementsSection: { backgroundColor: TG.bg, padding: 16 },
-  achieveGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  achieveCard: {
-    width: '23%',
-    backgroundColor: TG.bgSecondary,
-    borderRadius: 12,
-    paddingVertical: 10,
-    alignItems: 'center',
-    gap: 4,
-  },
-  achieveCardLocked: { opacity: 0.35 },
-  achieveEmoji: { fontSize: 22 },
-  achieveTitle: { fontSize: 10, fontWeight: '600', color: TG.textPrimary, textAlign: 'center', paddingHorizontal: 4 },
-  achieveTitleLocked: { color: TG.textHint },
-  achieveCategory: { fontSize: 9, color: TG.textHint, textTransform: 'capitalize' },
-  showAllBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 12,
-    gap: 4,
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
+    padding: 12,
   },
-  showAllText: { fontSize: 13, fontWeight: '600', color: TG.accent },
+  repIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  repCardInfo: { flex: 1 },
+  repCardNum: { fontSize: 18, fontWeight: '800', color: COLORS.text, marginBottom: 2 },
+  repCardLabel: { fontSize: 12, fontWeight: '600', color: COLORS.textMuted },
+
+  // Achievements
+  achievementsScroll: { gap: 12, paddingRight: 20 },
+  achievementCard: {
+    width: 100,
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
+    padding: 14,
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  achievementCardLocked: { opacity: 0.5, backgroundColor: TG.bgSecondary },
+  achievementIconBg: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: TG.bgSecondary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  achievementEmoji: { fontSize: 24 },
+  achievementTitle: { fontSize: 11, fontWeight: '700', color: COLORS.text, textAlign: 'center', lineHeight: 16 },
+  achievementTitleLocked: { color: COLORS.textMuted },
+
+  // Menus
+  menuSection: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  menuItemIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  menuItemText: { flex: 1, fontSize: 16, fontWeight: '600', color: COLORS.text },
 });

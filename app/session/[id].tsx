@@ -202,7 +202,7 @@ export default function SessionDetailScreen() {
         {hasReview && (
           <View style={styles.reviewSection}>
             <View style={styles.reviewTop}>
-              <ScoreRing score={item.teacherScore!} />
+              <ScoreRing score={item.teacherScore!} max={session?.examType === 'ielts' ? 9 : 75} />
               <View style={styles.reviewMeta}>
                 <Text style={styles.reviewLabel}>Teacher Review</Text>
                 <View style={styles.starsRow}>
@@ -307,7 +307,7 @@ export default function SessionDetailScreen() {
                   {session.scoreAvg != null && (
                     <MetaChip
                       icon={<BarChart3 size={13} color={TG.orange} />}
-                      text={`Avg ${session.scoreAvg.toFixed(0)}`}
+                      text={`Avg ${session.scoreAvg.toFixed(session.examType === 'ielts' ? 1 : 0)}`}
                       color={TG.orange}
                     />
                   )}

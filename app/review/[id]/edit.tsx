@@ -25,11 +25,19 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-function getCefrLabel(score: number): { level: string; color: string; bg: string } {
-  if (score <= 37) return { level: 'A2', color: TG.red, bg: TG.redLight };
-  if (score <= 50) return { level: 'B1', color: TG.orange, bg: TG.orangeLight };
-  if (score <= 64) return { level: 'B2', color: TG.accent, bg: TG.accentLight };
-  return { level: 'C1', color: TG.green, bg: TG.greenLight };
+function getCefrLabel(score: number, isIelts: boolean = false): { level: string; color: string; bg: string } {
+  if (isIelts) {
+    if (score <= 3.5) return { level: 'A2', color: TG.red, bg: TG.redLight };
+    if (score <= 4.5) return { level: 'B1', color: TG.orange, bg: TG.orangeLight };
+    if (score <= 6.0) return { level: 'B2', color: TG.accent, bg: TG.accentLight };
+    if (score <= 7.5) return { level: 'C1', color: TG.green, bg: TG.greenLight };
+    return { level: 'C2', color: TG.purple, bg: TG.purpleLight };
+  } else {
+    if (score <= 37) return { level: 'A2', color: TG.red, bg: TG.redLight };
+    if (score <= 50) return { level: 'B1', color: TG.orange, bg: TG.orangeLight };
+    if (score <= 64) return { level: 'B2', color: TG.accent, bg: TG.accentLight };
+    return { level: 'C1', color: TG.green, bg: TG.greenLight };
+  }
 }
 
 export default function ReviewEditScreen() {
@@ -42,6 +50,7 @@ export default function ReviewEditScreen() {
   const [loading, setLoading] = useState(true);
   const [sessionTitle, setSessionTitle] = useState('');
   const [responseCount, setResponseCount] = useState(0);
+  const [examType, setExamType] = useState<'cefr' | 'ielts'>('cefr');
   const [hasExisting, setHasExisting] = useState(false);
 
   const [score, setScore] = useState('');
@@ -60,6 +69,7 @@ export default function ReviewEditScreen() {
 
       setSessionTitle(session.test?.title || 'Untitled Session');
       setResponseCount(session.responses?.length || session._count?.responses || 0);
+      setExamType(session.examType || 'cefr');
 
       // Find the current user's existing review
       const myReview = (reviews || []).find(
@@ -83,17 +93,31 @@ export default function ReviewEditScreen() {
     }, [loadData])
   );
 
-  const scoreNum = parseInt(score, 10);
+  const isIelts = examType === 'ielts';
+  const scoreNum = parseFloat(score);
   const scorePreview =
-    !isNaN(scoreNum) && scoreNum >= 0 && scoreNum <= 75 ? getCefrLabel(scoreNum) : null;
+    !isNaN(scoreNum) && scoreNum >= 0 && (isIelts ? scoreNum <= 9 : scoreNum <= 75)
+      ? getCefrLabel(scoreNum, isIelts)
+      : null;
 
   const handleSubmit = async () => {
     if (!sessionId || !score) return;
-    const num = parseInt(score, 10);
-    if (isNaN(num) || num < 0 || num > 75) {
-      toast.warning('Invalid', 'Score must be between 0 and 75');
+    const num = parseFloat(score);
+    const max = isIelts ? 9 : 75;
+
+    if (isNaN(num) || num < 0 || num > max) {
+      toast.warning('Invalid', `Score must be between 0 and ${max}`);
       return;
     }
+    if (isIelts && (num * 2) % 1 !== 0) {
+      toast.warning('Invalid', 'IELTS score must be in 0.5 steps (e.g. 5.5, 6.0)');
+      return;
+    }
+    if (!isIelts && !Number.isInteger(num)) {
+      toast.warning('Invalid', 'CEFR score must be a whole number');
+      return;
+    }
+
     setSubmitting(true);
     try {
       await apiPostReview(sessionId, num, feedback);
@@ -181,15 +205,15 @@ export default function ReviewEditScreen() {
           </View>
 
           {/* Score input */}
-          <Text style={styles.inputLabel}>Score (0–75)</Text>
+          <Text style={styles.inputLabel}>Score (0–{isIelts ? '9' : '75'})</Text>
           <View style={styles.scoreRow}>
             <TextInput
               style={[styles.input, styles.scoreInput]}
               value={score}
               onChangeText={setScore}
-              keyboardType="number-pad"
-              maxLength={2}
-              placeholder="0–75"
+              keyboardType={isIelts ? 'decimal-pad' : 'number-pad'}
+              maxLength={isIelts ? 3 : 2}
+              placeholder={isIelts ? '0.0–9.0' : '0–75'}
               placeholderTextColor={TG.textHint}
             />
             {scorePreview && (
@@ -201,7 +225,9 @@ export default function ReviewEditScreen() {
             )}
           </View>
           <Text style={styles.cefrGuide}>
-            A2: 0–37 · B1: 38–50 · B2: 51–64 · C1: 65–75
+            {isIelts 
+              ? 'A2: 0–3.5 · B1: 4.0–4.5 · B2: 5.0–6.0 · C1: 6.5–7.5 · C2: 8.0–9.0'
+              : 'A2: 0–37 · B1: 38–50 · B2: 51–64 · C1: 65–75'}
           </Text>
 
           {/* Feedback input */}

@@ -33,9 +33,9 @@ const normalizeQuestion = (q: any): Question => ({
  * Fetch tests with their questions from the API server.
  */
 export const fetchTestsWithQuestions = async (): Promise<Test[]> => {
-  const data = await apiFetchTests();
+  const res = await apiFetchTests({ limit: 100 });
 
-  return data.map((t: any) => ({
+  return (res.data || []).map((t: any) => ({
     id: t.id,
     title: t.title,
     description: t.description,
@@ -55,8 +55,8 @@ export const fetchQuestionById = async (id: number): Promise<Question | null> =>
  * Get all questions for a given test from the API.
  */
 export const fetchQuestionsByTestId = async (testId: number): Promise<Question[]> => {
-  const tests = await apiFetchTests();
-  const test = tests.find((t: any) => t.id === testId);
+  const res = await apiFetchTests({ limit: 100 });
+  const test = (res.data || []).find((t: any) => t.id === testId);
   if (!test || !test.questions) return [];
   return test.questions.map(normalizeQuestion);
 };

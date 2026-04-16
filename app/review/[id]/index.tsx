@@ -249,7 +249,7 @@ export default function ReviewDetailScreen() {
                   {session.scoreAvg != null && (
                     <MetaChip
                       icon={<BarChart3 size={13} color={TG.orange} />}
-                      text={`Avg ${session.scoreAvg.toFixed(0)}`}
+                      text={`Avg ${session.scoreAvg.toFixed(session.examType === 'ielts' ? 1 : 0)}`}
                       color={TG.orange}
                     />
                   )}
@@ -305,7 +305,9 @@ export default function ReviewDetailScreen() {
                                 <View style={[styles.reviewListCefr, { backgroundColor: cefrInfo.bg }]}>
                                   <Text style={[styles.reviewListCefrText, { color: cefrInfo.color }]}>{cefrInfo.level}</Text>
                                 </View>
-                                <Text style={styles.reviewListScore}>{rev.score}/75</Text>
+                                <Text style={styles.reviewListScore}>
+                                  {rev.score}{session?.examType === 'ielts' ? ' / 9.0' : ' / 75'}
+                                </Text>
                               </View>
                               {rev.feedback ? (
                                 <View style={styles.reviewListFeedbackRow}>

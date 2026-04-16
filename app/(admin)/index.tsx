@@ -4,7 +4,7 @@ import { fetchTestsWithQuestions } from '@/lib/data';
 import { useAuth } from '@/store/auth';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { ChevronRight, ClipboardList, Shield } from 'lucide-react-native';
+import { ChevronRight, ClipboardList, Shield, Image as ImageIcon } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
@@ -132,6 +132,21 @@ export default function AdminHomeScreen() {
             <View style={{ flex: 1 }}>
               <Text style={styles.actionTitle}>Manage Tests</Text>
               <Text style={styles.actionDesc}>{testCount} tests available</Text>
+            </View>
+            <ChevronRight size={20} color={TG.textHint} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionCard}
+            activeOpacity={0.7}
+            onPress={() => router.push('/ads' as any)}
+          >
+            <View style={[styles.actionIcon, { backgroundColor: TG.accentLight }]}>
+              <ImageIcon size={22} color={TG.accent} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.actionTitle}>Manage Ads</Text>
+              <Text style={styles.actionDesc}>Control banner advertisements</Text>
             </View>
             <ChevronRight size={20} color={TG.textHint} />
           </TouchableOpacity>

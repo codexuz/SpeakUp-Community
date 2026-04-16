@@ -271,7 +271,7 @@ export default function CommunityDetailScreen() {
           </Text>
           {session?.user && (
             <Text style={styles.headerSub}>
-              by {session.user.fullName}
+              by {session?.isAnonymous ? 'Anonymous' : session.user.fullName}
             </Text>
           )}
         </View>
@@ -302,13 +302,15 @@ export default function CommunityDetailScreen() {
                 <View style={styles.userRow}>
                   <TouchableOpacity
                     style={styles.userLeft}
-                    activeOpacity={0.75}
+                    activeOpacity={session.isAnonymous ? 1 : 0.75}
                     onPress={() => {
-                      if (session.user?.id) router.push(`/user/${session.user.id}` as any);
+                      if (!session.isAnonymous && session.user?.id) router.push(`/user/${session.user.id}` as any);
                     }}
                   >
                     <View style={styles.avatar}>
-                      {session.user?.avatarUrl ? (
+                      {session.isAnonymous ? (
+                        <Text style={styles.avatarText}>A</Text>
+                      ) : session.user?.avatarUrl ? (
                         <Image source={{ uri: session.user.avatarUrl }} style={styles.avatarImage} />
                       ) : (
                         <Text style={styles.avatarText}>
@@ -317,8 +319,8 @@ export default function CommunityDetailScreen() {
                       )}
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.userName}>{session.user?.fullName || 'Unknown'}</Text>
-                      <Text style={styles.userHandle}>@{session.user?.username || '?'}</Text>
+                      <Text style={styles.userName}>{session.isAnonymous ? 'Anonymous Student' : (session.user?.fullName || 'Unknown')}</Text>
+                      <Text style={styles.userHandle}>@{session.isAnonymous ? 'hidden' : (session.user?.username || '?')}</Text>
                     </View>
                   </TouchableOpacity>
                   <TouchableOpacity

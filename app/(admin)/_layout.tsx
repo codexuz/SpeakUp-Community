@@ -1,7 +1,7 @@
 import { TG } from '@/constants/theme';
 import { Tabs } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { ClipboardList, Home, Image, Shield, User, Users } from 'lucide-react-native';
+import { BookOpen, ClipboardList, Home, Image, Shield, User, Users } from 'lucide-react-native';
 import React from 'react';
 import { Platform } from 'react-native';
 
@@ -63,10 +63,10 @@ export default function AdminTabLayout() {
           }}
         />
         <Tabs.Screen
-          name="ads"
+          name="courses"
           options={{
-            title: 'Ads',
-            tabBarIcon: ({ color, size }) => <Image size={size ?? 24} color={color} strokeWidth={1.8} />,
+            title: 'Courses',
+            tabBarIcon: ({ color, size }) => <BookOpen size={size ?? 24} color={color} strokeWidth={1.8} />,
           }}
         />
         <Tabs.Screen

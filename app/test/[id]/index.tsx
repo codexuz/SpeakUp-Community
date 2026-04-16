@@ -1,7 +1,7 @@
 import { useAlert } from '@/components/CustomAlert';
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
-import { apiDeleteQuestion, apiFetchTests, apiUpdateTest } from '@/lib/api';
+import { apiDeleteQuestion, apiFetchTests } from '@/lib/api';
 import { useAuth } from '@/store/auth';
 import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -10,12 +10,8 @@ import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -46,18 +42,14 @@ export default function TestDetailScreen() {
   const { alert } = useAlert();
   const [test, setTest] = useState<Test | null>(null);
   const [loading, setLoading] = useState(true);
-  const [editModal, setEditModal] = useState(false);
-  const [editTitle, setEditTitle] = useState('');
-  const [editDesc, setEditDesc] = useState('');
-  const [saving, setSaving] = useState(false);
 
   const isAllowed = user?.role === 'admin' || (user?.role === 'teacher' && user?.verifiedTeacher);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const tests = await apiFetchTests();
-      const found = tests.find((t: any) => String(t.id) === id);
+      const res = await apiFetchTests({ limit: 100 });
+      const found = (res.data || []).find((t: any) => String(t.id) === id);
       if (found) {
         const normalized: Test = {
           id: found.id,
@@ -87,33 +79,6 @@ export default function TestDetailScreen() {
       load();
     }, [load])
   );
-
-  const openEditModal = () => {
-    if (!test) return;
-    setEditTitle(test.title);
-    setEditDesc(test.description || '');
-    setEditModal(true);
-  };
-
-  const handleSave = async () => {
-    if (!editTitle.trim()) {
-      toast.warning('Validation', 'Title is required');
-      return;
-    }
-    setSaving(true);
-    try {
-      const updated = await apiUpdateTest(test!.id, {
-        title: editTitle.trim(),
-        description: editDesc.trim() || undefined,
-      });
-      setTest((prev) => prev ? { ...prev, title: updated.title, description: updated.description } : prev);
-      setEditModal(false);
-    } catch (e: any) {
-      toast.error('Error', e.message);
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const handleDeleteQuestion = (q: Question) => {
     alert('Delete Question', `Delete this question?\n\n"${q.qText}"`, [
@@ -191,7 +156,10 @@ export default function TestDetailScreen() {
           <ArrowLeft size={22} color={TG.textWhite} />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>{test.title}</Text>
-        <TouchableOpacity onPress={openEditModal} activeOpacity={0.7}>
+        <TouchableOpacity
+          onPress={() => router.push({ pathname: '/test/[id]/edit', params: { id: String(test.id) } } as any)}
+          activeOpacity={0.7}
+        >
           <Edit2 size={18} color={TG.textWhite} />
         </TouchableOpacity>
       </View>
@@ -266,54 +234,6 @@ export default function TestDetailScreen() {
           </View>
         }
       />
-
-      {/* Edit Test Modal */}
-      <Modal visible={editModal} animationType="slide" transparent>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Edit Test</Text>
-
-            <Text style={styles.inputLabel}>Title *</Text>
-            <TextInput
-              style={styles.input}
-              value={editTitle}
-              onChangeText={setEditTitle}
-              placeholder="Test title"
-              placeholderTextColor={TG.textHint}
-            />
-
-            <Text style={styles.inputLabel}>Description</Text>
-            <TextInput
-              style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
-              value={editDesc}
-              onChangeText={setEditDesc}
-              placeholder="Optional description..."
-              placeholderTextColor={TG.textHint}
-              multiline
-            />
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.cancelBtn} activeOpacity={0.7} onPress={() => setEditModal(false)}>
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.submitBtn, saving && { opacity: 0.5 }]}
-                activeOpacity={0.7}
-                onPress={handleSave}
-                disabled={saving}
-              >
-                {saving ? (
-                  <ActivityIndicator size="small" color={TG.textWhite} />
-                ) : (
-                  <Text style={styles.submitBtnText}>Save</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-        </KeyboardAvoidingView>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -387,47 +307,4 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   emptyBtnText: { color: TG.textWhite, fontWeight: '600', fontSize: 14 },
-
-  // Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.12)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: TG.bg,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 24,
-    paddingBottom: 40,
-  },
-  modalTitle: { fontSize: 20, fontWeight: '700', color: TG.textPrimary, marginBottom: 20 },
-  inputLabel: { fontSize: 13, fontWeight: '600', color: TG.textSecondary, marginBottom: 6, marginTop: 12 },
-  input: {
-    backgroundColor: TG.bgSecondary,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
-    color: TG.textPrimary,
-    borderWidth: 0.5,
-    borderColor: TG.separator,
-  },
-  modalActions: { flexDirection: 'row', gap: 12, marginTop: 24 },
-  cancelBtn: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 10,
-    backgroundColor: TG.bgSecondary,
-    alignItems: 'center',
-  },
-  cancelBtnText: { fontSize: 15, fontWeight: '600', color: TG.textSecondary },
-  submitBtn: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 10,
-    backgroundColor: TG.accent,
-    alignItems: 'center',
-  },
-  submitBtnText: { fontSize: 15, fontWeight: '600', color: TG.textWhite },
 });
