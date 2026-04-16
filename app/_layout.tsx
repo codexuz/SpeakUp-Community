@@ -98,6 +98,7 @@ function RootNavigator() {
         <Stack.Screen name="streak/index" options={{ headerShown: false }} />
         <Stack.Screen name="admin/courses/create" options={{ headerShown: false }} />
         <Stack.Screen name="admin/courses/[id]/index" options={{ headerShown: false }} />
+        <Stack.Screen name="admin/courses/[id]/edit" options={{ headerShown: false }} />
         <Stack.Screen name="admin/courses/lessons/[id]/index" options={{ headerShown: false }} />
       </Stack>
       {needsRedirect && <Redirect href={redirectTarget as any} />}

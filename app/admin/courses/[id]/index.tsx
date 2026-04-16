@@ -210,12 +210,14 @@ export default function CourseBuilderScreen() {
           <ArrowLeft size={22} color={TG.textWhite} />
         </TouchableOpacity>
         <Text style={styles.topTitle}>Course Builder</Text>
-        <TouchableOpacity onPress={togglePublish} style={styles.publishBtn}>
-          {course.isPublished ? <EyeOff size={16} color={TG.textWhite} /> : <Eye size={16} color={TG.textWhite} />}
-          <Text style={[styles.publishText, { color: course.isPublished ? TG.textWhite : TG.textWhite }]}>
-            {course.isPublished ? 'Unpublish' : 'Publish'}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.topActions}>
+          <TouchableOpacity onPress={() => router.push(`/admin/courses/${course.id}/edit` as any)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} style={styles.editBtn}>
+            <Edit3 size={18} color={TG.textWhite} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={togglePublish} style={styles.publishBtn}>
+            {course.isPublished ? <EyeOff size={16} color={TG.textWhite} /> : <Eye size={16} color={TG.textWhite} />}
+          </TouchableOpacity>
+        </View>
       </View>
 
       <FlatList
@@ -337,6 +339,8 @@ const styles = StyleSheet.create({
     backgroundColor: TG.headerBg,
   },
   topTitle: { fontSize: 18, fontWeight: '700', color: TG.textWhite },
+  topActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  editBtn: { padding: 4 },
   publishBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   publishText: { fontSize: 14, fontWeight: '600' },
 
