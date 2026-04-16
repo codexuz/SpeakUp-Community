@@ -122,14 +122,16 @@ export interface TestSession {
   id: string;
   testId: number;
   userId: string;
-  visibility: 'private' | 'group' | 'community';
+  visibility: 'private' | 'group' | 'community' | 'ai_only';
+  isAnonymous: boolean;
+  examType: 'cefr' | 'ielts';
   groupId: string | null;
   likes: number;
   commentsCount: number;
   scoreAvg: number | null;
   cefrLevel: string | null;
   createdAt: string;
-  test?: { id: number; title: string; description: string | null };
+  test?: { id: number; title: string; description: string | null; testType?: 'cefr' | 'ielts' };
   user?: { id: string; fullName: string; username: string; avatarUrl: string | null };
   responses?: SpeakingResponse[];
   reviews?: any[];
@@ -184,10 +186,11 @@ export async function apiSubmitSpeaking(
   questionId: number,
   audioUri: string,
   options: {
-    visibility?: 'private' | 'group' | 'community';
+    visibility?: 'private' | 'group' | 'community' | 'ai_only';
     groupId?: string;
     sessionId?: string;
     testId?: number;
+    isAnonymous?: boolean;
   } = {},
 ) {
   const url = `${API_URL}/speaking`;
@@ -199,6 +202,7 @@ export async function apiSubmitSpeaking(
   if (options.groupId) formData.append('groupId', options.groupId);
   if (options.sessionId) formData.append('sessionId', options.sessionId);
   if (options.testId) formData.append('testId', options.testId.toString());
+  if (options.isAnonymous) formData.append('isAnonymous', 'true');
   formData.append('audio', {
     uri: audioUri,
     name: `response_${Date.now()}.m4a`,
@@ -807,4 +811,125 @@ export async function apiTextToSpeech(text: string, voice: TTSVoice = 'erin') {
   }
 
   return res.json() as Promise<{ success: boolean; url: string; filename: string }>;
+}
+
+// =============================================
+// AI Feedback (v2)
+// =============================================
+
+import type { Achievement, AIFeedback, Challenge, ChallengeSubmission, Course, LeaderboardResponse, LessonDetail, SessionFeedbackResponse, UserProgress, UserReputation, WeeklySummary } from './types';
+
+export async function apiFetchAIFeedback(responseId: string) {
+  return request<AIFeedback>(`/ai-feedback/${responseId}`);
+}
+
+export async function apiFetchSessionFeedback(sessionId: string) {
+  return request<SessionFeedbackResponse>(`/ai-feedback/session/${sessionId}`);
+}
+
+export async function apiMarkHelpful(responseId: string) {
+  return request<{ message: string }>(`/ai-feedback/${responseId}/helpful`, { method: 'POST' });
+}
+
+// =============================================
+// Progress / Gamification (v2)
+// =============================================
+
+export async function apiFetchProgress() {
+  return request<UserProgress>('/progress/me');
+}
+
+export async function apiFetchAchievements() {
+  return request<{ data: Achievement[] }>('/progress/achievements');
+}
+
+export async function apiCheckAchievements() {
+  return request<{ newlyUnlocked: Achievement[] }>('/progress/check-achievements', { method: 'POST' });
+}
+
+export async function apiBuyStreakFreeze() {
+  return request<{ success: boolean; message: string; streakFreezes: number; coins: number }>('/progress/buy-streak-freeze', { method: 'POST' });
+}
+
+export async function apiFetchLeaderboard(type: 'weekly' | 'alltime' | 'streak' = 'weekly', limit = 20) {
+  return request<LeaderboardResponse>(`/progress/leaderboard?type=${type}&limit=${limit}`);
+}
+
+export async function apiFetchWeeklySummary() {
+  return request<WeeklySummary>('/progress/weekly-summary');
+}
+
+export async function apiFetchReputation(userId?: string) {
+  const qs = userId ? `?userId=${userId}` : '';
+  return request<UserReputation>(`/progress/reputation${qs}`);
+}
+
+// =============================================
+// Challenges (v2)
+// =============================================
+
+export async function apiFetchChallenges(type?: 'daily' | 'weekly' | 'special') {
+  const qs = type ? `?type=${type}` : '';
+  return request<{ data: Challenge[] }>(`/challenges${qs}`);
+}
+
+export async function apiFetchChallenge(id: string) {
+  return request<Challenge>(`/challenges/${id}`);
+}
+
+export async function apiSubmitChallenge(challengeId: string, audioUri: string, questionId?: number) {
+  const url = `${API_URL}/challenges/${challengeId}/submit`;
+  const token = await getStoredAuthToken();
+
+  const formData = new FormData();
+  formData.append('audio', {
+    uri: audioUri,
+    name: `challenge_${Date.now()}.m4a`,
+    type: 'audio/m4a',
+  } as any);
+  if (questionId) formData.append('questionId', questionId.toString());
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'User-Agent': getUserAgent(),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(body.error || `Submit failed: ${res.status}`);
+  }
+
+  return res.json();
+}
+
+export async function apiFetchChallengeHistory(page = 1, limit = 20) {
+  return request<{ data: ChallengeSubmission[]; pagination: any }>(`/challenges/history?page=${page}&limit=${limit}`);
+}
+
+// =============================================
+// Courses (v2)
+// =============================================
+
+export async function apiFetchCourses(level?: string) {
+  const qs = level ? `?level=${level}` : '';
+  return request<{ data: Course[] }>(`/courses${qs}`);
+}
+
+export async function apiFetchCourse(id: string) {
+  return request<Course>(`/courses/${id}`);
+}
+
+export async function apiFetchLesson(lessonId: string) {
+  return request<LessonDetail>(`/courses/lessons/${lessonId}`);
+}
+
+export async function apiCompleteLesson(lessonId: string, score?: number) {
+  return request<{ progress: any; xpEarned: number }>(`/courses/lessons/${lessonId}/complete`, {
+    method: 'POST',
+    body: JSON.stringify({ score }),
+  });
 }

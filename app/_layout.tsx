@@ -90,6 +90,7 @@ function RootNavigator() {
         <Stack.Screen name="test/question" options={{ headerShown: false }} />
         <Stack.Screen name="ads/create" options={{ headerShown: false }} />
         <Stack.Screen name="ads/[id]/edit" options={{ headerShown: false }} />
+        <Stack.Screen name="ai-feedback/[responseId]" options={{ headerShown: false }} />
       </Stack>
       {needsRedirect && <Redirect href={redirectTarget as any} />}
     </ThemeProvider>

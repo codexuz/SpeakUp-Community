@@ -34,6 +34,24 @@ export const TG = {
   tabBg: '#ffffff',
   tabActive: '#3390ec',
   tabInactive: '#a8a8a8',
+  // Gamification
+  gold: '#FFB800',
+  goldLight: 'rgba(255, 184, 0, 0.12)',
+  streakOrange: '#FF6B35',
+  streakOrangeLight: 'rgba(255, 107, 53, 0.12)',
+  coinGold: '#F5C542',
+  coinGoldLight: 'rgba(245, 197, 66, 0.12)',
+  scoreGreen: '#4CAF50',
+  scoreYellow: '#FFC107',
+  scoreOrange: '#FF9800',
+  scoreRed: '#F44336',
+  achievePurple: '#7C4DFF',
+  achievePurpleLight: 'rgba(124, 77, 255, 0.12)',
+  mentorTeal: '#00BCD4',
+  mentorTealLight: 'rgba(0, 188, 212, 0.12)',
+  aiFeedback: '#2196F3',
+  aiFeedbackLight: 'rgba(33, 150, 243, 0.12)',
+  practiceGrey: '#9E9E9E',
 };
 
 export const Colors = {

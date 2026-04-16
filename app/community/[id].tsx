@@ -2,36 +2,37 @@ import { useToast } from '@/components/Toast';
 import WaveformPlayer from '@/components/WaveformPlayer';
 import { TG } from '@/constants/theme';
 import {
-    apiFetchSessionDetail,
-    apiLikeSpeaking,
-    apiUnlikeSpeaking,
-    SpeakingResponse,
-    TestSession,
+  apiFetchSessionDetail,
+  apiLikeSpeaking,
+  apiUnlikeSpeaking,
+  SpeakingResponse,
+  TestSession,
 } from '@/lib/api';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
-    ArrowLeft,
-    BarChart3,
-    Calendar,
-    ChevronRight,
-    Clock,
-    Heart,
-    Loader,
-    MessageCircle,
-    MessageSquare,
-    Mic,
-    Star,
+  ArrowLeft,
+  BarChart3,
+  Bot,
+  Calendar,
+  ChevronRight,
+  Clock,
+  Heart,
+  Loader,
+  MessageCircle,
+  MessageSquare,
+  Mic,
+  Star,
 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Animated,
-    FlatList,
-    Image,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Animated,
+  FlatList,
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -238,6 +239,17 @@ export default function CommunityDetailScreen() {
             ) : null}
           </View>
         )}
+
+        {/* AI Feedback button */}
+        <TouchableOpacity
+          style={styles.aiFeedbackBtn}
+          onPress={() => router.push(`/ai-feedback/${item.id}` as any)}
+          activeOpacity={0.7}
+        >
+          <Bot size={16} color={TG.aiFeedback} />
+          <Text style={styles.aiFeedbackBtnText}>AI Feedback</Text>
+          <ChevronRight size={16} color={TG.textHint} />
+        </TouchableOpacity>
       </View>
     );
   };
@@ -562,6 +574,14 @@ const styles = StyleSheet.create({
     padding: 10,
   },
   feedbackText: { fontSize: 13, color: TG.textSecondary, lineHeight: 19, flex: 1 },
+  aiFeedbackBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: TG.aiFeedbackLight, borderRadius: 10,
+    paddingVertical: 10, paddingHorizontal: 14, marginTop: 12,
+  },
+  aiFeedbackBtnText: {
+    flex: 1, fontSize: 13, fontWeight: '600', color: TG.aiFeedback,
+  },
 
   // ─── Empty ───
   emptyContainer: {

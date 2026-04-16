@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   BookOpen,
   CheckCircle2,
+  ChevronLeft,
   ChevronRight,
   Clock,
   ImageIcon,
@@ -16,10 +17,11 @@ import {
   Pause,
   Play,
   Send,
-  Settings,
+  Shield,
   Timer,
   TimerOff,
-  Volume2,
+  User as UserIcon,
+  Volume2
 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -27,6 +29,7 @@ import {
   Animated,
   Dimensions,
   Image,
+  ScrollView,
   StatusBar,
   StyleSheet,
   Switch,
@@ -109,6 +112,9 @@ export default function SpeakingScreen() {
   const [micGranted, setMicGranted] = useState(false);
   const [prepTimerEnabled, setPrepTimerEnabled] = useState(true);
   const [speakTimerEnabled, setSpeakTimerEnabled] = useState(true);
+  const [practiceMode, setPracticeMode] = useState(false);
+  const [isAnonymous, setIsAnonymous] = useState(false);
+  const [introStep, setIntroStep] = useState(0); // 0=mic, 1=timers, 2=practice, 3=start
 
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const audioPlayerRef = useRef<any>(null);
@@ -158,6 +164,8 @@ export default function SpeakingScreen() {
           ...(sessionId
             ? { sessionId }
             : { testId: Number(id) }),
+          ...(practiceMode && { visibility: 'ai_only' }),
+          ...(isAnonymous && { isAnonymous: true }),
         });
         if (!sessionId && result?.sessionId) {
           setSessionId(result.sessionId);
@@ -314,111 +322,251 @@ export default function SpeakingScreen() {
   const statusBg = screen === 'test' && phase === 'speak' ? '#c62828' : TG.headerBg;
 
   // ─── Intro Screen ─────────────────────────────────
+  const STEP_LABELS = ['Microphone', 'Timers', 'Practice', 'Start'];
+  const canAdvance = introStep === 0 ? micGranted : true;
+  const canStart = micGranted && !loadingQ;
+
   if (screen === 'intro') return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: statusBg }]}>
       <StatusBar barStyle="light-content" backgroundColor={statusBg} />
       <View style={[styles.header]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+        <TouchableOpacity
+          onPress={() => (introStep > 0 ? setIntroStep(introStep - 1) : router.back())}
+          style={styles.backBtn}
+          activeOpacity={0.7}
+        >
           <ArrowLeft size={22} color={TG.textWhite} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Speaking Test</Text>
-          <Text style={styles.headerSubtitle}>{questions.length} question{questions.length !== 1 ? 's' : ''}</Text>
+          <Text style={styles.headerSubtitle}>
+            Step {introStep + 1} of {STEP_LABELS.length} — {STEP_LABELS[introStep]}
+          </Text>
         </View>
       </View>
 
-      <View style={styles.introContent}>
-        {/* Exam icon */}
-        <View style={styles.introIconWrap}>
-          <Mic size={40} color={TG.accent} />
-        </View>
-        <Text style={styles.introTitle}>Ready to Begin?</Text>
-        <Text style={styles.introDesc}>
-          Complete the steps below before starting your speaking test.
-        </Text>
+      {/* Step indicator bars */}
+      <View style={styles.introDotsRow}>
+        {STEP_LABELS.map((_, i) => (
+          <View key={i} style={[styles.introDot, i <= introStep && styles.introDotActive]} />
+        ))}
+      </View>
 
-        {/* Step 1 */}
-        <TouchableOpacity
-          style={[styles.introStep, micGranted && styles.introStepDone]}
-          onPress={requestMic}
-          activeOpacity={0.7}
-        >
-          <View style={[styles.introStepNum, micGranted && styles.introStepNumDone]}>
-            {micGranted ? (
-              <CheckCircle2 size={20} color={TG.textWhite} />
-            ) : (
-              <Text style={styles.introStepNumText}>1</Text>
-            )}
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.introStepTitle, micGranted && { color: TG.green }]}>
-              Microphone Access
+      <ScrollView
+        style={{ flex: 1, backgroundColor: TG.bgSecondary }}
+        contentContainerStyle={styles.introContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── Step 0: Microphone ────── */}
+        {introStep === 0 && (
+          <>
+            <View style={[styles.introIconWrap, { backgroundColor: micGranted ? TG.green + '15' : TG.accentLight }]}>
+              {micGranted ? <CheckCircle2 size={40} color={TG.green} /> : <Mic size={40} color={TG.accent} />}
+            </View>
+            <Text style={styles.introTitle}>Microphone Access</Text>
+            <Text style={styles.introDesc}>
+              We need microphone permission to record your speaking responses.
             </Text>
-            <Text style={styles.introStepHint}>
-              {micGranted ? 'Permission granted' : 'Tap to allow microphone access'}
-            </Text>
-          </View>
-          {micGranted ? (
-            <Mic size={20} color={TG.green} />
-          ) : (
-            <MicOff size={20} color={TG.textHint} />
-          )}
-        </TouchableOpacity>
-
-        {/* Step 2 — Timer Settings */}
-        <View style={styles.introSettingsCard}>
-          <View style={styles.introSettingsHeader}>
-            <Settings size={16} color={TG.accent} />
-            <Text style={styles.introSettingsTitle}>Timer Settings</Text>
-          </View>
-          <View style={styles.introSettingRow}>
-            <View style={styles.introSettingInfo}>
-              {prepTimerEnabled ? <Timer size={18} color={TG.accent} /> : <TimerOff size={18} color={TG.textHint} />}
+            <TouchableOpacity
+              style={[styles.introStep, micGranted && styles.introStepDone]}
+              onPress={requestMic}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.introStepNum, micGranted && styles.introStepNumDone]}>
+                {micGranted ? (
+                  <CheckCircle2 size={20} color={TG.textWhite} />
+                ) : (
+                  <Mic size={16} color={TG.textWhite} />
+                )}
+              </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.introSettingLabel}>Prep Timer</Text>
-                <Text style={styles.introSettingHint}>
-                  {prepTimerEnabled ? 'Countdown — auto-starts recording' : 'Count up — you decide when to speak'}
+                <Text style={[styles.introStepTitle, micGranted && { color: TG.green }]}>
+                  {micGranted ? 'Permission Granted' : 'Allow Microphone'}
+                </Text>
+                <Text style={styles.introStepHint}>
+                  {micGranted ? 'You\'re all set to record' : 'Tap to grant microphone access'}
                 </Text>
               </View>
+              {micGranted ? <Mic size={20} color={TG.green} /> : <MicOff size={20} color={TG.textHint} />}
+            </TouchableOpacity>
+          </>
+        )}
+
+        {/* ── Step 1: Timer Settings ── */}
+        {introStep === 1 && (
+          <>
+            <View style={[styles.introIconWrap, { backgroundColor: TG.accentLight }]}>
+              <Timer size={40} color={TG.accent} />
             </View>
-            <Switch
-              value={prepTimerEnabled}
-              onValueChange={setPrepTimerEnabled}
-              trackColor={{ false: TG.separator, true: TG.accent + '60' }}
-              thumbColor={prepTimerEnabled ? TG.accent : TG.textHint}
-            />
-          </View>
-          <View style={[styles.introSettingRow, { borderBottomWidth: 0 }]}>
-            <View style={styles.introSettingInfo}>
-              {speakTimerEnabled ? <Timer size={18} color={TG.red} /> : <TimerOff size={18} color={TG.textHint} />}
-              <View style={{ flex: 1 }}>
-                <Text style={styles.introSettingLabel}>Speaking Timer</Text>
-                <Text style={styles.introSettingHint}>
-                  {speakTimerEnabled ? 'Countdown — auto-submits when done' : 'Count up — you decide when to stop'}
-                </Text>
+            <Text style={styles.introTitle}>Timer Settings</Text>
+            <Text style={styles.introDesc}>
+              Choose whether timers count down automatically or let you control the pace.
+            </Text>
+            <View style={styles.introSettingsCard}>
+              <View style={styles.introSettingRow}>
+                <View style={styles.introSettingInfo}>
+                  {prepTimerEnabled ? <Timer size={18} color={TG.accent} /> : <TimerOff size={18} color={TG.textHint} />}
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.introSettingLabel}>Prep Timer</Text>
+                    <Text style={styles.introSettingHint}>
+                      {prepTimerEnabled ? 'Countdown — auto-starts recording' : 'Count up — you decide when to speak'}
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={prepTimerEnabled}
+                  onValueChange={setPrepTimerEnabled}
+                  trackColor={{ false: TG.separator, true: TG.accent + '60' }}
+                  thumbColor={prepTimerEnabled ? TG.accent : TG.textHint}
+                />
+              </View>
+              <View style={[styles.introSettingRow, { borderBottomWidth: 0 }]}>
+                <View style={styles.introSettingInfo}>
+                  {speakTimerEnabled ? <Timer size={18} color={TG.red} /> : <TimerOff size={18} color={TG.textHint} />}
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.introSettingLabel}>Speaking Timer</Text>
+                    <Text style={styles.introSettingHint}>
+                      {speakTimerEnabled ? 'Countdown — auto-submits when done' : 'Count up — you decide when to stop'}
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={speakTimerEnabled}
+                  onValueChange={setSpeakTimerEnabled}
+                  trackColor={{ false: TG.separator, true: TG.red + '60' }}
+                  thumbColor={speakTimerEnabled ? TG.red : TG.textHint}
+                />
               </View>
             </View>
-            <Switch
-              value={speakTimerEnabled}
-              onValueChange={setSpeakTimerEnabled}
-              trackColor={{ false: TG.separator, true: TG.red + '60' }}
-              thumbColor={speakTimerEnabled ? TG.red : TG.textHint}
-            />
-          </View>
-        </View>
+          </>
+        )}
 
+        {/* ── Step 2: Practice Mode ─── */}
+        {introStep === 2 && (
+          <>
+            <View style={[styles.introIconWrap, { backgroundColor: TG.achievePurple + '15' }]}>
+              <Shield size={40} color={TG.achievePurple} />
+            </View>
+            <Text style={styles.introTitle}>Practice Mode</Text>
+            <Text style={styles.introDesc}>
+              Enable AI-only review for private practice, or keep it off for full teacher feedback.
+            </Text>
+            <View style={styles.introSettingsCard}>
+              <View style={styles.introSettingRow}>
+                <View style={styles.introSettingInfo}>
+                  <BookOpen size={18} color={practiceMode ? TG.achievePurple : TG.textHint} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.introSettingLabel}>AI-Only Review</Text>
+                    <Text style={styles.introSettingHint}>
+                      {practiceMode ? 'Only AI will review — not visible to teachers' : 'Teachers & AI can review your recording'}
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={practiceMode}
+                  onValueChange={(val) => {
+                    setPracticeMode(val);
+                    if (!val) setIsAnonymous(false);
+                  }}
+                  trackColor={{ false: TG.separator, true: TG.achievePurple + '60' }}
+                  thumbColor={practiceMode ? TG.achievePurple : TG.textHint}
+                />
+              </View>
+              {practiceMode && (
+                <View style={[styles.introSettingRow, { borderBottomWidth: 0 }]}>
+                  <View style={styles.introSettingInfo}>
+                    <UserIcon size={18} color={isAnonymous ? TG.orange : TG.textHint} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.introSettingLabel}>Stay Anonymous</Text>
+                      <Text style={styles.introSettingHint}>
+                        {isAnonymous ? 'Your name is hidden from others' : 'Your name is visible'}
+                      </Text>
+                    </View>
+                  </View>
+                  <Switch
+                    value={isAnonymous}
+                    onValueChange={setIsAnonymous}
+                    trackColor={{ false: TG.separator, true: TG.orange + '60' }}
+                    thumbColor={isAnonymous ? TG.orange : TG.textHint}
+                  />
+                </View>
+              )}
+            </View>
+          </>
+        )}
+
+        {/* ── Step 3: Start ───────── */}
+        {introStep === 3 && (
+          <>
+            <View style={[styles.introIconWrap, { backgroundColor: TG.scoreGreen + '15' }]}>
+              <Play size={40} color={TG.scoreGreen} />
+            </View>
+            <Text style={styles.introTitle}>Ready to Go!</Text>
+            <Text style={styles.introDesc}>
+              {questions.length} question{questions.length !== 1 ? 's' : ''} loaded. Review your settings below, then start the test.
+            </Text>
+
+            {/* Summary pills */}
+            <View style={styles.summaryCard}>
+              <View style={styles.summaryRow}>
+                <Mic size={16} color={TG.green} />
+                <Text style={styles.summaryLabel}>Microphone</Text>
+                <Text style={[styles.summaryValue, { color: TG.green }]}>Granted</Text>
+              </View>
+              <View style={styles.summaryRow}>
+                <Timer size={16} color={TG.accent} />
+                <Text style={styles.summaryLabel}>Prep Timer</Text>
+                <Text style={styles.summaryValue}>{prepTimerEnabled ? 'Countdown' : 'Free'}</Text>
+              </View>
+              <View style={styles.summaryRow}>
+                <Timer size={16} color={TG.red} />
+                <Text style={styles.summaryLabel}>Speak Timer</Text>
+                <Text style={styles.summaryValue}>{speakTimerEnabled ? 'Countdown' : 'Free'}</Text>
+              </View>
+              <View style={[styles.summaryRow, { borderBottomWidth: 0 }]}>
+                <Shield size={16} color={TG.achievePurple} />
+                <Text style={styles.summaryLabel}>Practice Mode</Text>
+                <Text style={styles.summaryValue}>{practiceMode ? (isAnonymous ? 'AI-Only + Anon' : 'AI-Only') : 'Off'}</Text>
+              </View>
+            </View>
+          </>
+        )}
+      </ScrollView>
+
+      {/* Bottom nav bar */}
+      <View style={styles.introBottomBar}>
+        {introStep > 0 && (
+          <TouchableOpacity
+            style={styles.introBackBtn}
+            onPress={() => setIntroStep(introStep - 1)}
+            activeOpacity={0.7}
+          >
+            <ChevronLeft size={20} color={TG.accent} />
+            <Text style={styles.introBackBtnText}>Back</Text>
+          </TouchableOpacity>
+        )}
         <View style={{ flex: 1 }} />
-
-        {/* Start button */}
-        <TouchableOpacity
-          style={[styles.introStartBtn, (!micGranted || loadingQ) && { opacity: 0.4 }]}
-          onPress={startTest}
-          disabled={!micGranted || loadingQ}
-          activeOpacity={0.8}
-        >
-          <Play size={22} color={TG.textWhite} />
-          <Text style={styles.introStartText}>Start Test</Text>
-        </TouchableOpacity>
+        {introStep < 3 ? (
+          <TouchableOpacity
+            style={[styles.introNextBtn, !canAdvance && { opacity: 0.4 }]}
+            onPress={() => canAdvance && setIntroStep(introStep + 1)}
+            disabled={!canAdvance}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.introNextBtnText}>Next</Text>
+            <ChevronRight size={20} color="#fff" />
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={[styles.introStartBtn, !canStart && { opacity: 0.4 }]}
+            onPress={startTest}
+            disabled={!canStart}
+            activeOpacity={0.8}
+          >
+            <Play size={20} color="#fff" />
+            <Text style={styles.introStartText}>Start Test</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -826,9 +974,19 @@ const styles = StyleSheet.create({
 
   // Intro screen
   introContent: {
-    flex: 1, paddingHorizontal: 24, paddingTop: 32, paddingBottom: 28,
-    alignItems: 'center', backgroundColor: TG.bgSecondary,
+    paddingHorizontal: 24, paddingTop: 32, paddingBottom: 28,
+    alignItems: 'center',
   },
+  introDotsRow: {
+    flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
+    gap: 8, paddingVertical: 14, backgroundColor: TG.bgSecondary,
+    paddingHorizontal: 24,
+  },
+  introDot: {
+    flex: 1, height: 4, borderRadius: 2,
+    backgroundColor: TG.separator, maxWidth: 72,
+  },
+  introDotActive: { backgroundColor: TG.accent },
   introIconWrap: {
     width: 88, height: 88, borderRadius: 44,
     backgroundColor: TG.accentLight, justifyContent: 'center', alignItems: 'center',
@@ -873,10 +1031,37 @@ const styles = StyleSheet.create({
   },
   introSettingLabel: { fontSize: 14, fontWeight: '600', color: TG.textPrimary },
   introSettingHint: { fontSize: 11, color: TG.textHint, marginTop: 2 },
+  summaryCard: {
+    width: '100%', backgroundColor: TG.bgSecondary, borderRadius: 14,
+    borderWidth: 1, borderColor: TG.separator, paddingHorizontal: 16,
+    paddingVertical: 6,
+  },
+  summaryRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: TG.separator,
+  },
+  summaryLabel: { flex: 1, fontSize: 14, fontWeight: '600', color: TG.textPrimary },
+  summaryValue: { fontSize: 13, fontWeight: '600', color: TG.textSecondary },
+  introBottomBar: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 20, paddingVertical: 14,
+    backgroundColor: TG.bgSecondary, borderTopWidth: 1, borderTopColor: TG.separator,
+  },
+  introBackBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingVertical: 12, paddingHorizontal: 16,
+  },
+  introBackBtnText: { fontSize: 15, fontWeight: '600', color: TG.accent },
+  introNextBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    backgroundColor: TG.accent, borderRadius: 14,
+    paddingVertical: 14, paddingHorizontal: 28,
+  },
+  introNextBtnText: { fontSize: 15, fontWeight: '700', color: '#fff' },
   introStartBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
     backgroundColor: TG.accent, borderRadius: 14,
-    paddingVertical: 16, width: '100%',
+    paddingVertical: 14, paddingHorizontal: 28,
   },
   introStartText: { fontSize: 17, fontWeight: '700', color: TG.textWhite },
 });
