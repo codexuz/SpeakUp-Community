@@ -1,7 +1,8 @@
-﻿diff --git a/android/src/main/java/com/swmansion/enriched/textinput/events/OnContextMenuItemPressEvent.kt b/android/src/main/java/com/swmansion/enriched/textinput/events/OnContextMenuItemPressEvent.kt
---- a/android/src/main/java/com/swmansion/enriched/textinput/events/OnContextMenuItemPressEvent.kt
-+++ b/android/src/main/java/com/swmansion/enriched/textinput/events/OnContextMenuItemPressEvent.kt
-@@ -20,7 +20,11 @@
+diff --git a/node_modules/react-native-enriched/android/src/main/java/com/swmansion/enriched/textinput/events/OnContextMenuItemPressEvent.kt b/node_modules/react-native-enriched/android/src/main/java/com/swmansion/enriched/textinput/events/OnContextMenuItemPressEvent.kt
+index 96306dd..d7697fc 100644
+--- a/node_modules/react-native-enriched/android/src/main/java/com/swmansion/enriched/textinput/events/OnContextMenuItemPressEvent.kt
++++ b/node_modules/react-native-enriched/android/src/main/java/com/swmansion/enriched/textinput/events/OnContextMenuItemPressEvent.kt
+@@ -23,7 +23,11 @@ class OnContextMenuItemPressEvent(
      eventData.putString("selectedText", selectedText)
      eventData.putInt("selectionStart", selectionStart)
      eventData.putInt("selectionEnd", selectionEnd)
