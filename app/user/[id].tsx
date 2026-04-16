@@ -2,6 +2,7 @@ import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
 import {
   apiFetchCommunityFeed,
+  apiFetchReputation,
   apiFollowUser,
   apiGetFollowers,
   apiGetFollowing,
@@ -12,10 +13,20 @@ import {
   TestSession,
   UserProfileResponse,
 } from '@/lib/api';
+import { UserReputation } from '@/lib/types';
 import { useAuth } from '@/store/auth';
 import { useFocusEffect } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, Heart, Shield, Users } from 'lucide-react-native';
+import {
+  ArrowLeft,
+  Award,
+  Heart,
+  MessageCircle,
+  Shield,
+  Star,
+  Users,
+} from 'lucide-react-native';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -23,12 +34,26 @@ import {
   Image,
   Modal,
   Pressable,
+  RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+const COLORS = {
+  primary: TG.headerBg,
+  accent: TG.accent,
+  background: TG.bgSecondary,
+  surface: TG.bg,
+  text: TG.textPrimary,
+  textMuted: TG.textSecondary,
+  border: TG.separator,
+  gradientPrimary: [TG.headerBg, TG.accentDark] as [string, string],
+  gradientAccent: [TG.streakOrange, '#EF4444'] as [string, string],
+};
 
 type ListMode = 'followers' | 'following';
 
@@ -40,7 +65,9 @@ export default function PublicUserProfileScreen() {
 
   const [profile, setProfile] = useState<UserProfileResponse | null>(null);
   const [sessions, setSessions] = useState<TestSession[]>([]);
+  const [reputation, setReputation] = useState<UserReputation | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [followBusy, setFollowBusy] = useState(false);
 
   const [listMode, setListMode] = useState<ListMode>('followers');
@@ -53,8 +80,13 @@ export default function PublicUserProfileScreen() {
     if (!id) return;
     setLoading(true);
     try {
-      const p = await apiGetUserProfile(id);
-      setProfile(p);
+      const [profileRes, repRes] = await Promise.allSettled([
+        apiGetUserProfile(id),
+        apiFetchReputation(id),
+      ]);
+
+      if (profileRes.status === 'fulfilled') setProfile(profileRes.value);
+      if (repRes.status === 'fulfilled') setReputation(repRes.value);
 
       // Sessions endpoint may not exist in all backend versions.
       try {
@@ -73,6 +105,12 @@ export default function PublicUserProfileScreen() {
       setLoading(false);
     }
   }, [id]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadProfile();
+    setRefreshing(false);
+  }, [loadProfile]);
 
   useFocusEffect(
     useCallback(() => {
@@ -162,9 +200,9 @@ export default function PublicUserProfileScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color={TG.accent} />
+          <ActivityIndicator size="large" color={COLORS.accent} />
         </View>
       </SafeAreaView>
     );
@@ -172,7 +210,7 @@ export default function PublicUserProfileScreen() {
 
   if (!profile) {
     return (
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.centered}>
           <Text style={styles.emptyText}>User not found</Text>
         </View>
@@ -181,104 +219,209 @@ export default function PublicUserProfileScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
-          <ArrowLeft size={22} color={TG.textWhite} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Profile</Text>
-        <View style={{ width: 22 }} />
-      </View>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.accent} />}
+      >
+        {/* ── Gradient Hero ── */}
+        <LinearGradient
+          colors={COLORS.gradientPrimary}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={styles.heroBackground}
+        >
+          {/* Decorative circles */}
+          <View style={[styles.decoCircle, { width: 180, height: 180, top: -40, right: -40, opacity: 0.08 }]} />
+          <View style={[styles.decoCircle, { width: 100, height: 100, bottom: 20, left: -30, opacity: 0.06 }]} />
 
-      <FlatList
-        style={{ flex: 1, backgroundColor: TG.bgSecondary }}
-        data={cardData}
-        keyExtractor={(item) => item.id}
-        numColumns={2}
-        columnWrapperStyle={styles.gridRow}
-        contentContainerStyle={styles.listContent}
-        ListHeaderComponent={
-          <View style={styles.profileCard}>
-            <View style={styles.topUserRow}>
-              <View style={styles.avatarWrap}>
-                {profile.user.avatarUrl ? (
-                  <Image source={{ uri: profile.user.avatarUrl }} style={styles.avatar} />
-                ) : (
-                  <View style={styles.avatarFallback}>
-                    <Text style={styles.avatarFallbackText}>
-                      {(profile.user.fullName || '?').charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
-                )}
+          {/* Header bar */}
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <View style={styles.headerBtn}>
+                <ArrowLeft size={18} color={COLORS.primary} />
               </View>
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Profile</Text>
+            <View style={{ width: 34 }} />
+          </View>
 
-              <View style={{ flex: 1 }}>
-                <Text style={styles.fullName}>{profile.user.fullName}</Text>
-                <Text style={styles.username}>@{profile.user.username}</Text>
-                {profile.user.verifiedTeacher && (
-                  <View style={styles.verifiedBadge}>
-                    <Shield size={12} color={TG.green} />
-                    <Text style={styles.verifiedBadgeText}>Verified Teacher</Text>
-                  </View>
-                )}
-              </View>
-
-              {!profile.relationship.isMe && (
-                <TouchableOpacity
-                  style={[styles.followBtn, profile.relationship.isFollowing && styles.followingBtn]}
-                  onPress={toggleFollowProfile}
-                  disabled={followBusy}
-                  activeOpacity={0.75}
-                >
-                  <Text style={[styles.followBtnText, profile.relationship.isFollowing && styles.followingBtnText]}>
-                    {profile.relationship.isFollowing ? 'Following' : 'Follow'}
+          {/* Avatar & info */}
+          <View style={styles.avatarSection}>
+            <View style={styles.avatarWrapper}>
+              {profile.user.avatarUrl ? (
+                <Image source={{ uri: profile.user.avatarUrl }} style={styles.avatar} />
+              ) : (
+                <View style={styles.avatarFallback}>
+                  <Text style={styles.avatarFallbackText}>
+                    {(profile.user.fullName || '?').charAt(0).toUpperCase()}
                   </Text>
-                </TouchableOpacity>
+                </View>
+              )}
+            </View>
+            <Text style={styles.name}>{profile.user.fullName}</Text>
+            <Text style={styles.username}>@{profile.user.username}</Text>
+
+            <View style={styles.roleRow}>
+              <View style={[styles.roleBadge, profile.user.role === 'teacher' && styles.roleBadgeTeacher]}>
+                <Text style={styles.roleText}>
+                  {profile.user.role === 'teacher' ? 'Teacher' : 'Student'}
+                </Text>
+              </View>
+              {profile.user.role === 'teacher' && profile.user.verifiedTeacher && (
+                <View style={[styles.roleBadge, styles.roleBadgeVerified]}>
+                  <Shield size={12} color="#fff" style={{ marginRight: 4 }} />
+                  <Text style={styles.roleText}>Verified</Text>
+                </View>
               )}
             </View>
 
-            <View style={styles.statsRow}>
-              <TouchableOpacity style={styles.statCard} activeOpacity={0.75} onPress={() => openList('followers')}>
-                <Text style={styles.statNum}>{profile.stats.followers}</Text>
-                <Text style={styles.statLabel}>Followers</Text>
+            {/* Follow button */}
+            {!profile.relationship.isMe && (
+              <TouchableOpacity
+                style={[styles.followBtn, profile.relationship.isFollowing && styles.followingBtn]}
+                onPress={toggleFollowProfile}
+                disabled={followBusy}
+                activeOpacity={0.75}
+              >
+                {followBusy ? (
+                  <ActivityIndicator size="small" color={profile.relationship.isFollowing ? COLORS.textMuted : '#fff'} />
+                ) : (
+                  <Text style={[styles.followBtnText, profile.relationship.isFollowing && styles.followingBtnText]}>
+                    {profile.relationship.isFollowing ? 'Following' : 'Follow'}
+                  </Text>
+                )}
               </TouchableOpacity>
-              <TouchableOpacity style={styles.statCard} activeOpacity={0.75} onPress={() => openList('following')}>
-                <Text style={styles.statNum}>{profile.stats.following}</Text>
-                <Text style={styles.statLabel}>Following</Text>
-              </TouchableOpacity>
-            </View>
-
-            <Text style={styles.sectionTitle}>Sessions</Text>
+            )}
           </View>
-        }
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.sessionCard}
-            activeOpacity={0.8}
-            onPress={() => router.push(`/community/${item.id}` as any)}
-          >
-            <Text style={styles.sessionTitle} numberOfLines={2}>{item.test?.title || 'Untitled Session'}</Text>
-            <Text style={styles.sessionDate}>
-              {new Date(item.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-            </Text>
-            <View style={styles.sessionMetaRow}>
-              <Heart size={12} color={item.isLiked ? TG.red : TG.textHint} fill={item.isLiked ? TG.red : 'none'} />
-              <Text style={[styles.sessionMetaText, item.isLiked && { color: TG.red }]}>{item.likes || 0}</Text>
-              <Users size={12} color={TG.textHint} />
-              <Text style={styles.sessionMetaText}>{item._count?.responses || item.responses?.length || 0}</Text>
-            </View>
-          </TouchableOpacity>
-        )}
-        ListEmptyComponent={<Text style={styles.emptyText}>No public sessions yet</Text>}
-      />
+        </LinearGradient>
 
+        {/* ── Floating Stats Card ── */}
+        <View style={styles.floatingStatsWrapper}>
+          <View style={styles.floatingStatsCard}>
+            <TouchableOpacity style={styles.floatingStatItem} activeOpacity={0.7} onPress={() => openList('followers')}>
+              <Text style={styles.floatingStatNum}>{profile.stats.followers}</Text>
+              <Text style={styles.floatingStatLabel}>Followers</Text>
+            </TouchableOpacity>
+            <View style={styles.floatingStatDivider} />
+            <TouchableOpacity style={styles.floatingStatItem} activeOpacity={0.7} onPress={() => openList('following')}>
+              <Text style={styles.floatingStatNum}>{profile.stats.following}</Text>
+              <Text style={styles.floatingStatLabel}>Following</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* ── Main Content ── */}
+        <View style={styles.mainContent}>
+
+          {/* Reputation */}
+          {reputation && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeaderRow}>
+                <Text style={styles.sectionTitle}>Reputation</Text>
+                {reputation.mentorLabel ? (
+                  <View style={styles.mentorBadge}>
+                    <Shield size={12} color={TG.mentorTeal} />
+                    <Text style={styles.mentorLabel}>{reputation.mentorLabel}</Text>
+                  </View>
+                ) : null}
+              </View>
+
+              <View style={styles.repCardsRow}>
+                <View style={styles.repCard}>
+                  <View style={[styles.repIconBox, { backgroundColor: TG.redLight }]}>
+                    <Heart size={20} color={TG.red} />
+                  </View>
+                  <View style={styles.repCardInfo}>
+                    <Text style={styles.repCardNum}>{reputation.helpfulVotes}</Text>
+                    <Text style={styles.repCardLabel}>Helpful</Text>
+                  </View>
+                </View>
+                <View style={styles.repCard}>
+                  <View style={[styles.repIconBox, { backgroundColor: TG.goldLight }]}>
+                    <Star size={20} color={TG.gold} />
+                  </View>
+                  <View style={styles.repCardInfo}>
+                    <Text style={styles.repCardNum}>{reputation.reviewsGiven}</Text>
+                    <Text style={styles.repCardLabel}>Reviews</Text>
+                  </View>
+                </View>
+              </View>
+              <View style={[styles.repCard, { marginTop: 10 }]}>
+                <View style={[styles.repIconBox, { backgroundColor: TG.accentLight }]}>
+                  <Award size={20} color={TG.accent} />
+                </View>
+                <View style={styles.repCardInfo}>
+                  <Text style={styles.repCardNum}>{reputation.clarityScore.toFixed(1)} / 100</Text>
+                  <Text style={styles.repCardLabel}>Clarity Score</Text>
+                </View>
+              </View>
+
+              {/* Badges */}
+              {reputation.badges && reputation.badges.length > 0 && (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }} contentContainerStyle={styles.badgesScroll}>
+                  {reputation.badges.map((badge, i) => (
+                    <View key={i} style={styles.badgeChip}>
+                      <Text style={styles.badgeChipText}>{badge}</Text>
+                    </View>
+                  ))}
+                </ScrollView>
+              )}
+            </View>
+          )}
+
+          {/* Sessions */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Sessions</Text>
+            {cardData.length > 0 ? (
+              <View style={styles.sessionsGrid}>
+                {cardData.map((item) => (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={styles.sessionCard}
+                    activeOpacity={0.8}
+                    onPress={() => router.push(`/community/${item.id}` as any)}
+                  >
+                    <Text style={styles.sessionTitle} numberOfLines={2}>
+                      {item.test?.title || 'Untitled Session'}
+                    </Text>
+                    <Text style={styles.sessionDate}>
+                      {new Date(item.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </Text>
+                    <View style={styles.sessionMetaRow}>
+                      <View style={styles.sessionMetaItem}>
+                        <Heart size={13} color={item.isLiked ? TG.red : TG.textHint} fill={item.isLiked ? TG.red : 'none'} />
+                        <Text style={[styles.sessionMetaText, item.isLiked && { color: TG.red }]}>{item.likes || 0}</Text>
+                      </View>
+                      <View style={styles.sessionMetaItem}>
+                        <MessageCircle size={13} color={TG.textHint} />
+                        <Text style={styles.sessionMetaText}>{item._count?.responses || item.responses?.length || 0}</Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : (
+              <View style={styles.emptySessionCard}>
+                <Users size={32} color={COLORS.textMuted} />
+                <Text style={styles.emptySessionText}>No public sessions yet</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </ScrollView>
+
+      {/* ── Followers/Following Modal ── */}
       <Modal visible={listOpen} animationType="slide" transparent onRequestClose={() => setListOpen(false)}>
         <Pressable style={styles.modalBackdrop} onPress={() => setListOpen(false)}>
           <Pressable style={styles.modalSheet} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>{listMode === 'followers' ? 'Followers' : 'Following'}</Text>
 
             {listLoading ? (
-              <ActivityIndicator color={TG.accent} style={{ marginTop: 18 }} />
+              <ActivityIndicator color={COLORS.accent} style={{ marginTop: 18 }} />
             ) : (
               <FlatList
                 data={listData}
@@ -333,125 +476,234 @@ export default function PublicUserProfileScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: TG.headerBg },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: TG.bgSecondary },
+  container: { flex: 1, backgroundColor: COLORS.background },
+  content: { paddingBottom: 60 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background },
 
+  // Hero
+  heroBackground: {
+    paddingTop: 10,
+    paddingBottom: 60,
+    borderBottomLeftRadius: 36,
+    borderBottomRightRadius: 36,
+    overflow: 'hidden',
+  },
+  decoCircle: {
+    position: 'absolute',
+    borderRadius: 999,
+    backgroundColor: '#fff',
+  },
   header: {
-    backgroundColor: TG.headerBg,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginBottom: 20,
   },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: TG.textWhite },
+  headerBtn: {
+    backgroundColor: '#fff',
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: { fontSize: 20, fontWeight: '800', color: '#fff' },
 
-  listContent: { padding: 12, paddingBottom: 110 },
-  profileCard: {
-    backgroundColor: TG.bg,
-    borderRadius: 16,
-    padding: 14,
-    marginBottom: 12,
+  avatarSection: { alignItems: 'center', paddingHorizontal: 20 },
+  avatarWrapper: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: '#fff',
+    padding: 3,
+    marginBottom: 14,
   },
-  topUserRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  avatarWrap: { width: 58, height: 58 },
-  avatar: { width: 58, height: 58, borderRadius: 29 },
+  avatar: { width: '100%', height: '100%', borderRadius: 46 },
   avatarFallback: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
+    width: '100%',
+    height: '100%',
+    borderRadius: 46,
     backgroundColor: TG.accentLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarFallbackText: { color: TG.accent, fontWeight: '700', fontSize: 20 },
-  fullName: { fontSize: 18, fontWeight: '700', color: TG.textPrimary },
-  username: { fontSize: 13, color: TG.textSecondary, marginTop: 2 },
-  verifiedBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: TG.greenLight, alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, marginTop: 4 },
-  verifiedBadgeText: { fontSize: 11, fontWeight: '600', color: TG.green },
+  avatarFallbackText: { color: TG.headerBg, fontWeight: '800', fontSize: 34 },
+  name: { fontSize: 22, fontWeight: '800', color: '#fff', marginBottom: 4 },
+  username: { fontSize: 14, color: 'rgba(255,255,255,0.75)', marginBottom: 12 },
+  roleRow: { flexDirection: 'row', gap: 8, alignItems: 'center', marginBottom: 16 },
+  roleBadge: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  roleText: { fontSize: 13, fontWeight: '600', color: '#fff' },
+  roleBadgeTeacher: { backgroundColor: TG.green },
+  roleBadgeVerified: { backgroundColor: TG.purple },
 
   followBtn: {
-    height: 34,
-    paddingHorizontal: 14,
+    height: 40,
+    minWidth: 130,
+    paddingHorizontal: 28,
+    borderRadius: 20,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  followBtnText: { color: TG.headerBg, fontSize: 15, fontWeight: '800' },
+  followingBtn: { backgroundColor: 'rgba(255,255,255,0.2)' },
+  followingBtnText: { color: '#fff' },
+
+  // Floating Stats
+  floatingStatsWrapper: { paddingHorizontal: 24, marginTop: -35, zIndex: 10 },
+  floatingStatsCard: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.surface,
+    borderRadius: 20,
+    paddingVertical: 18,
+  },
+  floatingStatItem: { flex: 1, alignItems: 'center' },
+  floatingStatDivider: { width: 1, backgroundColor: COLORS.border },
+  floatingStatNum: { fontSize: 20, fontWeight: '800', color: COLORS.text, marginBottom: 4 },
+  floatingStatLabel: { fontSize: 12, fontWeight: '600', color: COLORS.textMuted },
+
+  // Main
+  mainContent: { paddingHorizontal: 20, paddingTop: 24 },
+  section: { marginBottom: 28 },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  sectionTitle: { fontSize: 18, fontWeight: '800', color: COLORS.text, marginBottom: 16 },
+
+  // Reputation
+  mentorBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: TG.mentorTealLight,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  mentorLabel: { fontSize: 12, fontWeight: '600', color: TG.mentorTeal },
+  repCardsRow: { flexDirection: 'row', gap: 10 },
+  repCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
+    padding: 12,
+  },
+  repIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  repCardInfo: { flex: 1 },
+  repCardNum: { fontSize: 18, fontWeight: '800', color: COLORS.text, marginBottom: 2 },
+  repCardLabel: { fontSize: 12, fontWeight: '600', color: COLORS.textMuted },
+
+  badgesScroll: { gap: 8 },
+  badgeChip: {
+    backgroundColor: TG.accentLight,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  badgeChipText: { fontSize: 12, fontWeight: '700', color: TG.accent },
+
+  // Sessions
+  sessionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  sessionCard: {
+    width: '48%' as any,
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
+    padding: 14,
+  },
+  sessionTitle: { fontSize: 14, fontWeight: '600', color: COLORS.text, minHeight: 38 },
+  sessionDate: { fontSize: 11, color: COLORS.textMuted, marginTop: 8 },
+  sessionMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 10 },
+  sessionMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  sessionMetaText: { fontSize: 12, color: TG.textHint },
+
+  emptySessionCard: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 20,
+    paddingVertical: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptySessionText: { fontSize: 14, color: COLORS.textMuted, marginTop: 12, fontWeight: '600' },
+
+  emptyText: { color: COLORS.textMuted, textAlign: 'center', marginTop: 20, fontSize: 14 },
+
+  // Modal
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    backgroundColor: COLORS.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 28,
+    minHeight: 360,
+    maxHeight: '75%',
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: COLORS.border,
+    alignSelf: 'center',
+    marginBottom: 14,
+  },
+  modalTitle: { fontSize: 18, fontWeight: '800', color: COLORS.text, marginBottom: 14 },
+  sep: { height: StyleSheet.hairlineWidth, backgroundColor: COLORS.border, marginVertical: 8 },
+
+  userRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  rowLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+  rowAvatar: { width: 44, height: 44, borderRadius: 22 },
+  rowAvatarFallback: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: TG.accentLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rowAvatarText: { color: TG.accent, fontWeight: '700', fontSize: 16 },
+  rowName: { fontSize: 15, fontWeight: '600', color: COLORS.text },
+  rowHandle: { fontSize: 12, color: COLORS.textMuted },
+
+  inlineFollowBtn: {
+    height: 32,
+    minWidth: 80,
     borderRadius: 10,
     backgroundColor: TG.accent,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 12,
   },
-  followBtnText: { color: TG.textWhite, fontSize: 13, fontWeight: '700' },
-  followingBtn: { backgroundColor: TG.bgSecondary },
-  followingBtnText: { color: TG.textSecondary },
-
-  statsRow: { flexDirection: 'row', gap: 10, marginTop: 14 },
-  statCard: {
-    flex: 1,
-    backgroundColor: TG.bgSecondary,
-    borderRadius: 12,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  statNum: { fontSize: 18, fontWeight: '700', color: TG.textPrimary },
-  statLabel: { fontSize: 12, color: TG.textSecondary, marginTop: 2 },
-  sectionTitle: { marginTop: 14, fontSize: 14, fontWeight: '700', color: TG.textPrimary },
-
-  gridRow: { gap: 10 },
-  sessionCard: {
-    flex: 1,
-    backgroundColor: TG.bg,
-    borderRadius: 14,
-    padding: 12,
-    marginBottom: 10,
-  },
-  sessionTitle: { fontSize: 13, fontWeight: '600', color: TG.textPrimary, minHeight: 36 },
-  sessionDate: { fontSize: 11, color: TG.textHint, marginTop: 6 },
-  sessionMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8 },
-  sessionMetaText: { fontSize: 12, color: TG.textHint, marginRight: 8 },
-
-  emptyText: { color: TG.textSecondary, textAlign: 'center', marginTop: 20, fontSize: 14 },
-
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.25)',
-    justifyContent: 'flex-end',
-  },
-  modalSheet: {
-    backgroundColor: TG.bg,
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
-    paddingHorizontal: 14,
-    paddingTop: 14,
-    paddingBottom: 24,
-    minHeight: 360,
-    maxHeight: '75%',
-  },
-  modalTitle: { fontSize: 17, fontWeight: '700', color: TG.textPrimary, marginBottom: 10 },
-  sep: { height: StyleSheet.hairlineWidth, backgroundColor: TG.separator, marginVertical: 8 },
-
-  userRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  rowLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-  rowAvatar: { width: 42, height: 42, borderRadius: 21 },
-  rowAvatarFallback: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: TG.accentLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  rowAvatarText: { color: TG.accent, fontWeight: '700' },
-  rowName: { fontSize: 14, fontWeight: '600', color: TG.textPrimary },
-  rowHandle: { fontSize: 12, color: TG.textSecondary },
-
-  inlineFollowBtn: {
-    height: 30,
-    minWidth: 76,
-    borderRadius: 9,
-    backgroundColor: TG.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 10,
-  },
-  inlineFollowBtnText: { color: TG.textWhite, fontSize: 12, fontWeight: '700' },
+  inlineFollowBtnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
   inlineFollowingBtn: { backgroundColor: TG.bgSecondary },
   inlineFollowingBtnText: { color: TG.textSecondary },
-  emptyListText: { color: TG.textSecondary, textAlign: 'center', marginTop: 24 },
+  emptyListText: { color: COLORS.textMuted, textAlign: 'center', marginTop: 24, fontSize: 14 },
 });

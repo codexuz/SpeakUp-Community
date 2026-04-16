@@ -10,12 +10,12 @@ import {
 import type { Test } from '@/lib/data';
 import type { Challenge, Course, LeaderboardEntry, UserProgress, WeeklySummary } from '@/lib/types';
 import { useAuth } from '@/store/auth';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import {
   ArrowDown,
   ArrowUp,
   BookOpen,
-  ChevronRight,
   Crown,
   Flame,
   Mic,
@@ -25,9 +25,9 @@ import {
   Target,
   TrendingUp,
   Trophy,
-  Zap,
+  Zap
 } from 'lucide-react-native';
-import React, { useCallback, useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Dimensions,
@@ -42,7 +42,6 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 
 const { width } = Dimensions.get('window');
 
@@ -189,7 +188,7 @@ export default function StudentHomeScreen() {
       >
         {/* ── Hero / Progress Card ────────────────────── */}
         {progress && (
-          <View style={styles.heroWrapper}>
+          <TouchableOpacity activeOpacity={0.85} onPress={() => router.push('/streak' as any)} style={styles.heroWrapper}>
             <LinearGradient
               colors={COLORS.gradientAccent as [string, string]}
               start={{ x: 0, y: 0 }}
@@ -197,14 +196,12 @@ export default function StudentHomeScreen() {
               style={styles.heroCard}
             >
               <View style={styles.heroTop}>
-                <TouchableOpacity activeOpacity={0.85} onPress={() => router.push('/streak' as any)}>
                   <View style={[styles.streakBox, { backgroundColor: 'rgba(255,255,255,0.25)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' }]}>
                     <Flame size={18} color="#fff" fill="#fff" />
                     <Text style={[styles.streakText, { color: '#fff' }]}>
                       {progress.currentStreak} Day Streak
                     </Text>
                   </View>
-                </TouchableOpacity>
                 <View style={styles.levelBox}>
                   <Text style={styles.levelLabel}>Current Level</Text>
                   <Text style={styles.levelValue}>{progress.level}</Text>
@@ -221,7 +218,7 @@ export default function StudentHomeScreen() {
                 </View>
               </View>
             </LinearGradient>
-          </View>
+          </TouchableOpacity>
         )}
 
         {/* ── Quick Actions ─────────────────────── */}

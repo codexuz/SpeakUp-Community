@@ -37,7 +37,7 @@ export default function StreakScreen() {
         apiFetchProgress(),
         apiFetchLeaderboard('streak', 20),
       ]);
-
+  console.log('Streak data loaded', { progRes, lbRes });
       if (progRes.status === 'fulfilled') setProgress(progRes.value);
       if (lbRes.status === 'fulfilled') setLeaderboard(lbRes.value.data || []);
     } catch (e) {
@@ -138,7 +138,7 @@ export default function StreakScreen() {
 
         <View style={[styles.lbStreakBadge, isTop3 ? { backgroundColor: TG.streakOrange } : {}]}>
           <Flame size={16} color={isTop3 ? '#fff' : TG.streakOrange} fill={isTop3 ? '#fff' : TG.streakOrange} />
-          <Text style={[styles.lbStreakText, isTop3 && { color: '#fff' }]}>{item.streak || 0}</Text>
+          <Text style={[styles.lbStreakText, isTop3 && { color: '#fff' }]}>{item.currentStreak || 0}</Text>
         </View>
       </View>
     );
