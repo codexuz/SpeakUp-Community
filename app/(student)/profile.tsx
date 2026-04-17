@@ -313,7 +313,10 @@ export default function ProfileScreen() {
                 {achievements.map((a, i) => (
                   <View key={a.id} style={[styles.achievementCard, !a.unlocked && styles.achievementCardLocked]}>
                     <View style={[styles.achievementIconBg, a.unlocked ? { backgroundColor: TG.goldLight } : {}]}>
-                      <Text style={styles.achievementEmoji}>🏆</Text>
+                      <Image
+                        source={a.unlocked ? require('@/assets/images/badge_taken.png') : require('@/assets/images/badge_waiting.png')}
+                        style={styles.achievementImg}
+                      />
                     </View>
                     <Text style={[styles.achievementTitle, !a.unlocked && styles.achievementTitleLocked]} numberOfLines={2}>
                       {a.title}
@@ -576,6 +579,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   achievementEmoji: { fontSize: 24 },
+  achievementImg: { width: 32, height: 32, resizeMode: 'contain' },
   achievementTitle: { fontSize: 11, fontWeight: '700', color: COLORS.text, textAlign: 'center', lineHeight: 16 },
   achievementTitleLocked: { color: COLORS.textMuted },
 

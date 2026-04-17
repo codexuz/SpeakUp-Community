@@ -16,6 +16,9 @@ import {
   ArrowDown,
   ArrowUp,
   BookOpen,
+  CheckCircle2,
+  ChevronRight,
+  Clock,
   Crown,
   Flame,
   Mic,
@@ -27,11 +30,11 @@ import {
   Trophy,
   Zap
 } from 'lucide-react-native';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Dimensions,
-  Image,
+  Animated,
+  Dimensions, FlatList, Image,
   Platform,
   RefreshControl,
   ScrollView,
@@ -39,7 +42,7 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -69,6 +72,7 @@ export default function StudentHomeScreen() {
   const [progress, setProgress] = useState<UserProgress | null>(null);
   const [summary, setSummary] = useState<WeeklySummary | null>(null);
   const [dailyChallenge, setDailyChallenge] = useState<Challenge | null>(null);
+  const [courses, setCourses] = useState<Course[]>([]);
   const [activeCourse, setActiveCourse] = useState<Course | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [userRank, setUserRank] = useState<number>(0);
@@ -102,8 +106,10 @@ export default function StudentHomeScreen() {
         setDailyChallenge(active || challengesRes.value.data?.[0] || null);
       }
       if (coursesRes.status === 'fulfilled') {
-        const inProgress = coursesRes.value.data?.find((c: Course) => c.progressPercent > 0 && c.progressPercent < 100);
-        setActiveCourse(inProgress || coursesRes.value.data?.[0] || null);
+        const allCourses = coursesRes.value.data || [];
+        setCourses(allCourses);
+        const inProgress = allCourses.find((c: Course) => c.progressPercent > 0 && c.progressPercent < 100);
+        setActiveCourse(inProgress || allCourses[0] || null);
       }
       if (lbRes.status === 'fulfilled') {
         setLeaderboard(lbRes.value.data || []);
@@ -135,8 +141,33 @@ export default function StudentHomeScreen() {
     if (diff <= 0) return 'Expired';
     const h = Math.floor(diff / 3600000);
     const m = Math.floor((diff % 3600000) / 60000);
-    return `${h}h ${m}m left`;
+    const s = Math.floor((diff % 60000) / 1000);
+    return `${h}h ${m}m ${s}s`;
   };
+
+  // Animated countdown
+  const [countdown, setCountdown] = useState('');
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (!dailyChallenge || dailyChallenge.submitted) return;
+    const tick = () => setCountdown(getTimeRemaining(dailyChallenge.endsAt));
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [dailyChallenge]);
+
+  useEffect(() => {
+    if (!dailyChallenge || dailyChallenge.submitted) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 0.4, duration: 800, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [dailyChallenge]);
 
   const ImprovementArrow = ({ value }: { value: number }) => {
     if (value > 0) return <ArrowUp size={14} color={COLORS.success} />;
@@ -221,89 +252,100 @@ export default function StudentHomeScreen() {
           </TouchableOpacity>
         )}
 
-        {/* ── Quick Actions ─────────────────────── */}
-        <View style={styles.quickActionsContainer}>
-          {dailyChallenge && (
-            <TouchableOpacity
-              style={{ flex: 1 }}
-              activeOpacity={0.85}
-              onPress={() => router.push('/challenges' as any)}
+        {/* ── Daily Challenge Card ─────────────────── */}
+        {dailyChallenge && (
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => router.push('/challenges' as any)}
+            style={styles.dailyChallengeWrapper}
+          >
+            <LinearGradient
+              colors={['#0F172A', '#1E293B'] as unknown as [string, string]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0.5 }}
+              style={styles.dailyChallengeCard}
             >
-              <LinearGradient
-                colors={COLORS.gradientAccent as [string, string]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.actionCard}
-              >
-                <View style={[styles.actionIconBox, { backgroundColor: 'rgba(255,255,255,0.25)' }]}>
-                  <Target size={22} color="#FFF" />
-                </View>
-                <View style={{ marginTop: 12 }}>
-                  <Text style={styles.actionTitle}>Daily Challenge</Text>
-                  <Text style={styles.actionSub} numberOfLines={1}>{dailyChallenge.title}</Text>
-                  
-                  {dailyChallenge.submitted ? (
-                    <View style={styles.actionBadgeDone}>
-                      <Text style={styles.actionBadgeDoneText}>✓ Completed</Text>
-                    </View>
-                  ) : (
-                    <View style={styles.actionTimerWrap}>
-                      <Text style={styles.actionTimerText}>{getTimeRemaining(dailyChallenge.endsAt)}</Text>
-                    </View>
-                  )}
-                </View>
-              </LinearGradient>
-            </TouchableOpacity>
-          )}
-
-          {activeCourse ? (
-            <TouchableOpacity
-              style={{ flex: 1 }}
-              activeOpacity={0.85}
-              onPress={() => router.push(`/course/${activeCourse.id}` as any)}
-            >
-              <LinearGradient
-                colors={COLORS.gradientBlue as [string, string]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.actionCard}
-              >
-                <View style={[styles.actionIconBox, { backgroundColor: 'rgba(255,255,255,0.25)' }]}>
-                  <BookOpen size={22} color="#FFF" />
-                </View>
-                <View style={{ marginTop: 12 }}>
-                  <Text style={styles.actionTitle}>Continue Course</Text>
-                  <Text style={styles.actionSub} numberOfLines={1}>{activeCourse.title}</Text>
-                  
-                  <View style={styles.actionProgressBar}>
-                    <View style={[styles.actionProgressFill, { width: `${activeCourse.progressPercent}%` }]} />
+              <View style={styles.dcTopRow}>
+                <View style={styles.dcLeft}>
+                  <View style={styles.dcIconBox}>
+                    <Target size={20} color="#fff" strokeWidth={2.5} />
+                  </View>
+                  <View style={styles.dcTextCol}>
+                    <Text style={styles.dcTitle}>Daily Challenge</Text>
+                    <Text style={styles.dcSubtitle} numberOfLines={1}>{dailyChallenge.title}</Text>
                   </View>
                 </View>
-              </LinearGradient>
-            </TouchableOpacity>
-          ) : (
-             <TouchableOpacity
-              style={{ flex: 1 }}
-              activeOpacity={0.85}
-              onPress={() => router.push('/course' as any)}
-            >
-              <LinearGradient
-                colors={['#10B981', '#059669'] as [string, string]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.actionCard}
-              >
-                <View style={[styles.actionIconBox, { backgroundColor: 'rgba(255,255,255,0.2)' }]}>
-                  <Sparkles size={22} color="#FFF" />
+                <ChevronRight size={18} color="rgba(255,255,255,0.7)" />
+              </View>
+              {dailyChallenge.submitted ? (
+                <View style={styles.dcBadgeDone}>
+                  <CheckCircle2 size={13} color="#10B981" strokeWidth={2.5} />
+                  <Text style={styles.dcBadgeDoneText}>Completed</Text>
                 </View>
-                <View style={{ marginTop: 12 }}>
-                  <Text style={styles.actionTitle}>Start Learning</Text>
-                  <Text style={styles.actionSub} numberOfLines={2}>Explore language courses to boost your rank!</Text>
+              ) : (
+                <View style={styles.dcCountdownRow}>
+                  <Animated.View style={[styles.dcPulseDot, { opacity: pulseAnim }]} />
+                  <Clock size={12} color="rgba(255,255,255,0.7)" />
+                  <Text style={styles.dcCountdownText}>{countdown || getTimeRemaining(dailyChallenge.endsAt)}</Text>
                 </View>
-              </LinearGradient>
-            </TouchableOpacity>
-          )}
-        </View>
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
+
+        {/* ── Courses Horizontal Scroll ─────────────────── */}
+        {courses.length > 0 && (
+          <View style={styles.coursesSection}>
+            <View style={[styles.sectionHeader, { paddingHorizontal: 20 }]}>
+              <View style={styles.sectionTitleWrap}>
+                <BookOpen size={22} color={COLORS.primary} strokeWidth={2.5} />
+                <Text style={styles.sectionTitle}>Courses</Text>
+              </View>
+              <TouchableOpacity onPress={() => router.push('/courses' as any)}>
+                <Text style={styles.seeAllText}>See All</Text>
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={courses}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.coursesListContent}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => {
+                const isActive = item.progressPercent > 0 && item.progressPercent < 100;
+                const isComplete = item.progressPercent >= 100;
+                return (
+                  <TouchableOpacity
+                    style={styles.courseCard}
+                    activeOpacity={0.8}
+                    onPress={() => router.push(`/course/${item.id}` as any)}
+                  >
+                    {item.imageUrl ? (
+                      <Image source={{ uri: item.imageUrl }} style={styles.courseImage} />
+                    ) : (
+                      <View style={[styles.courseImage, styles.courseImagePlaceholder]}>
+                        <BookOpen size={28} color={COLORS.primary} strokeWidth={1.5} />
+                      </View>
+                    )}
+                    <View style={styles.courseInfo}>
+                      <Text style={styles.courseLevel}>{item.level}</Text>
+                      <Text style={styles.courseTitle} numberOfLines={2}>{item.title}</Text>
+                      <Text style={styles.courseLessons}>{item.completedLessons}/{item.totalLessons} lessons</Text>
+                      <View style={styles.courseProgressBarBg}>
+                        <View style={[
+                          styles.courseProgressBarFill,
+                          { width: `${Math.min(item.progressPercent, 100)}%` },
+                          isComplete && { backgroundColor: COLORS.success },
+                          isActive && { backgroundColor: COLORS.primary },
+                        ]} />
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              }}
+            />
+          </View>
+        )}
 
         {/* ── Weekly Insights (Stats Grid) ────────────────── */}
         {summary && (
@@ -666,72 +708,156 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
   },
 
-  // Quick Actions Horizontal
-  quickActionsContainer: {
+  // Daily Challenge Card
+  dailyChallengeWrapper: {
     paddingHorizontal: 20,
-    flexDirection: 'row',
-    gap: 14,
-    marginBottom: 32,
+    marginBottom: 24,
   },
-  actionCard: {
-    flex: 1,
+  dailyChallengeCard: {
     borderRadius: 20,
-    padding: 18,
-    minHeight: 140,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 5,
+    gap: 10,
   },
-  actionIconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
+  dcTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  dcLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  dcIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  actionTitle: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: '800',
-    marginBottom: 4,
+  dcTextCol: {
+    flex: 1,
   },
-  actionSub: {
-    color: 'rgba(255, 255, 255, 0.85)',
+  dcTitle: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+  dcSubtitle: {
+    color: 'rgba(255,255,255,0.85)',
     fontSize: 13,
     fontWeight: '500',
-    marginBottom: 12,
+    marginTop: 2,
   },
-  actionBadgeDone: {
+  dcBadgeDone: {
+    flexDirection: 'row',
+    alignItems: 'center',
     alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255,255,255,0.25)',
+    gap: 6,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.25)',
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 5,
     borderRadius: 8,
   },
-  actionBadgeDoneText: {
-    color: '#FFF',
-    fontSize: 11,
+  dcBadgeDoneText: {
+    color: '#10B981',
+    fontSize: 12,
     fontWeight: '700',
   },
-  actionTimerWrap: {
+  dcCountdownRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
     alignSelf: 'flex-start',
-    backgroundColor: 'rgba(0,0,0,0.15)',
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 5,
     borderRadius: 8,
   },
-  actionTimerText: {
-    color: '#FFF',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  actionProgressBar: {
+  dcPulseDot: {
+    width: 6,
     height: 6,
-    backgroundColor: 'rgba(255,255,255,0.25)',
     borderRadius: 3,
-    marginTop: 'auto',
+    backgroundColor: '#10B981',
+  },
+  dcCountdownText: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 12,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
+
+  // Courses Horizontal
+  coursesSection: {
+    marginBottom: 32,
+  },
+  coursesListContent: {
+    paddingHorizontal: 20,
+    gap: 14,
+  },
+  courseCard: {
+    width: 160,
+    backgroundColor: COLORS.surface,
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.03)',
+  },
+  courseImage: {
+    width: '100%',
+    height: 90,
+    backgroundColor: '#EEF2FF',
+  },
+  courseImagePlaceholder: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  courseInfo: {
+    padding: 12,
+  },
+  courseLevel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  courseTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: COLORS.text,
+    lineHeight: 19,
+    marginBottom: 6,
+  },
+  courseLessons: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.textMuted,
+    marginBottom: 8,
+  },
+  courseProgressBarBg: {
+    height: 5,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 3,
     overflow: 'hidden',
   },
-  actionProgressFill: {
+  courseProgressBarFill: {
     height: '100%',
-    backgroundColor: '#FFF',
+    backgroundColor: '#D1D5DB',
     borderRadius: 3,
   },
 

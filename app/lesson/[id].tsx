@@ -5,6 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   ArrowLeft,
   Check,
+  Flag,
   Heart,
   Mic,
   RotateCcw,
@@ -141,6 +142,7 @@ export default function LessonPlayerScreen() {
   const [gameOver, setGameOver] = useState(false);
   const [reviewMode, setReviewMode] = useState(false);
   const [reviewIndex, setReviewIndex] = useState(0);
+  const [showHint, setShowHint] = useState(false);
 
   // Animations
   const comboAnim = useRef(new Animated.Value(1)).current;
@@ -333,6 +335,7 @@ export default function LessonPlayerScreen() {
       setRevealed(false);
       setIsCorrectResult(null);
       setMatchSelection(null);
+      setShowHint(false);
     } else {
       handleComplete();
     }
@@ -710,6 +713,11 @@ export default function LessonPlayerScreen() {
         {/* Type badge */}
         <View style={styles.exerciseTypeRow}>
           <Text style={styles.exerciseTypeLabel}>{meta.label}</Text>
+          {ex.hints && ex.hints.length > 0 && !revealed && (
+            <TouchableOpacity style={styles.hintIconBtn} onPress={() => setShowHint(!showHint)} activeOpacity={0.7}>
+              <Flag size={18} color={showHint ? "#7E22CE" : "#8B5CF6"} strokeWidth={showHint ? 3 : 2.5} />
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Prompt */}
@@ -940,9 +948,12 @@ export default function LessonPlayerScreen() {
         )}
 
         {/* ── Hints ──────────────────── */}
-        {ex.hints && ex.hints.length > 0 && !revealed && (
+        {ex.hints && ex.hints.length > 0 && !revealed && showHint && (
           <View style={styles.hintContainer}>
-            <Text style={styles.hintLabel}>💡 Hint</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+              <Flag size={16} color="#7E22CE" strokeWidth={2.5} />
+              <Text style={styles.hintLabel}>Hint</Text>
+            </View>
             {ex.hints.map((h, i) => <Text key={i} style={styles.hintText}>{h}</Text>)}
           </View>
         )}
@@ -1105,11 +1116,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  reviewOptionCorrect: { backgroundColor: '#E8F5E9' },
-  reviewOptionWrong: { backgroundColor: '#FFEBEE' },
+  reviewOptionCorrect: { backgroundColor: '#ECFDF5', borderLeftWidth: 3, borderLeftColor: '#34D399' },
+  reviewOptionWrong: { backgroundColor: '#FFF1F2', borderLeftWidth: 3, borderLeftColor: '#FB7185' },
   reviewOptionText: { fontSize: 16, fontWeight: '600', color: TG.textSecondary, flex: 1 },
-  reviewOptionTextCorrect: { color: '#58CC02', fontWeight: '700' },
-  reviewOptionTextWrong: { color: '#FF4B4B', fontWeight: '700' },
+  reviewOptionTextCorrect: { color: '#059669', fontWeight: '700' },
+  reviewOptionTextWrong: { color: '#E11D48', fontWeight: '700' },
 
   heartsRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   heartsText: { fontSize: 16, fontWeight: '800', color: TG.red },
@@ -1162,8 +1173,8 @@ const styles = StyleSheet.create({
     marginHorizontal: 6,
     minWidth: 80,
   },
-  blankCorrect: { borderBottomColor: TG.scoreGreen },
-  blankWrong: { borderBottomColor: TG.scoreRed },
+  blankCorrect: { borderBottomColor: '#34D399' },
+  blankWrong: { borderBottomColor: '#FB7185' },
   blankText: { fontSize: 20, fontWeight: '800', color: TG.accent, textAlign: 'center' },
 
   // Target text (pronunciation)
@@ -1188,8 +1199,8 @@ const styles = StyleSheet.create({
     borderColor: TG.separator,
     minHeight: 64,
   },
-  inputCorrect: { borderColor: TG.scoreGreen, backgroundColor: TG.scoreGreen + '10', color: TG.scoreGreen },
-  inputWrong: { borderColor: TG.scoreRed, backgroundColor: TG.scoreRed + '10', color: TG.scoreRed },
+  inputCorrect: { borderColor: '#34D399', backgroundColor: '#ECFDF5', color: '#059669' },
+  inputWrong: { borderColor: '#FB7185', backgroundColor: '#FFF1F2', color: '#E11D48' },
 
   // Speak section
   speakSection: { gap: 16, alignItems: 'center' },
@@ -1218,12 +1229,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  optionSelected: { borderColor: TG.accent, backgroundColor: TG.accentLight + '20' },
-  optionCorrect: { borderColor: TG.scoreGreen, backgroundColor: '#E8F5E9', borderBottomColor: '#388E3C' },
-  optionWrong: { borderColor: TG.scoreRed, backgroundColor: '#FFEBEE', borderBottomColor: '#C62828' },
+  optionSelected: { borderColor: '#6C63FF', backgroundColor: '#EDE9FE', borderBottomColor: '#5B52E0' },
+  optionCorrect: { borderColor: '#34D399', backgroundColor: '#ECFDF5', borderBottomColor: '#10B981' },
+  optionWrong: { borderColor: '#FB7185', backgroundColor: '#FFF1F2', borderBottomColor: '#E11D48' },
   optionText: { fontSize: 17, color: TG.textPrimary, flex: 1, fontWeight: '600' },
-  optionTextSelected: { color: TG.accent, fontWeight: '800' },
-  optionTextCorrect: { color: TG.scoreGreen, fontWeight: '800' },
+  optionTextSelected: { color: '#6C63FF', fontWeight: '800' },
+  optionTextCorrect: { color: '#059669', fontWeight: '800' },
 
   // Reorder
   reorderAnswer: {
@@ -1238,8 +1249,8 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
     marginBottom: 20,
   },
-  reorderCorrect: { borderColor: TG.scoreGreen, backgroundColor: '#E8F5E9' },
-  reorderWrong: { borderColor: TG.scoreRed, backgroundColor: '#FFEBEE' },
+  reorderCorrect: { borderColor: '#34D399', backgroundColor: '#ECFDF5' },
+  reorderWrong: { borderColor: '#FB7185', backgroundColor: '#FFF1F2' },
   reorderPlaceholder: { color: TG.textHint, fontSize: 16, fontWeight: '800' },
   reorderPool: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center' },
   reorderWord: {
@@ -1308,9 +1319,10 @@ const styles = StyleSheet.create({
   },
 
   // Hints
-  hintContainer: { marginTop: 24, backgroundColor: '#FFF9C4', borderRadius: 16, padding: 16 },
-  hintLabel: { fontSize: 15, fontWeight: '800', color: '#F57F17', marginBottom: 6 },
+  hintContainer: { marginTop: 24, backgroundColor: '#F3E8FF', borderRadius: 16, padding: 16 },
+  hintLabel: { fontSize: 16, fontWeight: '800', color: '#7E22CE' },
   hintText: { fontSize: 15, color: TG.textPrimary, lineHeight: 22, fontWeight: '600' },
+  hintIconBtn: { padding: 8, borderRadius: 20, backgroundColor: '#F3E8FF', borderWidth: 1.5, borderColor: '#D8B4FE', elevation: 1, shadowColor: '#8B5CF6', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
 
   // Interactive Bottom Bar
   bottomPanel: {
