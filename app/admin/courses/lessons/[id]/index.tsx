@@ -1,13 +1,14 @@
 import { useAlert } from '@/components/CustomAlert';
 import { useToast } from '@/components/Toast';
+import WaveformPlayer from '@/components/WaveformPlayer';
 import { TG } from '@/constants/theme';
-import { apiCreateExercise, apiDeleteExercise, apiFetchLesson, apiUpdateExercise } from '@/lib/api';
+import { apiCreateExercise, apiDeleteExercise, apiFetchLesson, apiTextToSpeech, apiUpdateExercise, TTSVoice } from '@/lib/api';
 import type { Exercise, ExerciseType, LessonDetail } from '@/lib/types';
 import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
-  ArrowLeft,
   ArrowDown,
+  ArrowLeft,
   ArrowUp,
   Check,
   ChevronRight,
@@ -19,6 +20,7 @@ import {
   Search,
   Sparkles,
   Trash2,
+  Volume2,
   X,
   Zap,
 } from 'lucide-react-native';
@@ -100,6 +102,11 @@ const DIFFICULTY_OPTIONS = [
   { value: 2, label: 'Medium', color: TG.scoreOrange, emoji: '🟠' },
   { value: 3, label: 'Hard', color: TG.scoreRed, emoji: '🔴' },
 ];
+
+const VOICES: TTSVoice[] = ['erin', 'george', 'lisa', 'emily', 'nick'];
+
+// Exercise types that require audio
+const AUDIO_TYPES: ExerciseType[] = ['listenRepeat', 'listenAndChoose', 'tapWhatYouHear', 'pronunciation', 'speakTheAnswer'];
 
 // ─── Quick Templates ───────────────────────────────────────────
 
@@ -259,6 +266,10 @@ export default function LessonBuilderScreen() {
 
   // Preview modal
   const [previewExercise, setPreviewExercise] = useState<Exercise | null>(null);
+
+  // Audio generation
+  const [voice, setVoice] = useState<TTSVoice>('erin');
+  const [generating, setGenerating] = useState(false);
 
   // Filter / Search
   const [searchQuery, setSearchQuery] = useState('');
@@ -1172,10 +1183,76 @@ export default function LessonBuilderScreen() {
 
     return (
       <>
-        {['listenRepeat', 'listenAndChoose', 'tapWhatYouHear', 'pronunciation'].includes(t) && (
+        {AUDIO_TYPES.includes(t) && (
           <>
-            <Text style={s.label}>Audio URL</Text>
-            <TextInput style={s.input} value={form.audioUrl} onChangeText={(v) => updateForm({ audioUrl: v })} placeholder="https://..." placeholderTextColor={TG.textHint} autoCapitalize="none" />
+            <Text style={s.label}>Audio</Text>
+            {form.audioUrl.trim() ? (
+              <View style={s.audioSection}>
+                <View style={s.playerWrapper}>
+                  <WaveformPlayer uri={form.audioUrl.trim()} />
+                </View>
+                <TouchableOpacity style={s.audioRemoveBtn} onPress={() => updateForm({ audioUrl: '' })} activeOpacity={0.7}>
+                  <Trash2 size={15} color={TG.red} />
+                  <Text style={s.audioRemoveText}>Remove audio</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={s.audioPlaceholder}>
+                <Volume2 size={20} color={TG.textHint} />
+                <Text style={s.audioPlaceholderText}>No audio — generate below</Text>
+              </View>
+            )}
+
+            <Text style={[s.label, { marginTop: 10 }]}>Generate Audio from Text</Text>
+            <Text style={s.fieldDesc}>Uses the prompt text to generate audio</Text>
+            <View style={s.voiceRow}>
+              {VOICES.map((v) => (
+                <TouchableOpacity
+                  key={v}
+                  style={[s.voiceChip, voice === v && s.voiceChipActive]}
+                  onPress={() => setVoice(v)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[s.voiceChipText, voice === v && s.voiceChipTextActive]}>
+                    {v.charAt(0).toUpperCase() + v.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity
+              style={[s.generateBtn, (generating || !form.prompt.trim()) && { opacity: 0.5 }]}
+              onPress={async () => {
+                const text = form.targetText?.trim() || form.prompt.trim();
+                if (!text) {
+                  toast.warning('Validation', 'Enter prompt or target text first');
+                  return;
+                }
+                setGenerating(true);
+                try {
+                  const result = await apiTextToSpeech(text, voice);
+                  updateForm({ audioUrl: result.url ?? '' });
+                  toast.success('Done', 'Audio generated');
+                } catch (e: any) {
+                  toast.error('Error', e.message);
+                } finally {
+                  setGenerating(false);
+                }
+              }}
+              activeOpacity={0.7}
+              disabled={generating || !form.prompt.trim()}
+            >
+              {generating ? (
+                <ActivityIndicator size="small" color={TG.accent} />
+              ) : (
+                <>
+                  <Volume2 size={18} color={TG.accent} />
+                  <Text style={s.generateBtnText}>Generate Audio</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <Text style={[s.label, { marginTop: 10 }]}>Audio URL</Text>
+            <TextInput style={s.input} value={form.audioUrl} onChangeText={(v) => updateForm({ audioUrl: v })} placeholder="https://... or generate above" placeholderTextColor={TG.textHint} autoCapitalize="none" />
           </>
         )}
 
@@ -2097,4 +2174,19 @@ const s = StyleSheet.create({
   previewHintItem: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
   previewHintNumber: { width: 22, height: 22, borderRadius: 11, backgroundColor: TG.gold + '15', textAlign: 'center', lineHeight: 22, fontSize: 12, fontWeight: '700', color: TG.gold, overflow: 'hidden' },
   previewHintText: { flex: 1, fontSize: 14, color: TG.textPrimary, lineHeight: 20 },
+
+  // Audio generation
+  audioSection: { gap: 8 },
+  playerWrapper: { backgroundColor: TG.bg, borderRadius: 12, padding: 10, borderWidth: 0.5, borderColor: TG.separator },
+  audioRemoveBtn: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 6, paddingVertical: 4 },
+  audioRemoveText: { fontSize: 13, color: TG.red, fontWeight: '500' },
+  audioPlaceholder: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: TG.bg, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 14, borderWidth: 0.5, borderColor: TG.separator },
+  audioPlaceholderText: { fontSize: 14, color: TG.textHint },
+  voiceRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
+  voiceChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: TG.bg, borderWidth: 0.5, borderColor: TG.separator },
+  voiceChipActive: { backgroundColor: TG.accent, borderColor: TG.accent },
+  voiceChipText: { fontSize: 13, fontWeight: '600', color: TG.textSecondary },
+  voiceChipTextActive: { color: '#fff' },
+  generateBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 10, backgroundColor: TG.bg, borderWidth: 0.5, borderColor: TG.accent },
+  generateBtnText: { fontSize: 14, fontWeight: '600', color: TG.accent },
 });

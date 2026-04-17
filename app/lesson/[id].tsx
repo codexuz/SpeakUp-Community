@@ -28,6 +28,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { PIConfetti } from 'react-native-fast-confetti';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const correctSound = require('@/assets/audios/correct.mp3');
@@ -602,6 +603,18 @@ export default function LessonPlayerScreen() {
     return (
       <SafeAreaView style={styles.safeArea}>
         <StatusBar barStyle="light-content" backgroundColor={TG.headerBg} />
+        <PIConfetti
+          count={200}
+          flakeSize={{ width: 12, height: 12 }}
+          autoplay
+          fadeOutOnEnd
+          cannonsPositions={[
+            { x: 0, y: Dimensions.get('window').height },
+            { x: SCREEN_WIDTH, y: Dimensions.get('window').height },
+          ]}
+          colors={['#FFB800', '#FF9600', '#58CC02', '#FF4B4B', '#1CB0F6', '#CE82FF']}
+          containerStyle={StyleSheet.absoluteFill}
+        />
         <View style={styles.completeContainer}>
           <Text style={styles.completeEmoji}>🎉</Text>
           <Text style={styles.completeTitle}>Lesson Complete!</Text>
