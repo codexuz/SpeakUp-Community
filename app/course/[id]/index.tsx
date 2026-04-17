@@ -1,19 +1,44 @@
-import { TG } from '@/constants/theme';
 import { apiFetchCourse } from '@/lib/api';
-import type { Course, CourseUnit } from '@/lib/types';
+import type { Course, Lesson } from '@/lib/types';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, BookOpen, Check, ChevronRight, Lock } from 'lucide-react-native';
+import { ArrowLeft, BookOpen, Check, Crown, Star } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Dimensions,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
+
+type LessonState = 'completed' | 'current' | 'locked';
+
+const UNIT_COLORS = [
+  '#58CC02', // Green
+  '#1CB0F6', // Blue
+  '#CE82FF', // Purple
+  '#FF9600', // Orange
+  '#FF4B4B', // Red
+  '#00CD9C', // Mint
+];
+
+const getDarkColor = (color: string) => {
+  switch(color) {
+    case '#58CC02': return '#58A700';
+    case '#1CB0F6': return '#1899D6';
+    case '#CE82FF': return '#A559CE';
+    case '#FF9600': return '#CC7A00';
+    case '#FF4B4B': return '#EA2B2B';
+    case '#00CD9C': return '#00A37A';
+    default: return '#CECECE';
+  }
+};
 
 export default function CourseDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -34,239 +59,247 @@ export default function CourseDetailScreen() {
     }
   }, [id]);
 
-  useEffect(() => {
-    loadCourse();
-  }, [loadCourse]);
+  useEffect(() => { loadCourse(); }, [loadCourse]);
 
-  const getLevelColor = (level: string) => {
-    switch (level) {
-      case 'A2': return TG.scoreGreen;
-      case 'B1': return TG.accent;
-      case 'B2': return TG.scoreOrange;
-      case 'C1': return TG.achievePurple;
-      default: return TG.textSecondary;
-    }
-  };
-
-  const isLessonUnlocked = (unit: CourseUnit, lessonIndex: number): boolean => {
-    if (lessonIndex === 0) return true;
-    const prevLesson = unit.lessons[lessonIndex - 1];
-    return prevLesson?.completed ?? false;
-  };
-
-  if (loading) {
+  if (loading || !course) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <StatusBar barStyle="light-content" backgroundColor={TG.headerBg} />
+        <StatusBar barStyle="dark-content" backgroundColor="#fff" />
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <ArrowLeft size={22} color={TG.textWhite} />
+          <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <ArrowLeft size={24} color="#AFAFAF" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Course</Text>
-          <View style={{ width: 22 }} />
+          <View style={{ width: 24 }} />
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={TG.accent} />
+          {loading ? <ActivityIndicator size="large" color="#58CC02" /> : <Text style={styles.emptyText}>Course not found</Text>}
         </View>
       </SafeAreaView>
     );
   }
 
-  if (!course) {
-    return (
-      <SafeAreaView style={styles.safeArea}>
-        <StatusBar barStyle="light-content" backgroundColor={TG.headerBg} />
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <ArrowLeft size={22} color={TG.textWhite} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Course</Text>
-          <View style={{ width: 22 }} />
-        </View>
-        <View style={styles.loadingContainer}>
-          <Text style={styles.emptyText}>Course not found</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  let globalCurrentFound = false;
+  const processedUnits = (course.units || []).map((unit, uIdx) => {
+    const uColor = UNIT_COLORS[uIdx % UNIT_COLORS.length];
+    return {
+      ...unit,
+      uColor,
+      lessons: (unit.lessons || []).map((lesson) => {
+        let state: LessonState = 'locked';
+        if (lesson.completed) {
+          state = 'completed';
+        } else {
+          if (!globalCurrentFound) {
+            state = 'current';
+            globalCurrentFound = true;
+          }
+        }
+        return { lesson, state };
+      })
+    };
+  });
 
-  const color = getLevelColor(course.level);
+  const renderLessonNode = (item: { lesson: Lesson, state: LessonState }, idxInUnit: number, uColor: string) => {
+    const offsets = [0, 25, 45, 25, 0, -25, -45, -25];
+    const offset = offsets[idxInUnit % offsets.length];
+
+    const isLocked = item.state === 'locked';
+    const isCurrent = item.state === 'current';
+    const isCompleted = item.state === 'completed';
+
+    const nodeColor = isCompleted ? uColor : isCurrent ? uColor : '#E5E5E5';
+    const shadowColor = isCompleted ? getDarkColor(uColor) : isCurrent ? getDarkColor(uColor) : '#CECECE';
+
+    return (
+      <View key={item.lesson.id} style={[styles.nodeWrapper, { transform: [{ translateX: offset }] }]}>
+        {isCurrent && (
+          <View style={styles.startTooltip}>
+            <Text style={[styles.startTooltipText, { color: uColor }]}>START</Text>
+            <View style={styles.startTooltipTail} />
+          </View>
+        )}
+        <TouchableOpacity
+          style={styles.nodeTouchable}
+          activeOpacity={isLocked ? 1 : 0.8}
+          onPress={() => {
+            if (!isLocked) router.push(`/lesson/${item.lesson.id}` as any);
+          }}
+        >
+          <View style={[styles.nodeInner, { backgroundColor: nodeColor, borderBottomColor: shadowColor }]}>
+            {isCompleted ? (
+              <Check size={32} color="#fff" strokeWidth={4} />
+            ) : isCurrent ? (
+              <Star size={32} color="#fff" fill="#fff" />
+            ) : (
+              <Crown size={32} color="#CECECE" fill="#CECECE" />
+            )}
+          </View>
+        </TouchableOpacity>
+        <Text style={[
+          styles.nodeLabel,
+          isLocked && styles.nodeLabelLocked,
+          isCurrent && { color: uColor, fontWeight: '800' }
+        ]} numberOfLines={2}>
+          {item.lesson.title}
+        </Text>
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor={TG.headerBg} />
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <ArrowLeft size={22} color={TG.textWhite} />
+          <ArrowLeft size={24} color="#AFAFAF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>{course.title}</Text>
-        <View style={[styles.levelPill, { backgroundColor: color + '20' }]}>
-          <Text style={[styles.levelPillText, { color }]}>{course.level}</Text>
+        <View style={[styles.levelPill, { backgroundColor: UNIT_COLORS[0] + '20' }]}>
+          <Text style={[styles.levelPillText, { color: UNIT_COLORS[0] }]}>{course.level}</Text>
         </View>
       </View>
 
       <ScrollView
-        style={{ flex: 1, backgroundColor: TG.bgSecondary }}
+        style={{ flex: 1, backgroundColor: '#fff' }}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── Course Progress ────────── */}
-        <View style={styles.progressCard}>
-          <View style={styles.progressInfo}>
-            <Text style={styles.progressTitle}>Progress</Text>
-            <Text style={styles.progressSub}>
-              {course.completedLessons} of {course.totalLessons} lessons completed
-            </Text>
-          </View>
-          <View style={styles.progressBarBg}>
-            <View style={[styles.progressBarFill, { width: `${course.progressPercent}%`, backgroundColor: color }]} />
-          </View>
-          <Text style={[styles.progressPercent, { color }]}>{course.progressPercent}%</Text>
-        </View>
-
-        {/* ── Units & Lessons ────────── */}
-        {course.units?.map((unit, unitIndex) => (
-          <View key={unit.id} style={styles.unitCard}>
-            <View style={styles.unitHeader}>
-              <View style={[styles.unitBadge, { backgroundColor: color + '15' }]}>
-                <BookOpen size={16} color={color} />
+        {processedUnits.map((unit, uIdx) => (
+          <View key={`unit-${unit.id}`} style={styles.unitSection}>
+            {/* Unit Header Block */}
+            <View style={[styles.unitHeader, { backgroundColor: unit.uColor }]}>
+              <View style={styles.unitHeaderContent}>
+                <Text style={styles.unitHeaderTitle}>Unit {uIdx + 1}</Text>
+                <Text style={styles.unitHeaderDesc}>{unit.title}</Text>
               </View>
-              <Text style={styles.unitTitle}>{unit.title}</Text>
+              <TouchableOpacity style={styles.unitGuideBtn} activeOpacity={0.8}>
+                <BookOpen size={24} color={unit.uColor} />
+                <Text style={[styles.unitGuideText, { color: unit.uColor }]}>Guide</Text>
+              </TouchableOpacity>
             </View>
-            {unit.lessons?.map((lesson, lessonIndex) => {
-              const unlocked = isLessonUnlocked(unit, lessonIndex);
-              return (
-                <TouchableOpacity
-                  key={lesson.id}
-                  style={[styles.lessonRow, !unlocked && styles.lessonLocked]}
-                  activeOpacity={unlocked ? 0.7 : 1}
-                  onPress={() => {
-                    if (unlocked) {
-                      router.push(`/lesson/${lesson.id}` as any);
-                    }
-                  }}
-                >
-                  <View style={styles.lessonStatusIcon}>
-                    {lesson.completed ? (
-                      <View style={[styles.checkCircle, { backgroundColor: TG.scoreGreen }]}>
-                        <Check size={14} color="#fff" />
-                      </View>
-                    ) : unlocked ? (
-                      <View style={[styles.checkCircle, { backgroundColor: color, opacity: 0.3 }]}>
-                        <BookOpen size={14} color="#fff" />
-                      </View>
-                    ) : (
-                      <View style={[styles.checkCircle, { backgroundColor: TG.bgSecondary }]}>
-                        <Lock size={14} color={TG.textHint} />
-                      </View>
-                    )}
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.lessonTitle, !unlocked && styles.lessonTitleLocked]}>
-                      {lesson.title}
-                    </Text>
-                    {lesson.completed && lesson.score != null && (
-                      <Text style={styles.lessonScore}>Score: {lesson.score} · +{lesson.xpEarned} XP</Text>
-                    )}
-                    {!lesson.completed && unlocked && (
-                      <Text style={[styles.lessonScore, { color }]}>+{lesson.xpReward} XP</Text>
-                    )}
-                  </View>
-                  {unlocked && !lesson.completed && <ChevronRight size={18} color={TG.textHint} />}
-                </TouchableOpacity>
-              );
-            })}
+
+            {/* Path Nodes */}
+            <View style={styles.unitPath}>
+              {unit.lessons.map((item, lIdx) => renderLessonNode(item, lIdx, unit.uColor))}
+            </View>
           </View>
         ))}
 
-        <View style={{ height: 40 }} />
+        <View style={{ height: 100 }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: TG.headerBg },
+  safeArea: { flex: 1, backgroundColor: '#fff' },
   header: {
-    backgroundColor: TG.headerBg,
+    backgroundColor: '#fff',
     paddingHorizontal: 16,
     paddingVertical: 14,
     flexDirection: 'row',
     alignItems: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: '#E5E5E5',
     gap: 12,
   },
-  headerTitle: { fontSize: 17, fontWeight: '700', color: TG.textWhite, flex: 1 },
-  levelPill: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10 },
-  levelPillText: { fontSize: 12, fontWeight: '700' },
+  headerTitle: { fontSize: 18, fontWeight: '800', color: '#4B4B4B', flex: 1, textAlign: 'center' },
+  levelPill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10 },
+  levelPillText: { fontSize: 13, fontWeight: '800' },
 
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: TG.bgSecondary },
-  emptyText: { fontSize: 15, color: TG.textSecondary },
-  scrollContent: { paddingBottom: 100 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' },
+  emptyText: { fontSize: 16, color: '#AFAFAF', fontWeight: '700' },
+  scrollContent: { paddingBottom: 40 },
 
-  // Progress
-  progressCard: {
-    backgroundColor: TG.bg,
-    margin: 14,
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  progressInfo: { marginBottom: 10 },
-  progressTitle: { fontSize: 16, fontWeight: '700', color: TG.textPrimary },
-  progressSub: { fontSize: 13, color: TG.textSecondary, marginTop: 2 },
-  progressBarBg: { height: 8, backgroundColor: TG.bgSecondary, borderRadius: 4, overflow: 'hidden' },
-  progressBarFill: { height: 8, borderRadius: 4 },
-  progressPercent: { fontSize: 13, fontWeight: '700', marginTop: 6, textAlign: 'right' },
-
-  // Unit
-  unitCard: {
-    backgroundColor: TG.bg,
-    marginHorizontal: 14,
-    marginBottom: 12,
-    borderRadius: 16,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 3,
-    elevation: 1,
-  },
+  // Unit Section
+  unitSection: { marginBottom: 20 },
   unitHeader: {
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 28,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 0.5,
-    borderBottomColor: TG.separatorLight,
+    justifyContent: 'space-between',
+    borderBottomWidth: 4,
+    borderBottomColor: 'rgba(0,0,0,0.15)',
   },
-  unitBadge: { width: 32, height: 32, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-  unitTitle: { fontSize: 15, fontWeight: '700', color: TG.textPrimary, flex: 1 },
-
-  // Lesson
-  lessonRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  unitHeaderContent: { flex: 1, paddingRight: 16 },
+  unitHeaderTitle: { fontSize: 22, fontWeight: '900', color: '#fff', marginBottom: 4 },
+  unitHeaderDesc: { fontSize: 16, fontWeight: '600', color: 'rgba(255,255,255,0.9)', lineHeight: 22 },
+  unitGuideBtn: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    gap: 12,
-    borderBottomWidth: 0.5,
-    borderBottomColor: TG.separatorLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderBottomWidth: 3,
+    borderBottomColor: '#E5E5E5',
   },
-  lessonLocked: { opacity: 0.5 },
-  lessonStatusIcon: {},
-  checkCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+  unitGuideText: { fontSize: 13, fontWeight: '800', marginTop: 4, textTransform: 'uppercase' },
+
+  // Path Nodes
+  unitPath: {
+    paddingVertical: 32,
+    alignItems: 'center',
+    width: '100%',
+  },
+  nodeWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 32,
+    width: 120,
+  },
+  nodeTouchable: {
+    zIndex: 2,
+  },
+  nodeInner: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     justifyContent: 'center',
     alignItems: 'center',
+    borderBottomWidth: 6,
   },
-  lessonTitle: { fontSize: 14, fontWeight: '600', color: TG.textPrimary },
-  lessonTitleLocked: { color: TG.textHint },
-  lessonScore: { fontSize: 12, color: TG.textSecondary, marginTop: 2 },
+  nodeLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#4B4B4B',
+    marginTop: 12,
+    textAlign: 'center',
+    width: 140,
+  },
+  nodeLabelLocked: { color: '#AFAFAF' },
+
+  // Tooltip
+  startTooltip: {
+    position: 'absolute',
+    top: -46,
+    backgroundColor: '#fff',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#E5E5E5',
+    zIndex: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  startTooltipText: {
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  startTooltipTail: {
+    position: 'absolute',
+    bottom: -8,
+    width: 12,
+    height: 12,
+    backgroundColor: '#fff',
+    borderBottomWidth: 2,
+    borderRightWidth: 2,
+    borderColor: '#E5E5E5',
+    transform: [{ rotate: '45deg' }],
+  },
 });

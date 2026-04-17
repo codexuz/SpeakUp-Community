@@ -55,7 +55,14 @@ const PART_COLORS: Record<string, { fg: string; bg: string }> = {
   'Part 3': { fg: TG.purple, bg: TG.purpleLight },
 };
 
-function getCefrLabel(score: number): { level: string; color: string; bg: string } {
+function getCefrLabel(score: number, examType?: string): { level: string; color: string; bg: string } {
+  if (examType === 'ielts') {
+    if (score <= 4.5) return { level: 'A2', color: TG.red, bg: TG.redLight };
+    if (score <= 5.5) return { level: 'B1', color: TG.orange, bg: TG.orangeLight };
+    if (score <= 6.5) return { level: 'B2', color: TG.accent, bg: TG.accentLight };
+    if (score <= 8.0) return { level: 'C1', color: TG.green, bg: TG.greenLight };
+    return { level: 'C2', color: TG.purple, bg: TG.purpleLight };
+  }
   if (score <= 37) return { level: 'A2', color: TG.red, bg: TG.redLight };
   if (score <= 50) return { level: 'B1', color: TG.orange, bg: TG.orangeLight };
   if (score <= 64) return { level: 'B2', color: TG.accent, bg: TG.accentLight };
@@ -278,7 +285,7 @@ export default function ReviewDetailScreen() {
                       <Text style={styles.reviewsListTitle}>Reviews ({reviews.length})</Text>
                       {reviews.map((rev: any) => {
                         const isOwn = rev.reviewerId === user?.id;
-                        const cefrInfo = getCefrLabel(rev.score);
+                        const cefrInfo = getCefrLabel(rev.score, session?.examType);
                         return (
                           <TouchableOpacity
                             key={rev.id}

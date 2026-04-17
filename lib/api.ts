@@ -827,7 +827,7 @@ export async function apiTextToSpeech(text: string, voice: TTSVoice = 'erin') {
 // AI Feedback (v2)
 // =============================================
 
-import type { Achievement, AIFeedback, Challenge, ChallengeSubmission, Course, CourseUnit, Exercise, LeaderboardResponse, Lesson, LessonDetail, SessionFeedbackResponse, UserProgress, UserReputation, WeeklySummary } from './types';
+import type { Achievement, AIFeedback, Challenge, ChallengeSubmission, Course, CourseUnit, Exercise, ExerciseSession, LeaderboardResponse, Lesson, LessonDetail, SessionFeedbackResponse, UserProgress, UserReputation, WeeklySummary } from './types';
 
 export async function apiFetchAIFeedback(responseId: string) {
   return request<AIFeedback>(`/ai-feedback/${responseId}`);
@@ -1039,14 +1039,77 @@ export async function apiDeleteLessonAdmin(id: string) {
   return request(`/courses/admin/lessons/${id}`, { method: 'DELETE' });
 }
 
-export async function apiCreateExercise(data: { lessonId: string; type: string; prompt: string; order?: number; correctAnswer?: string | null; options?: string[] | null; audioUrl?: string | null; imageUrl?: string | null; hints?: string[] | null }) {
+export async function apiCreateExercise(data: {
+  lessonId: string;
+  type: string;
+  prompt: string;
+  order?: number;
+  correctAnswer?: string | null;
+  sentenceTemplate?: string | null;
+  targetText?: string | null;
+  audioUrl?: string | null;
+  imageUrl?: string | null;
+  hints?: string[] | null;
+  explanation?: string | null;
+  difficulty?: number;
+  xpReward?: number;
+  options?: { text: string; isCorrect: boolean; audioUrl?: string | null; imageUrl?: string | null; order: number }[];
+  matchPairs?: { leftText: string; rightText: string; leftAudio?: string | null; rightAudio?: string | null; order: number }[];
+  wordBankItems?: { text: string; correctPosition: number; isDistractor: boolean }[];
+  conversationLines?: { speaker: string; text: string; audioUrl?: string | null; isUserTurn: boolean; acceptedAnswers?: string[] | null; order: number }[];
+}) {
   return request<Exercise>('/courses/admin/exercises', { method: 'POST', body: JSON.stringify(data) });
 }
 
-export async function apiUpdateExercise(id: string, data: Partial<{ type: string; prompt: string; order: number; correctAnswer: string | null; options: string[] | null; audioUrl: string | null; imageUrl: string | null; hints: string[] | null }>) {
+export async function apiUpdateExercise(id: string, data: Partial<{
+  type: string;
+  prompt: string;
+  order: number;
+  correctAnswer: string | null;
+  sentenceTemplate: string | null;
+  targetText: string | null;
+  audioUrl: string | null;
+  imageUrl: string | null;
+  hints: string[] | null;
+  explanation: string | null;
+  difficulty: number;
+  xpReward: number;
+  options: { text: string; isCorrect: boolean; audioUrl?: string | null; imageUrl?: string | null; order: number }[];
+  matchPairs: { leftText: string; rightText: string; leftAudio?: string | null; rightAudio?: string | null; order: number }[];
+  wordBankItems: { text: string; correctPosition: number; isDistractor: boolean }[];
+  conversationLines: { speaker: string; text: string; audioUrl?: string | null; isUserTurn: boolean; acceptedAnswers?: string[] | null; order: number }[];
+}>) {
   return request<Exercise>(`/courses/admin/exercises/${id}`, { method: 'PUT', body: JSON.stringify(data) });
 }
 
 export async function apiDeleteExercise(id: string) {
   return request(`/courses/admin/exercises/${id}`, { method: 'DELETE' });
+}
+
+// =============================================
+// Exercise Sessions (v2)
+// =============================================
+
+export async function apiStartLessonSession(lessonId: string) {
+  return request<{ session: ExerciseSession; exercises: Exercise[] }>(`/courses/lessons/${lessonId}/start`, { method: 'POST' });
+}
+
+export async function apiSubmitAttempt(sessionId: string, data: {
+  exerciseId: string;
+  userAnswer: Record<string, any>;
+  isCorrect: boolean;
+  timeTakenMs?: number;
+}) {
+  return request<{
+    attempt: { id: string; isCorrect: boolean; xpEarned: number };
+    session: ExerciseSession;
+  }>(`/courses/sessions/${sessionId}/attempt`, { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function apiCompleteSession(sessionId: string) {
+  return request<ExerciseSession>(`/courses/sessions/${sessionId}/complete`, { method: 'POST' });
+}
+
+export async function apiGetSession(sessionId: string) {
+  return request<ExerciseSession>(`/courses/sessions/${sessionId}`);
 }

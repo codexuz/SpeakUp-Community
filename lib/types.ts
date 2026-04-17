@@ -180,6 +180,20 @@ export interface ChallengeSubmission {
 
 // ─── Courses ────────────────────────────────────────────────────
 
+export type ExerciseType =
+  | 'listenRepeat'
+  | 'speakTheAnswer'
+  | 'fillInBlank'
+  | 'multipleChoice'
+  | 'listenAndChoose'
+  | 'roleplay'
+  | 'pronunciation'
+  | 'matchPairs'
+  | 'reorderWords'
+  | 'translateSentence'
+  | 'tapWhatYouHear'
+  | 'completeConversation';
+
 export interface Course {
   id: string;
   title: string;
@@ -214,17 +228,88 @@ export interface Lesson {
   xpEarned: number;
 }
 
+export interface ExerciseOption {
+  id: string;
+  text: string;
+  audioUrl: string | null;
+  imageUrl: string | null;
+  isCorrect: boolean;
+  order: number;
+}
+
+export interface ExerciseMatchPair {
+  id: string;
+  leftText: string;
+  leftAudio: string | null;
+  rightText: string;
+  rightAudio: string | null;
+  order: number;
+}
+
+export interface ExerciseWordBankItem {
+  id: string;
+  text: string;
+  correctPosition: number;
+  isDistractor: boolean;
+}
+
+export interface ExerciseConversationLine {
+  id: string;
+  speaker: string;
+  text: string;
+  audioUrl: string | null;
+  isUserTurn: boolean;
+  acceptedAnswers: string[] | null;
+  order: number;
+}
+
 export interface Exercise {
   id: string;
   lessonId: string;
-  type: 'listenRepeat' | 'speakTheAnswer' | 'fillInBlank' | 'multipleChoice' | 'reorderWords' | 'matchPairs' | 'translate';
+  type: ExerciseType;
   order: number;
   prompt: string;
+  promptAudio: string | null;
   correctAnswer: string | null;
-  options: string[] | null;
+  sentenceTemplate: string | null;
+  targetText: string | null;
   audioUrl: string | null;
   imageUrl: string | null;
   hints: string[] | null;
+  explanation: string | null;
+  difficulty: number;
+  xpReward: number;
+  options: ExerciseOption[];
+  matchPairs: ExerciseMatchPair[];
+  wordBankItems: ExerciseWordBankItem[];
+  conversationLines: ExerciseConversationLine[];
+}
+
+export interface ExerciseSession {
+  id: string;
+  userId: string;
+  lessonId: string;
+  hearts: number;
+  combo: number;
+  maxCombo: number;
+  totalXp: number;
+  correctCount: number;
+  wrongCount: number;
+  completed: boolean;
+  startedAt: string;
+  completedAt: string | null;
+  attempts?: ExerciseAttempt[];
+}
+
+export interface ExerciseAttempt {
+  id: string;
+  sessionId: string;
+  exerciseId: string;
+  userAnswer: Record<string, any>;
+  isCorrect: boolean;
+  xpEarned: number;
+  timeTakenMs: number | null;
+  createdAt: string;
 }
 
 export interface LessonDetail {

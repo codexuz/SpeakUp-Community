@@ -27,10 +27,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 function getCefrLabel(score: number, isIelts: boolean = false): { level: string; color: string; bg: string } {
   if (isIelts) {
-    if (score <= 3.5) return { level: 'A2', color: TG.red, bg: TG.redLight };
-    if (score <= 4.5) return { level: 'B1', color: TG.orange, bg: TG.orangeLight };
-    if (score <= 6.0) return { level: 'B2', color: TG.accent, bg: TG.accentLight };
-    if (score <= 7.5) return { level: 'C1', color: TG.green, bg: TG.greenLight };
+    if (score <= 4.5) return { level: 'A2', color: TG.red, bg: TG.redLight };
+    if (score <= 5.5) return { level: 'B1', color: TG.orange, bg: TG.orangeLight };
+    if (score <= 6.5) return { level: 'B2', color: TG.accent, bg: TG.accentLight };
+    if (score <= 8.0) return { level: 'C1', color: TG.green, bg: TG.greenLight };
     return { level: 'C2', color: TG.purple, bg: TG.purpleLight };
   } else {
     if (score <= 37) return { level: 'A2', color: TG.red, bg: TG.redLight };
@@ -226,7 +226,7 @@ export default function ReviewEditScreen() {
           </View>
           <Text style={styles.cefrGuide}>
             {isIelts 
-              ? 'A2: 0–3.5 · B1: 4.0–4.5 · B2: 5.0–6.0 · C1: 6.5–7.5 · C2: 8.0–9.0'
+              ? 'A2: 0–3.5 · B1: 4.0–5.0 · B2: 5.5–6.5 · C1: 7–8 · C2: 8.5–9.0'
               : 'A2: 0–37 · B1: 38–50 · B2: 51–64 · C1: 65–75'}
           </Text>
 

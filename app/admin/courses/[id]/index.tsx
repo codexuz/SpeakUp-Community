@@ -167,9 +167,11 @@ export default function CourseBuilderScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.safeArea, styles.centered]}>
-        <ActivityIndicator size="large" color={TG.accent} />
-      </SafeAreaView>
+      <View style={{ flex: 1, backgroundColor: TG.headerBg }}>
+        <SafeAreaView style={[styles.safeArea, styles.centered]}>
+          <ActivityIndicator size="large" color={TG.accent} />
+        </SafeAreaView>
+      </View>
     );
   }
 
