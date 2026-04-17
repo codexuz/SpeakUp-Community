@@ -1,13 +1,16 @@
 import { TG } from '@/constants/theme';
 import { apiCompleteSession, apiFetchLesson, apiStartLessonSession, apiSubmitAttempt } from '@/lib/api';
 import type { Exercise, ExerciseSession, ExerciseType, LessonDetail } from '@/lib/types';
-import { useAudioPlayer } from 'expo-audio';
+import { getStoredAuthToken } from '@/store/auth';
+import { AudioModule, createAudioPlayer, RecordingPresets, useAudioPlayer, useAudioRecorder } from 'expo-audio';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   ArrowLeft,
   Check,
   Flag,
   Heart,
+  Keyboard,
+  Lightbulb,
   Mic,
   RotateCcw,
   Volume2,
@@ -26,7 +29,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 import { Confetti } from 'react-native-fast-confetti';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -95,9 +98,12 @@ function validateAnswer(exercise: Exercise, userAnswer: string, selectedOption?:
     return exercise.matchPairs.every((p) => normalizeText(matchedPairs[p.leftText] || '') === normalizeText(p.rightText));
   }
 
-  if (t === 'completeConversation') {
+  if (t === 'completeConversation' || t === 'roleplay') {
     if (!conversationAnswers || !exercise.conversationLines?.length) return true;
     const userTurns = exercise.conversationLines.filter((l) => l.isUserTurn);
+    if (t === 'roleplay') {
+      return userTurns.every((_, i) => (conversationAnswers[i] || '').trim().length > 0);
+    }
     return userTurns.every((turn, i) => {
       const ans = conversationAnswers[i] || '';
       if (turn.acceptedAnswers?.length) {
@@ -106,8 +112,6 @@ function validateAnswer(exercise: Exercise, userAnswer: string, selectedOption?:
       return ans.trim().length > 0;
     });
   }
-
-  if (t === 'roleplay') return (userAnswer || '').trim().length > 0;
 
   return exercise.correctAnswer ? normalizeText(userAnswer) === normalizeText(exercise.correctAnswer) : false;
 }
@@ -149,11 +153,105 @@ export default function LessonPlayerScreen() {
   const [reviewMode, setReviewMode] = useState(false);
   const [reviewIndex, setReviewIndex] = useState(0);
   const [showHint, setShowHint] = useState(false);
+  const [showKeyboard, setShowKeyboard] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingProcessing, setRecordingProcessing] = useState(false);
+  const [convoRecordingTurn, setConvoRecordingTurn] = useState<number | null>(null);
+  const [convoProcessingTurn, setConvoProcessingTurn] = useState<number | null>(null);
+  const [convoStep, setConvoStep] = useState(0);
+  const [convoHintVisible, setConvoHintVisible] = useState(false);
+  const [convoInputText, setConvoInputText] = useState('');
 
   // Audio
   const correctPlayer = useAudioPlayer(correctSound);
   const wrongPlayer = useAudioPlayer(wrongSound);
   const completePlayer = useAudioPlayer(lessonCompleteSound);
+  const exerciseAudioRef = useRef<any>(null);
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const convoScrollRef = useRef<ScrollView>(null);
+
+  const playExerciseAudio = useCallback((url: string) => {
+    try { exerciseAudioRef.current?.remove(); } catch {}
+    const player = createAudioPlayer(url);
+    exerciseAudioRef.current = player;
+    player.play();
+  }, []);
+
+  // Cleanup exercise audio on unmount
+  useEffect(() => {
+    return () => { try { exerciseAudioRef.current?.remove(); } catch {} };
+  }, []);
+
+  // ─── Recording & pronunciation check ─────────────────────
+
+  const startRecording = useCallback(async () => {
+    try {
+      const perms = await AudioModule.requestRecordingPermissionsAsync();
+      if (perms.status !== 'granted') {
+        Alert.alert('Microphone Access', 'Please grant microphone permission to record.');
+        return;
+      }
+      await audioRecorder.prepareToRecordAsync();
+      audioRecorder.record();
+      setIsRecording(true);
+    } catch (err) {
+      console.warn('Failed to start recording', err);
+    }
+  }, [audioRecorder]);
+
+  const stopRecordingAndCheck = useCallback(async (exercise: Exercise) => {
+    try {
+      if (!audioRecorder.isRecording) return;
+      setIsRecording(false);
+      setRecordingProcessing(true);
+      await audioRecorder.stop();
+      const uri = audioRecorder.uri;
+      if (!uri) { setRecordingProcessing(false); return; }
+
+      const token = await getStoredAuthToken();
+      const form = new FormData();
+      form.append('audio', { uri, name: 'recording.m4a', type: 'audio/m4a' } as any);
+
+      const referenceText = exercise.targetText || exercise.correctAnswer || '';
+
+      if (exercise.type === 'pronunciation' && referenceText) {
+        // Pronunciation check
+        form.append('referenceText', referenceText);
+        const res = await fetch('https://speakup.impulselc.uz/api/speech/pronunciation-check', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: form,
+        });
+        const data = await res.json();
+        if (data.transcript) {
+          setTextAnswers((p) => ({ ...p, [exercise.id]: data.transcript }));
+        }
+      } else {
+        // General transcription
+        const res = await fetch('https://speakup.impulselc.uz/api/speech/transcribe', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: form,
+        });
+        const data = await res.json();
+        if (data.transcript) {
+          setTextAnswers((p) => ({ ...p, [exercise.id]: data.transcript }));
+        }
+      }
+    } catch (err) {
+      console.warn('Recording/transcription failed', err);
+    } finally {
+      setRecordingProcessing(false);
+    }
+  }, [audioRecorder]);
+
+  const handleTapToSpeak = useCallback(async (exercise: Exercise) => {
+    if (isRecording) {
+      await stopRecordingAndCheck(exercise);
+    } else {
+      await startRecording();
+    }
+  }, [isRecording, startRecording, stopRecordingAndCheck]);
 
   // Animations
   const comboAnim = useRef(new Animated.Value(1)).current;
@@ -193,6 +291,112 @@ export default function LessonPlayerScreen() {
   }, [currentExercise?.id, currentExercise?.type]);
   const totalExercises = exercises.length;
   const progress = totalExercises > 0 ? ((currentIndex + (revealed ? 1 : 0)) / totalExercises) * 100 : 0;
+
+  // ─── Conversation step-by-step chat ──────────────────────
+
+  const currentConvoLine = useMemo(() => {
+    if (!currentExercise?.conversationLines) return null;
+    const lines = currentExercise.conversationLines;
+    return convoStep < lines.length ? lines[convoStep] : null;
+  }, [currentExercise, convoStep]);
+
+  const currentConvoUserTurnIndex = useMemo(() => {
+    if (!currentExercise?.conversationLines) return 0;
+    return currentExercise.conversationLines.slice(0, convoStep + 1).filter((l) => l.isUserTurn).length - 1;
+  }, [currentExercise, convoStep]);
+
+  // Auto-advance bot lines
+  useEffect(() => {
+    if (!currentExercise) return;
+    if (currentExercise.type !== 'completeConversation' && currentExercise.type !== 'roleplay') return;
+    const lines = currentExercise.conversationLines;
+    if (!lines || convoStep >= lines.length) return;
+
+    const line = lines[convoStep];
+    if (!line.isUserTurn) {
+      const delay = convoStep === 0 ? 400 : 800;
+      const timer = setTimeout(() => {
+        setConvoStep((p) => p + 1);
+        if (line.audioUrl) playExerciseAudio(line.audioUrl);
+        setTimeout(() => convoScrollRef.current?.scrollToEnd({ animated: true }), 100);
+      }, delay);
+      return () => clearTimeout(timer);
+    } else {
+      setConvoHintVisible(true);
+      setTimeout(() => convoScrollRef.current?.scrollToEnd({ animated: true }), 100);
+    }
+  }, [convoStep, currentExercise]);
+
+  // Reset convo state when exercise changes
+  useEffect(() => {
+    setConvoStep(0);
+    setConvoHintVisible(false);
+    setConvoInputText('');
+    setConvoRecordingTurn(null);
+    setConvoProcessingTurn(null);
+  }, [currentIndex]);
+
+  const sendConvoMessage = useCallback(() => {
+    if (!currentExercise?.conversationLines) return;
+    const text = convoInputText.trim();
+    if (!text) return;
+
+    handleConvoAnswer(currentExercise.id, currentConvoUserTurnIndex, text);
+    setConvoInputText('');
+    setConvoHintVisible(false);
+    setConvoStep((p) => p + 1);
+    setTimeout(() => convoScrollRef.current?.scrollToEnd({ animated: true }), 150);
+  }, [currentExercise, convoInputText, currentConvoUserTurnIndex]);
+
+  const handleConvoTapToSpeak = useCallback(async () => {
+    if (!currentExercise?.conversationLines) return;
+    const exId = currentExercise.id;
+    const turnIndex = currentConvoUserTurnIndex;
+
+    if (convoRecordingTurn !== null) {
+      try {
+        setConvoRecordingTurn(null);
+        setConvoProcessingTurn(turnIndex);
+        if (!audioRecorder.isRecording) return;
+        await audioRecorder.stop();
+        const uri = audioRecorder.uri;
+        if (!uri) { setConvoProcessingTurn(null); return; }
+
+        const token = await getStoredAuthToken();
+        const form = new FormData();
+        form.append('audio', { uri, name: 'recording.m4a', type: 'audio/m4a' } as any);
+        const res = await fetch('https://speakup.impulselc.uz/api/speech/transcribe', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: form,
+        });
+        const data = await res.json();
+        if (data.transcript) {
+          handleConvoAnswer(exId, turnIndex, data.transcript);
+          setConvoHintVisible(false);
+          setConvoStep((p) => p + 1);
+          setTimeout(() => convoScrollRef.current?.scrollToEnd({ animated: true }), 150);
+        }
+      } catch (err) {
+        console.warn('Convo recording failed', err);
+      } finally {
+        setConvoProcessingTurn(null);
+      }
+    } else {
+      try {
+        const perms = await AudioModule.requestRecordingPermissionsAsync();
+        if (perms.status !== 'granted') {
+          Alert.alert('Microphone Access', 'Please grant microphone permission to record.');
+          return;
+        }
+        await audioRecorder.prepareToRecordAsync();
+        audioRecorder.record();
+        setConvoRecordingTurn(turnIndex);
+      } catch (err) {
+        console.warn('Failed to start convo recording', err);
+      }
+    }
+  }, [convoRecordingTurn, audioRecorder, currentExercise, currentConvoUserTurnIndex]);
 
   // ─── Animations ──────────────────────────────────────────
 
@@ -274,16 +478,15 @@ export default function LessonPlayerScreen() {
     const { id: eid, type } = currentExercise;
 
     if (['multipleChoice', 'listenAndChoose', 'tapWhatYouHear'].includes(type)) return !!selectedOptions[eid];
-    if (['fillInBlank', 'speakTheAnswer', 'listenRepeat', 'pronunciation', 'roleplay'].includes(type)) return !!(textAnswers[eid]?.trim());
+    if (['fillInBlank', 'speakTheAnswer', 'listenRepeat', 'pronunciation'].includes(type)) return !!(textAnswers[eid]?.trim());
     if (type === 'reorderWords' || type === 'translateSentence') return (reorderWords[eid]?.length || 0) >= 2;
     if (type === 'matchPairs') {
       const pairs = matchedPairs[eid] || {};
       return Object.keys(pairs).length >= (currentExercise.matchPairs?.length || 0);
     }
-    if (type === 'completeConversation') {
-      const userTurns = currentExercise.conversationLines?.filter((l) => l.isUserTurn) || [];
-      const answers = conversationAnswers[eid] || {};
-      return userTurns.every((_, i) => (answers[i] || '').trim().length > 0);
+    if (type === 'completeConversation' || type === 'roleplay') {
+      const lines = currentExercise.conversationLines || [];
+      return convoStep >= lines.length;
     }
     return true;
   };
@@ -604,9 +807,10 @@ export default function LessonPlayerScreen() {
       <SafeAreaView style={styles.safeArea}>
         <StatusBar barStyle="light-content" backgroundColor={TG.headerBg} />
         <Confetti
-          count={200}
-          flakeSize={{ width: 12, height: 12 }}
+          count={80}
+          flakeSize={{ width: 10, height: 10 }}
           fadeOutOnEnd
+          isInfinite={false}
           cannonsPositions={[
             { x: 0, y: Dimensions.get('window').height },
             { x: SCREEN_WIDTH, y: Dimensions.get('window').height },
@@ -741,6 +945,15 @@ export default function LessonPlayerScreen() {
         {/* Type badge */}
         <View style={styles.exerciseTypeRow}>
           <Text style={styles.exerciseTypeLabel}>{meta.label}</Text>
+          {['listenRepeat', 'speakTheAnswer', 'pronunciation'].includes(ex.type) && !revealed && !textAnswers[ex.id] && (
+            <TouchableOpacity
+              style={[styles.keyboardToggleBtn, showKeyboard && styles.keyboardToggleBtnActive]}
+              onPress={() => setShowKeyboard(!showKeyboard)}
+              activeOpacity={0.7}
+            >
+              <Keyboard size={18} color={showKeyboard ? '#fff' : '#8B5CF6'} strokeWidth={2.5} />
+            </TouchableOpacity>
+          )}
           {ex.hints && ex.hints.length > 0 && !revealed && (
             <TouchableOpacity style={styles.hintIconBtn} onPress={() => setShowHint(!showHint)} activeOpacity={0.7}>
               <Flag size={18} color={showHint ? "#7E22CE" : "#8B5CF6"} strokeWidth={showHint ? 3 : 2.5} />
@@ -752,11 +965,84 @@ export default function LessonPlayerScreen() {
         <Text style={styles.promptText}>{ex.prompt}</Text>
 
         {/* ── Audio button ───────────── */}
-        {['listenRepeat', 'listenAndChoose', 'tapWhatYouHear', 'pronunciation'].includes(ex.type) && ex.audioUrl && (
-          <TouchableOpacity style={styles.audioBtn} activeOpacity={0.7}>
+        {['listenAndChoose', 'tapWhatYouHear'].includes(ex.type) && ex.audioUrl && (
+          <TouchableOpacity style={styles.audioBtn} activeOpacity={0.7} onPress={() => playExerciseAudio(ex.audioUrl!)}>
             <Volume2 size={22} color="#fff" />
             <Text style={styles.audioBtnText}>Play Audio</Text>
           </TouchableOpacity>
+        )}
+
+        {/* ── Speaking / Listen & Repeat UI (Duolingo-style) ── */}
+        {['listenRepeat', 'speakTheAnswer', 'pronunciation'].includes(ex.type) && (
+          <View style={styles.speakingLayout}>
+            {/* Speech bubble with target text and audio */}
+            <View style={styles.speechBubble}>
+              {ex.audioUrl ? (
+                <TouchableOpacity style={styles.speechAudioBtn} activeOpacity={0.7} onPress={() => playExerciseAudio(ex.audioUrl!)}>
+                  <Volume2 size={22} color="#1CB0F6" />
+                </TouchableOpacity>
+              ) : null}
+              <View style={styles.speechBubbleWords}>
+                {(ex.targetText || ex.correctAnswer || ex.prompt || '').split(' ').map((word, wi) => (
+                  <Text key={wi} style={styles.speechWord}>{word} </Text>
+                ))}
+              </View>
+            </View>
+
+            {/* Tap to speak button — hide after transcript received */}
+            {!textAnswers[ex.id] && (
+              <TouchableOpacity
+                style={[
+                  styles.tapToSpeakBtn,
+                  isRecording && styles.tapToSpeakRecording,
+                ]}
+                activeOpacity={0.7}
+                disabled={revealed || recordingProcessing}
+                onPress={() => handleTapToSpeak(ex)}
+              >
+                {recordingProcessing ? (
+                  <ActivityIndicator size="small" color="#1CB0F6" />
+                ) : (
+                  <Mic size={24} color={isRecording ? '#fff' : '#1CB0F6'} />
+                )}
+                <Text style={[styles.tapToSpeakText, isRecording && { color: '#fff' }]}>
+                  {recordingProcessing ? 'PROCESSING...' : isRecording ? 'TAP TO STOP' : 'TAP TO SPEAK'}
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {/* User response bubble — shown after transcript */}
+            {!!textAnswers[ex.id] && (
+              <View style={[
+                styles.userResponseBubble,
+                revealed && (isCorrectResult ? styles.userResponseCorrect : styles.userResponseWrong),
+              ]}>
+                <Mic size={18} color={revealed ? (isCorrectResult ? '#059669' : '#AFAFAF') : '#AFAFAF'} />
+                <Text style={[
+                  styles.userResponseText,
+                  revealed && (isCorrectResult ? { color: '#059669' } : { color: '#AFAFAF' }),
+                ]}>
+                  {textAnswers[ex.id]}
+                </Text>
+              </View>
+            )}
+
+            {/* Keyboard text input (toggle) */}
+            {showKeyboard && (
+              <TextInput
+                style={[
+                  styles.textInput,
+                  { width: '100%' },
+                  revealed && (isCorrectResult ? styles.inputCorrect : styles.inputWrong),
+                ]}
+                placeholder="Type your answer here..."
+                placeholderTextColor={TG.textHint}
+                value={textAnswers[ex.id] || ''}
+                onChangeText={(t) => handleTextAnswer(ex.id, t)}
+                editable={!revealed}
+              />
+            )}
+          </View>
         )}
 
         {/* ── Sentence template (fill in blank) ── */}
@@ -767,9 +1053,22 @@ export default function LessonPlayerScreen() {
                 <Text style={styles.sentenceText}>{part}</Text>
                 {i < arr.length - 1 && (
                   <View style={[styles.blankSlot, revealed && (isCorrectResult ? styles.blankCorrect : styles.blankWrong)]}>
-                    <Text style={styles.blankText}>
-                      {selectedOptions[ex.id] || textAnswers[ex.id] || '___'}
-                    </Text>
+                    {selectedOptions[ex.id] ? (
+                      <Text style={styles.blankText}>{selectedOptions[ex.id]}</Text>
+                    ) : (
+                      <TextInput
+                        style={styles.blankInput}
+                        value={textAnswers[ex.id] || ''}
+                        onChangeText={(t) => handleTextAnswer(ex.id, t)}
+                        editable={!revealed}
+                        placeholder="..."
+                        placeholderTextColor={TG.textHint}
+                        autoCorrect={false}
+                        autoComplete="off"
+                        autoCapitalize="none"
+                        spellCheck={false}
+                      />
+                    )}
                   </View>
                 )}
               </React.Fragment>
@@ -778,30 +1077,6 @@ export default function LessonPlayerScreen() {
         )}
 
         {/* ── Text input types ───────── */}
-        {(['fillInBlank', 'speakTheAnswer', 'listenRepeat', 'pronunciation', 'roleplay'].includes(ex.type)) && (
-          <View style={styles.speakSection}>
-            {ex.type === 'pronunciation' && ex.targetText && (
-              <Text style={styles.targetTextDisplay}>"{ex.targetText}"</Text>
-            )}
-            <TextInput
-              style={[
-                styles.textInput,
-                revealed && (isCorrectResult ? styles.inputCorrect : styles.inputWrong),
-              ]}
-              placeholder={['listenRepeat', 'speakTheAnswer', 'pronunciation'].includes(ex.type) ? 'Type or speak your answer...' : 'Type your answer...'}
-              placeholderTextColor={TG.textHint}
-              value={textAnswers[ex.id] || ''}
-              onChangeText={(t) => handleTextAnswer(ex.id, t)}
-              editable={!revealed}
-              multiline
-            />
-            {['listenRepeat', 'speakTheAnswer', 'pronunciation', 'roleplay'].includes(ex.type) && (
-              <TouchableOpacity style={styles.micBtn} activeOpacity={0.7}>
-                <Mic size={22} color="#fff" />
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
 
         {/* ── Multiple choice / listenAndChoose / tapWhatYouHear ── */}
         {['multipleChoice', 'listenAndChoose', 'tapWhatYouHear'].includes(ex.type) && ex.options && (
@@ -896,7 +1171,7 @@ export default function LessonPlayerScreen() {
                   >
                     <Text style={[styles.reorderWordText, used && styles.reorderWordTextUsed]}>{item.text}</Text>
                   </TouchableOpacity>
-                );
+                )
               })}
             </View>
           </View>
@@ -946,32 +1221,62 @@ export default function LessonPlayerScreen() {
           </View>
         )}
 
-        {/* ── Complete conversation ──── */}
+        {/* ── Complete conversation (step-by-step chat) ──── */}
         {(ex.type === 'completeConversation' || ex.type === 'roleplay') && ex.conversationLines && (
           <View style={styles.convoContainer}>
-            {ex.conversationLines.map((line, i) => {
-              const userTurnIndex = ex.conversationLines!.filter((l, j) => l.isUserTurn && j <= i).length - 1;
-              return (
-                <View key={i} style={[styles.convoBubble, line.isUserTurn ? styles.convoBubbleUser : styles.convoBubbleBot]}>
-                  <Text style={styles.convoSpeaker}>{line.speaker}</Text>
-                  {line.isUserTurn ? (
-                    <TextInput
-                      style={[
-                        styles.convoInput,
-                        revealed && (isCorrectResult ? styles.inputCorrect : styles.inputWrong),
-                      ]}
-                      value={conversationAnswers[ex.id]?.[userTurnIndex] || ''}
-                      onChangeText={(t) => handleConvoAnswer(ex.id, userTurnIndex, t)}
-                      placeholder="Your response..."
-                      placeholderTextColor={TG.textHint}
-                      editable={!revealed}
-                    />
-                  ) : (
-                    <Text style={styles.convoText}>{line.text}</Text>
-                  )}
+            <ScrollView
+              ref={convoScrollRef}
+              style={styles.convoScroll}
+              contentContainerStyle={styles.convoScrollContent}
+              showsVerticalScrollIndicator={false}
+              onContentSizeChange={() => convoScrollRef.current?.scrollToEnd({ animated: true })}
+            >
+              {/* Rendered messages (lines 0..convoStep-1) */}
+              {ex.conversationLines.slice(0, convoStep).map((line, i) => {
+                const isUser = line.isUserTurn;
+                const userTurnIndex = ex.conversationLines!.slice(0, i + 1).filter((l) => l.isUserTurn).length - 1;
+
+                return (
+                  <View key={i} style={[styles.chatMsg, isUser && styles.chatMsgUser]}>
+                    {!isUser && (
+                      <View style={styles.chatAvatarCircle}>
+                        <Text style={styles.chatAvatarLetter}>{line.speaker?.charAt(0)?.toUpperCase() || '🤖'}</Text>
+                      </View>
+                    )}
+                    <View style={[styles.chatBubble, isUser ? styles.chatBubbleUser : styles.chatBubbleBot]}>
+                      {!isUser && line.audioUrl && (
+                        <TouchableOpacity style={styles.chatAudioIcon} activeOpacity={0.7} onPress={() => playExerciseAudio(line.audioUrl!)}>
+                          <Volume2 size={14} color="#1CB0F6" />
+                        </TouchableOpacity>
+                      )}
+                      <Text style={[styles.chatBubbleText, isUser && styles.chatBubbleTextUser]}>
+                        {isUser ? (conversationAnswers[ex.id]?.[userTurnIndex] || '') : line.text}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })}
+
+              {/* Typing indicator while bot line is pending */}
+              {currentConvoLine && !currentConvoLine.isUserTurn && (
+                <View style={styles.chatMsg}>
+                  <View style={styles.chatAvatarCircle}>
+                    <Text style={styles.chatAvatarLetter}>{currentConvoLine.speaker?.charAt(0)?.toUpperCase() || '🤖'}</Text>
+                  </View>
+                  <View style={[styles.chatBubble, styles.chatBubbleBot]}>
+                    <Text style={styles.chatTypingDots}>•••</Text>
+                  </View>
                 </View>
-              );
-            })}
+              )}
+            </ScrollView>
+
+            {/* Conversation complete indicator */}
+            {convoStep >= (ex.conversationLines?.length || 0) && !revealed && (
+              <View style={styles.convoCompleteBanner}>
+                <Check size={16} color="#059669" strokeWidth={3} />
+                <Text style={styles.convoCompleteText}>Conversation complete!</Text>
+              </View>
+            )}
           </View>
         )}
 
@@ -987,6 +1292,38 @@ export default function LessonPlayerScreen() {
         )}
 
       </ScrollView>
+
+      {/* ── Conversation voice bar (fixed above CHECK) ── */}
+      {(ex.type === 'completeConversation' || ex.type === 'roleplay') && currentConvoLine?.isUserTurn && !revealed && (
+        <View style={styles.convoBarCard}>
+          {/* Idea hint — always visible */}
+          <View style={styles.convoBarHint}>
+            <Lightbulb size={16} color="#F59E0B" />
+            <Text style={styles.convoBarHintText} numberOfLines={2}>
+              {currentConvoLine.acceptedAnswers?.[0] || currentConvoLine.text}
+            </Text>
+          </View>
+          {/* Mic row */}
+          <View style={styles.convoBarMicRow}>
+            {convoProcessingTurn !== null ? (
+              <View style={styles.convoBarMicBtn}>
+                <ActivityIndicator size="small" color="#1CB0F6" />
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={[styles.convoBarMicBtn, convoRecordingTurn !== null && styles.convoBarMicBtnRec]}
+                activeOpacity={0.7}
+                onPress={handleConvoTapToSpeak}
+              >
+                <Mic size={24} color={convoRecordingTurn !== null ? '#fff' : '#1CB0F6'} />
+              </TouchableOpacity>
+            )}
+            <Text style={styles.convoBarMicLabel}>
+              {convoRecordingTurn !== null ? 'Tap to stop' : convoProcessingTurn !== null ? 'Processing…' : 'Tap to speak'}
+            </Text>
+          </View>
+        </View>
+      )}
 
       {/* ── Bottom feedback bar (Duolingo style) ── */}
       <View style={[
@@ -1190,6 +1527,97 @@ const styles = StyleSheet.create({
   },
   audioBtnText: { fontSize: 17, fontWeight: '800', color: '#fff' },
 
+  // Speaking layout (Duolingo-style)
+  speakingLayout: { alignItems: 'center', marginBottom: 24, gap: 16 },
+  speechBubble: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: TG.bg,
+    borderWidth: 2,
+    borderColor: '#E5E5E5',
+    borderRadius: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    alignSelf: 'stretch',
+  },
+  speechAudioBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#E5F5FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  speechBubbleText: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: TG.textPrimary,
+    flexShrink: 1,
+  },
+  speechBubbleWords: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    flex: 1,
+  },
+  speechWord: {
+    fontSize: 21,
+    fontWeight: '700',
+    color: TG.textPrimary,
+    lineHeight: 34,
+    textDecorationLine: 'underline',
+    textDecorationStyle: 'dashed',
+    textDecorationColor: '#C8C8C8',
+  },
+  speechBubbleArrow: {
+    width: 16,
+    height: 16,
+    backgroundColor: TG.bg,
+    borderRightWidth: 2,
+    borderBottomWidth: 2,
+    borderColor: TG.separator,
+    transform: [{ rotate: '45deg' }],
+    marginTop: -12,
+    alignSelf: 'center',
+  },
+  tapToSpeakBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    width: '100%',
+    paddingVertical: 32,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderBottomWidth: 4,
+    borderColor: '#E5E5E5',
+    backgroundColor: TG.bg,
+  },
+  playAudioSpeakBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    alignSelf: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 40,
+    borderRadius: 16,
+    borderBottomWidth: 4,
+    borderColor: TG.accentDark,
+    backgroundColor: TG.accent,
+    marginTop: 16,
+    marginBottom: 12,
+  },
+  tapToSpeakCorrect: { borderColor: '#34D399', backgroundColor: '#ECFDF5', borderStyle: 'solid' },
+  tapToSpeakWrong: { borderColor: '#FB7185', backgroundColor: '#FFF1F2', borderStyle: 'solid' },
+  tapToSpeakRecording: { backgroundColor: '#E11D48', borderColor: '#BE123C', borderBottomColor: '#BE123C' },
+  tapToSpeakText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#1CB0F6',
+    letterSpacing: 1,
+  },
+
   // Sentence template
   sentenceWrap: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 24 },
   sentenceText: { fontSize: 20, color: TG.textPrimary, lineHeight: 36, fontWeight: '600' },
@@ -1204,6 +1632,16 @@ const styles = StyleSheet.create({
   blankCorrect: { borderBottomColor: '#34D399' },
   blankWrong: { borderBottomColor: '#FB7185' },
   blankText: { fontSize: 20, fontWeight: '800', color: TG.accent, textAlign: 'center' },
+  blankInput: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: TG.accent,
+    textAlign: 'center',
+    minWidth: 60,
+    padding: 0,
+    margin: 0,
+    textTransform: 'lowercase',
+  },
 
   // Target text (pronunciation)
   targetTextDisplay: {
@@ -1323,34 +1761,161 @@ const styles = StyleSheet.create({
   matchCardText: { fontSize: 16, color: TG.textPrimary, fontWeight: '700', textAlign: 'center' },
   matchCardTextMatched: { color: TG.scoreGreen },
 
-  // Conversation
-  convoContainer: { gap: 16 },
-  convoBubble: {
+  // Conversation (step-by-step chat)
+  convoContainer: { flex: 1, marginTop: 12, gap: 0 },
+  convoScroll: { maxHeight: 380, marginBottom: 4 },
+  convoScrollContent: { paddingBottom: 12, paddingTop: 4, gap: 12, paddingHorizontal: 2 },
+  chatMsg: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 10,
+  },
+  chatMsgUser: {
+    flexDirection: 'row-reverse',
+  },
+  chatAvatarCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#E8EAED',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chatAvatarLetter: { fontSize: 15, fontWeight: '800', color: '#5F6368' },
+  chatBubble: {
+    maxWidth: '80%',
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  chatBubbleBot: {
+    backgroundColor: '#F1F3F4',
     borderRadius: 20,
-    padding: 16,
-    maxWidth: '85%',
+    borderBottomLeftRadius: 6,
   },
-  convoBubbleBot: { backgroundColor: TG.bgSecondary, alignSelf: 'flex-start', borderBottomLeftRadius: 4 },
-  convoBubbleUser: { backgroundColor: '#E3F2FD', alignSelf: 'flex-end', borderBottomRightRadius: 4 },
-  convoSpeaker: { fontSize: 13, fontWeight: '800', color: TG.textSecondary, marginBottom: 6 },
-  convoText: { fontSize: 17, color: TG.textPrimary, lineHeight: 24, fontWeight: '600' },
-  convoInput: {
-    backgroundColor: TG.bg,
-    borderRadius: 14,
-    padding: 14,
-    fontSize: 17,
+  chatBubbleUser: {
+    backgroundColor: '#1CB0F6',
+    borderRadius: 20,
+    borderBottomRightRadius: 6,
+  },
+  chatBubbleText: {
+    fontSize: 16,
+    lineHeight: 22,
+    color: '#1F2937',
     fontWeight: '600',
-    color: TG.textPrimary,
-    borderWidth: 2,
-    borderColor: TG.separator,
-    minHeight: 50,
+    flexShrink: 1,
   },
+  chatBubbleTextUser: { color: '#fff' },
+  chatAudioIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#DBEAFE',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chatTypingDots: { fontSize: 22, color: '#9CA3AF', letterSpacing: 4, fontWeight: '800' },
+  // Voice-only conversation bar (fixed above CHECK)
+  convoBarCard: {
+    backgroundColor: '#fff',
+    marginHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+  convoBarHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: '#FFFDF5',
+    borderBottomWidth: 1,
+    borderBottomColor: '#FDE68A',
+  },
+  convoBarHintText: {
+    fontSize: 14,
+    color: '#92400E',
+    fontWeight: '600',
+    flex: 1,
+    lineHeight: 20,
+    fontStyle: 'italic',
+  },
+  convoBarMicRow: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    gap: 6,
+  },
+  convoBarMicBtn: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#E8F4FD',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  convoBarMicBtnRec: { backgroundColor: '#EF4444' },
+  convoBarMicLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#9CA3AF',
+    letterSpacing: 0.3,
+  },
+  convoCompleteBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#ECFDF5',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginTop: 12,
+    marginHorizontal: 2,
+    borderWidth: 1.5,
+    borderColor: '#A7F3D0',
+  },
+  convoCompleteText: { fontSize: 15, color: '#059669', fontWeight: '700' },
 
   // Hints
   hintContainer: { marginTop: 24, backgroundColor: '#F3E8FF', borderRadius: 16, padding: 16 },
   hintLabel: { fontSize: 16, fontWeight: '800', color: '#7E22CE' },
   hintText: { fontSize: 15, color: TG.textPrimary, lineHeight: 22, fontWeight: '600' },
-  hintIconBtn: { padding: 8, borderRadius: 20, backgroundColor: '#F3E8FF', borderWidth: 1.5, borderColor: '#D8B4FE', elevation: 1, shadowColor: '#8B5CF6', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
+  hintIconBtn: { padding: 8, borderRadius: 20, backgroundColor: '#F3E8FF', borderWidth: 1.5, borderColor: '#D8B4FE'},
+
+  // Keyboard toggle
+  keyboardToggleBtn: { padding: 8, borderRadius: 20, backgroundColor: '#F3E8FF', borderWidth: 1.5, borderColor: '#D8B4FE' },
+  keyboardToggleBtnActive: { backgroundColor: '#8B5CF6', borderColor: '#7C3AED' },
+
+  // Recording state
+  // (tapToSpeakRecording moved inline above)
+
+  // User response bubble
+  userResponseBubble: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    alignSelf: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: '#E5E5E5',
+    backgroundColor: TG.bg,
+    marginTop: 8,
+  },
+  userResponseCorrect: { borderColor: '#34D399', backgroundColor: '#ECFDF5' },
+  userResponseWrong: { borderColor: '#E5E5E5', backgroundColor: TG.bg },
+  userResponseText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#AFAFAF',
+    flexShrink: 1,
+  },
 
   // Interactive Bottom Bar
   bottomPanel: {
