@@ -1,6 +1,7 @@
 import { TG } from '@/constants/theme';
 import { apiCompleteSession, apiFetchLesson, apiStartLessonSession, apiSubmitAttempt } from '@/lib/api';
 import type { Exercise, ExerciseSession, ExerciseType, LessonDetail } from '@/lib/types';
+import { useAudioPlayer } from 'expo-audio';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   ArrowLeft,
@@ -28,6 +29,10 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+const correctSound = require('@/assets/audios/correct.mp3');
+const wrongSound = require('@/assets/audios/wrong.mp3');
+const lessonCompleteSound = require('@/assets/audios/lesson-complete.mp3');
 
 // ─── Constants ──────────────────────────────────────────────
 
@@ -143,6 +148,11 @@ export default function LessonPlayerScreen() {
   const [reviewMode, setReviewMode] = useState(false);
   const [reviewIndex, setReviewIndex] = useState(0);
   const [showHint, setShowHint] = useState(false);
+
+  // Audio
+  const correctPlayer = useAudioPlayer(correctSound);
+  const wrongPlayer = useAudioPlayer(wrongSound);
+  const completePlayer = useAudioPlayer(lessonCompleteSound);
 
   // Animations
   const comboAnim = useRef(new Animated.Value(1)).current;
@@ -294,6 +304,8 @@ export default function LessonPlayerScreen() {
     setIsCorrectResult(correct);
 
     if (correct) {
+      correctPlayer.seekTo(0);
+      correctPlayer.play();
       const comboBonus = combo >= 3 ? Math.floor((ex.xpReward || 10) * 0.2) : 0;
       const earned = (ex.xpReward || 10) + comboBonus;
       setXpEarned((p) => p + earned);
@@ -306,6 +318,8 @@ export default function LessonPlayerScreen() {
       pulseCombo();
       popXp(earned);
     } else {
+      wrongPlayer.seekTo(0);
+      wrongPlayer.play();
       const newHearts = hearts - 1;
       setHearts(newHearts);
       setCombo(0);
@@ -348,6 +362,8 @@ export default function LessonPlayerScreen() {
         await apiCompleteSession(session.id);
       }
     } catch { /* ignore */ }
+    completePlayer.seekTo(0);
+    completePlayer.play();
     setCompleted(true);
     setSubmitting(false);
   };

@@ -36,6 +36,30 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 
+// Badge image mapping: achievement key → [active, inactive]
+const BADGE_IMAGES: Record<string, { active: any; inactive: any }> = {
+  'first_recording': { active: require('@/assets/images/badges/first_rec.png'), inactive: require('@/assets/images/badges/first_rec_in.png') },
+  '10_recordings': { active: require('@/assets/images/badges/10_rec.png'), inactive: require('@/assets/images/badges/10_rec_in.png') },
+  '50_recordings': { active: require('@/assets/images/badges/50_rec.png'), inactive: require('@/assets/images/badges/50_rec_in.png') },
+  '100_recordings': { active: require('@/assets/images/badges/100rec.png'), inactive: require('@/assets/images/badges/100rec_inac.png') },
+  'helpful_reviewer': { active: require('@/assets/images/badges/helprev.png'), inactive: require('@/assets/images/badges/helprev_in.png') },
+  '50_reviews': { active: require('@/assets/images/badges/dedrevie.png'), inactive: require('@/assets/images/badges/dedrevie_in.png') },
+  '100_reviews': { active: require('@/assets/images/badges/revmaster.png'), inactive: require('@/assets/images/badges/revmaster_in.png') },
+  '7_day_streak': { active: require('@/assets/images/badges/weekwarr.png'), inactive: require('@/assets/images/badges/weekwarr_in.png') },
+  '30_day_streak': { active: require('@/assets/images/badges/streakmaster.png'), inactive: require('@/assets/images/badges/streakmaster_in.png') },
+  'community_star': { active: require('@/assets/images/badges/comstar.png'), inactive: require('@/assets/images/badges/comstar_in.png') },
+  'level_5': { active: require('@/assets/images/badges/rising_star.png'), inactive: require('@/assets/images/badges/rising_star_in.png') },
+  'level_10': { active: require('@/assets/images/badges/fl_cham.png'), inactive: require('@/assets/images/badges/flcham_in.png') },
+  'first_challenge': { active: require('@/assets/images/badges/chal_acc.png'), inactive: require('@/assets/images/badges/chal_acc_in.png') },
+  'course_completer': { active: require('@/assets/images/badges/course_com.png'), inactive: require('@/assets/images/badges/course_com_in.png') },
+};
+
+function getBadgeImage(key: string, unlocked: boolean) {
+  const badge = BADGE_IMAGES[key];
+  if (badge) return unlocked ? badge.active : badge.inactive;
+  return unlocked ? require('@/assets/images/badge_taken.png') : require('@/assets/images/badge_waiting.png');
+}
+
 const COLORS = {
   background: TG.bgSecondary,
   surface: TG.bg,
@@ -194,19 +218,25 @@ export default function ProfileScreen() {
               <Text style={styles.sectionTitle}>Your Progress</Text>
               <View style={styles.gamStatsRow}>
                 <LinearGradient colors={COLORS.gradientAccent} style={styles.gamStatCard}>
-                  <Flame size={24} color="#fff" />
-                  <Text style={styles.gamStatNumW}>{progress.currentStreak}</Text>
-                  <Text style={styles.gamStatLabelW}>Day Streak</Text>
+                  <Flame size={20} color="#fff" />
+                  <View style={styles.gamStatInfo}>
+                    <Text style={styles.gamStatNumW}>{progress.currentStreak}</Text>
+                    <Text style={styles.gamStatLabelW}>Day Streak</Text>
+                  </View>
                 </LinearGradient>
                 <LinearGradient colors={['#F5C542', '#E6A300']} style={styles.gamStatCard}>
-                  <Zap size={24} color="#fff" />
-                  <Text style={styles.gamStatNumW}>{progress.xp}</Text>
-                  <Text style={styles.gamStatLabelW}>Total XP</Text>
+                  <Zap size={20} color="#fff" />
+                  <View style={styles.gamStatInfo}>
+                    <Text style={styles.gamStatNumW}>{progress.xp}</Text>
+                    <Text style={styles.gamStatLabelW}>Total XP</Text>
+                  </View>
                 </LinearGradient>
                 <View style={[styles.gamStatCard, styles.gamStatCardGlass]}>
-                  <Text style={{ fontSize: 24 }}>🪙</Text>
-                  <Text style={styles.gamStatNumD}>{progress.coins}</Text>
-                  <Text style={styles.gamStatLabelD}>Coins</Text>
+                  <Text style={{ fontSize: 20 }}>🪙</Text>
+                  <View style={styles.gamStatInfo}>
+                    <Text style={styles.gamStatNumD}>{progress.coins}</Text>
+                    <Text style={styles.gamStatLabelD}>Coins</Text>
+                  </View>
                 </View>
               </View>
 
@@ -310,17 +340,12 @@ export default function ProfileScreen() {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Achievements</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.achievementsScroll}>
-                {achievements.map((a, i) => (
-                  <View key={a.id} style={[styles.achievementCard, !a.unlocked && styles.achievementCardLocked]}>
-                    <View style={[styles.achievementIconBg, a.unlocked ? { backgroundColor: TG.goldLight } : {}]}>
-                      <Image
-                        source={a.unlocked ? require('@/assets/images/badge_taken.png') : require('@/assets/images/badge_waiting.png')}
-                        style={styles.achievementImg}
-                      />
-                    </View>
-                    <Text style={[styles.achievementTitle, !a.unlocked && styles.achievementTitleLocked]} numberOfLines={2}>
-                      {a.title}
-                    </Text>
+                {achievements.map((a) => (
+                  <View key={a.id} style={[styles.achievementCard, a.unlocked && styles.achievementCardActive]}>
+                    <Image
+                      source={getBadgeImage(a.key, a.unlocked)}
+                      style={[styles.achievementImg, !a.unlocked && styles.achievementImgLocked]}
+                    />
                   </View>
                 ))}
               </ScrollView>
@@ -491,20 +516,23 @@ const styles = StyleSheet.create({
   gamStatsRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
   gamStatCard: {
     flex: 1,
-    borderRadius: 20,
-    paddingVertical: 16,
-    paddingHorizontal: 12,
+    flexDirection: 'row',
     alignItems: 'center',
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    gap: 10,
   },
   gamStatCardGlass: {
     backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  gamStatNumW: { fontSize: 20, fontWeight: '800', color: '#fff', marginTop: 8 },
-  gamStatLabelW: { fontSize: 11, fontWeight: '600', color: 'rgba(255,255,255,0.8)' },
-  gamStatNumD: { fontSize: 20, fontWeight: '800', color: COLORS.text, marginTop: 8 },
-  gamStatLabelD: { fontSize: 11, fontWeight: '600', color: COLORS.textMuted },
+  gamStatInfo: { flex: 1 },
+  gamStatNumW: { fontSize: 18, fontWeight: '800', color: '#fff' },
+  gamStatLabelW: { fontSize: 10, fontWeight: '600', color: 'rgba(255,255,255,0.8)' },
+  gamStatNumD: { fontSize: 18, fontWeight: '800', color: COLORS.text },
+  gamStatLabelD: { fontSize: 10, fontWeight: '600', color: COLORS.textMuted },
 
   levelCard: {
     backgroundColor: COLORS.surface,
@@ -559,27 +587,20 @@ const styles = StyleSheet.create({
   repCardLabel: { fontSize: 12, fontWeight: '600', color: COLORS.textMuted },
 
   // Achievements
-  achievementsScroll: { gap: 12, paddingRight: 20 },
+  achievementsScroll: { gap: 10, paddingRight: 20 },
   achievementCard: {
     width: 100,
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
-    padding: 14,
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  achievementCardLocked: { opacity: 0.5, backgroundColor: TG.bgSecondary },
-  achievementIconBg: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    height: 100,
+    borderRadius: 28,
     backgroundColor: TG.bgSecondary,
-    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 10,
+    justifyContent: 'center',
   },
-  achievementEmoji: { fontSize: 24 },
-  achievementImg: { width: 32, height: 32, resizeMode: 'contain' },
+  achievementCardActive: {
+    backgroundColor: 'transparent',
+  },
+  achievementImg: { width: 100, height: 100, resizeMode: 'contain' },
+  achievementImgLocked: { opacity: 0.6 },
   achievementTitle: { fontSize: 11, fontWeight: '700', color: COLORS.text, textAlign: 'center', lineHeight: 16 },
   achievementTitleLocked: { color: COLORS.textMuted },
 
