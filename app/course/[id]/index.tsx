@@ -1,5 +1,6 @@
 import { apiFetchCourse } from '@/lib/api';
 import type { Course, Lesson } from '@/lib/types';
+import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   ArrowLeft,
@@ -98,7 +99,7 @@ export default function CourseDetailScreen() {
     }
   }, [id]);
 
-  useEffect(() => { loadCourse(); }, [loadCourse]);
+  useFocusEffect(useCallback(() => { loadCourse(); }, [loadCourse]));
 
   /* ── Loading / Empty ── */
   if (loading || !course) {

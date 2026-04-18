@@ -106,6 +106,7 @@ function RootNavigator() {
         <Stack.Screen name="courses/index" options={{ headerShown: false }} />
         <Stack.Screen name="challenges/index" options={{ headerShown: false }} />
         <Stack.Screen name="challenges/[id]/index" options={{ headerShown: false }} />
+        <Stack.Screen name="lecture/[id]" options={{ headerShown: false }} />
       </Stack>
       {needsRedirect && <Redirect href={redirectTarget as any} />}
     </ThemeProvider>

@@ -1,4 +1,5 @@
 import { useAlert } from '@/components/CustomAlert';
+import MarkdownEditor from '@/components/MarkdownEditor';
 import { useToast } from '@/components/Toast';
 import WaveformPlayer from '@/components/WaveformPlayer';
 import { TG } from '@/constants/theme';
@@ -1950,13 +1951,11 @@ export default function LessonBuilderScreen() {
               {lectureForm.contentType === 'text' && (
                 <>
                   <Text style={s.label}>Content (Markdown)</Text>
-                  <TextInput
-                    style={[s.input, { height: 200, textAlignVertical: 'top' }]}
+                  <MarkdownEditor
                     value={lectureForm.textBody}
                     onChangeText={(v) => setLectureForm((p) => ({ ...p, textBody: v }))}
-                    placeholder="# Heading\n\nWrite your lecture content here using Markdown..."
-                    placeholderTextColor={TG.textHint}
-                    multiline
+                    placeholder="# Heading&#10;&#10;Write your lecture content here using Markdown..."
+                    minHeight={200}
                   />
                 </>
               )}
