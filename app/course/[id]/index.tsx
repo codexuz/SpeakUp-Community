@@ -3,6 +3,7 @@ import type { Course, Lesson } from '@/lib/types';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   ArrowLeft,
+  BookOpen,
   Check,
   FileText,
   Lock,
@@ -181,7 +182,6 @@ export default function CourseDetailScreen() {
         {isCurrent && (
           <View style={[styles.tooltip, { borderColor: uColor }]}>
             <Text style={[styles.tooltipText, { color: uColor }]}>START!</Text>
-            <View style={[styles.tooltipArrow, { borderTopColor: uColor }]} />
           </View>
         )}
         {isCurrent ? <BouncingNode>{node}</BouncingNode> : node}
@@ -209,7 +209,13 @@ export default function CourseDetailScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {processedUnits.map((unit, uIdx) => {
+        {processedUnits.length === 0 ? (
+          <View style={styles.emptyLessons}>
+            <BookOpen size={48} color="#E5E5E5" />
+            <Text style={styles.emptyLessonsTitle}>No lessons yet</Text>
+            <Text style={styles.emptyLessonsDesc}>Lessons for this course haven't been added yet. Check back soon!</Text>
+          </View>
+        ) : processedUnits.map((unit, uIdx) => {
           const totalInUnit = unit.lessons.length;
           return (
             <View key={`unit-${unit.id}`} style={styles.unitSection}>
@@ -262,6 +268,9 @@ const styles = StyleSheet.create({
 
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' },
   emptyText: { fontSize: 16, color: '#AFAFAF', fontWeight: '700' },
+  emptyLessons: { alignItems: 'center', justifyContent: 'center', paddingVertical: 80, paddingHorizontal: 40, gap: 12 },
+  emptyLessonsTitle: { fontSize: 18, fontWeight: '800', color: '#4B4B4B' },
+  emptyLessonsDesc: { fontSize: 14, color: '#AFAFAF', textAlign: 'center', lineHeight: 20 },
 
   scrollContent: { paddingBottom: 40 },
 

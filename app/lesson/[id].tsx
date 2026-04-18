@@ -612,10 +612,20 @@ export default function LessonPlayerScreen() {
         <StatusBar barStyle="light-content" backgroundColor={TG.headerBg} />
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()}><ArrowLeft size={22} color={TG.textWhite} /></TouchableOpacity>
-          <Text style={styles.headerTitle}>Lesson</Text>
+          <Text style={styles.headerTitle}>{lesson?.title || 'Lesson'}</Text>
           <View style={{ width: 22 }} />
         </View>
-        <View style={styles.loadingContainer}><Text style={styles.emptyText}>No exercises found</Text></View>
+        <View style={styles.emptyContainer}>
+          <View style={styles.emptyIconCircle}>
+            <Lightbulb size={36} color={TG.accent} />
+          </View>
+          <Text style={styles.emptyTitle}>No exercises yet</Text>
+          <Text style={styles.emptyDesc}>Exercises for this lesson are being prepared. Check back soon!</Text>
+          <TouchableOpacity style={styles.emptyBackBtn} activeOpacity={0.7} onPress={() => router.back()}>
+            <ArrowLeft size={16} color="#fff" />
+            <Text style={styles.emptyBackBtnText}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
       </SafeAreaView>
     );
   }
@@ -1392,6 +1402,12 @@ const styles = StyleSheet.create({
   screenWrapper: { flex: 1, backgroundColor: TG.bg },
   safeArea: { flex: 1, backgroundColor: TG.bg },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: TG.bg },
+  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: TG.bg, paddingHorizontal: 40 },
+  emptyIconCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: TG.accentLight, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  emptyTitle: { fontSize: 20, fontWeight: '800', color: TG.textPrimary, marginBottom: 8 },
+  emptyDesc: { fontSize: 14, color: TG.textSecondary, textAlign: 'center', lineHeight: 21, marginBottom: 28 },
+  emptyBackBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: TG.accent, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 14 },
+  emptyBackBtnText: { fontSize: 15, fontWeight: '700', color: '#fff' },
   emptyText: { fontSize: 16, color: TG.textSecondary, fontWeight: '800' },
 
   // Header
