@@ -478,7 +478,8 @@ export default function LessonPlayerScreen() {
     const { id: eid, type } = currentExercise;
 
     if (['multipleChoice', 'listenAndChoose', 'tapWhatYouHear'].includes(type)) return !!selectedOptions[eid];
-    if (['fillInBlank', 'speakTheAnswer', 'listenRepeat', 'pronunciation'].includes(type)) return !!(textAnswers[eid]?.trim());
+    if (type === 'fillInBlank') return !!(selectedOptions[eid] || textAnswers[eid]?.trim());
+    if (['speakTheAnswer', 'listenRepeat', 'pronunciation'].includes(type)) return !!(textAnswers[eid]?.trim());
     if (type === 'reorderWords' || type === 'translateSentence') return (reorderWords[eid]?.length || 0) >= 2;
     if (type === 'matchPairs') {
       const pairs = matchedPairs[eid] || {};
@@ -1055,13 +1056,15 @@ export default function LessonPlayerScreen() {
                   <View style={[styles.blankSlot, revealed && (isCorrectResult ? styles.blankCorrect : styles.blankWrong)]}>
                     {selectedOptions[ex.id] ? (
                       <Text style={styles.blankText}>{selectedOptions[ex.id]}</Text>
+                    ) : ex.options && ex.options.length > 0 ? (
+                      <Text style={[styles.blankText, { color: TG.textHint }]}></Text>
                     ) : (
                       <TextInput
                         style={styles.blankInput}
                         value={textAnswers[ex.id] || ''}
                         onChangeText={(t) => handleTextAnswer(ex.id, t)}
                         editable={!revealed}
-                        placeholder="..."
+                        placeholder=""
                         placeholderTextColor={TG.textHint}
                         autoCorrect={false}
                         autoComplete="off"

@@ -1,6 +1,7 @@
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
 import {
+  apiFetchAchievements,
   apiFetchCommunityFeed,
   apiFetchReputation,
   apiFollowUser,
@@ -13,7 +14,7 @@ import {
   TestSession,
   UserProfileResponse,
 } from '@/lib/api';
-import { UserReputation } from '@/lib/types';
+import { Achievement, UserReputation } from '@/lib/types';
 import { useAuth } from '@/store/auth';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -21,11 +22,14 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   ArrowLeft,
   Award,
+  Flame,
   Heart,
   MessageCircle,
+  Mic,
   Shield,
   Star,
   Users,
+  Zap,
 } from 'lucide-react-native';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
@@ -75,18 +79,21 @@ export default function PublicUserProfileScreen() {
   const [listLoading, setListLoading] = useState(false);
   const [listData, setListData] = useState<FollowListItem[]>([]);
   const [listBusyIds, setListBusyIds] = useState<Set<string>>(new Set());
+  const [achievements, setAchievements] = useState<Achievement[]>([]);
 
   const loadProfile = useCallback(async () => {
     if (!id) return;
     setLoading(true);
     try {
-      const [profileRes, repRes] = await Promise.allSettled([
+      const [profileRes, repRes, achieveRes] = await Promise.allSettled([
         apiGetUserProfile(id),
         apiFetchReputation(id),
+        apiFetchAchievements(),
       ]);
 
       if (profileRes.status === 'fulfilled') setProfile(profileRes.value);
       if (repRes.status === 'fulfilled') setReputation(repRes.value);
+      if (achieveRes.status === 'fulfilled') setAchievements(achieveRes.value.data || []);
 
       // Sessions endpoint may not exist in all backend versions.
       try {
@@ -359,16 +366,35 @@ export default function PublicUserProfileScreen() {
                 </View>
               </View>
 
-              {/* Badges */}
-              {reputation.badges && reputation.badges.length > 0 && (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }} contentContainerStyle={styles.badgesScroll}>
-                  {reputation.badges.map((badge, i) => (
-                    <View key={i} style={styles.badgeChip}>
-                      <Text style={styles.badgeChipText}>{badge}</Text>
-                    </View>
-                  ))}
-                </ScrollView>
-              )}
+              {/* Achievements (only earned ones) */}
+              {reputation.badges && reputation.badges.length > 0 && (() => {
+                const earned = achievements.filter((a) => reputation.badges.includes(a.key));
+                if (earned.length === 0) return null;
+
+                const CATEGORY_STYLE: Record<string, { bg: string; color: string; icon: React.ReactNode }> = {
+                  speaking: { bg: '#EEF2FF', color: '#6366F1', icon: <Mic size={16} color="#6366F1" /> },
+                  social:   { bg: '#FFF1F2', color: '#F43F5E', icon: <Heart size={16} color="#F43F5E" /> },
+                  streak:   { bg: '#FFF7ED', color: '#F97316', icon: <Flame size={16} color="#F97316" /> },
+                  mastery:  { bg: '#F0FDF4', color: '#22C55E', icon: <Zap size={16} color="#22C55E" /> },
+                };
+
+                return (
+                  <View style={styles.achievementsWrap}>
+                    {earned.map((a) => {
+                      const cat = CATEGORY_STYLE[a.category] || CATEGORY_STYLE.mastery;
+                      return (
+                        <View key={a.id} style={[styles.achievementChip, { backgroundColor: cat.bg }]}>
+                          <View style={styles.achievementIcon}>{cat.icon}</View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.achievementTitle, { color: cat.color }]}>{a.title}</Text>
+                            <Text style={styles.achievementDesc} numberOfLines={1}>{a.description}</Text>
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </View>
+                );
+              })()}
             </View>
           )}
 
@@ -613,14 +639,25 @@ const styles = StyleSheet.create({
   repCardNum: { fontSize: 18, fontWeight: '800', color: COLORS.text, marginBottom: 2 },
   repCardLabel: { fontSize: 12, fontWeight: '600', color: COLORS.textMuted },
 
-  badgesScroll: { gap: 8 },
-  badgeChip: {
-    backgroundColor: TG.accentLight,
+  achievementsWrap: { marginTop: 14, gap: 8 },
+  achievementChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 14,
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 10,
+    paddingVertical: 10,
+    gap: 10,
   },
-  badgeChipText: { fontSize: 12, fontWeight: '700', color: TG.accent },
+  achievementIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.7)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  achievementTitle: { fontSize: 13, fontWeight: '800' },
+  achievementDesc: { fontSize: 11, fontWeight: '500', color: TG.textSecondary, marginTop: 1 },
 
   // Sessions
   sessionsGrid: {
