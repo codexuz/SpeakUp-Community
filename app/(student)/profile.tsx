@@ -3,34 +3,37 @@ import { TG } from '@/constants/theme';
 import { apiFetchAchievements, apiFetchProgress, apiFetchReputation, apiGetUserProfile, apiLogout } from '@/lib/api';
 import type { Achievement, UserProgress, UserReputation } from '@/lib/types';
 import { useAuth } from '@/store/auth';
+import { useTelegram } from '@/store/telegram';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import {
-  Award,
-  ChevronRight,
-  Edit2,
-  Flame,
-  Heart,
-  LogOut,
-  MapPin,
-  Monitor,
-  Phone,
-  Shield,
-  Star,
-  User as UserIcon,
-  Zap,
+    Award,
+    ChevronRight,
+    Edit2,
+    Flame,
+    Heart,
+    LogOut,
+    MapPin,
+    Monitor,
+    Phone,
+    Send,
+    Shield,
+    Star,
+    User as UserIcon,
+    Zap,
 } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import {
-  Dimensions,
-  Image,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Dimensions,
+    Image,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -81,6 +84,7 @@ export default function ProfileScreen() {
   const { user, logout } = useAuth();
   const router = useRouter();
   const { alert } = useAlert();
+  const { linked: telegramLinked, deepLink: telegramDeepLink, checkLink: checkTelegramLink } = useTelegram();
   
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState({ followers: 0, following: 0 });
@@ -105,7 +109,8 @@ export default function ProfileScreen() {
     } catch (e) {
       console.log('Error loading profile data', e);
     }
-  }, [user?.id]);
+    checkTelegramLink();
+  }, [user?.id, checkTelegramLink]);
 
   useFocusEffect(
     useCallback(() => {
@@ -354,6 +359,24 @@ export default function ProfileScreen() {
 
           {/* Settings & Admin Menu */}
           <View style={styles.menuSection}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              activeOpacity={0.7}
+              onPress={() => {
+                if (!telegramLinked && telegramDeepLink) {
+                  Linking.openURL(telegramDeepLink);
+                }
+              }}
+            >
+              <View style={[styles.menuItemIcon, { backgroundColor: telegramLinked ? TG.greenLight : TG.accentLight }]}>
+                <Send size={18} color={telegramLinked ? TG.green : TG.accent} />
+              </View>
+              <Text style={styles.menuItemText}>
+                {telegramLinked ? 'Telegram Connected' : 'Connect Telegram'}
+              </Text>
+              {!telegramLinked && <ChevronRight size={18} color={COLORS.textMuted} />}
+            </TouchableOpacity>
+
             <TouchableOpacity style={styles.menuItem} activeOpacity={0.7} onPress={() => router.push('/sessions' as any)}>
               <View style={[styles.menuItemIcon, { backgroundColor: TG.accentLight }]}>
                 <Monitor size={18} color={TG.accent} />

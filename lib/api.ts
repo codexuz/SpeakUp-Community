@@ -80,6 +80,32 @@ export async function apiLogout() {
   return request<any>('/auth/logout', { method: 'POST' });
 }
 
+// =============================================
+// Telegram Link
+// =============================================
+
+export async function apiGetTelegramLink() {
+  return request<{ deepLink: string; linked: boolean }>('/auth/telegram-link');
+}
+
+// =============================================
+// Password Reset (via Telegram)
+// =============================================
+
+export async function apiRequestPasswordReset(login: string) {
+  return request<{ message: string }>('/auth/password-reset/request', {
+    method: 'POST',
+    body: JSON.stringify({ login }),
+  });
+}
+
+export async function apiConfirmPasswordReset(login: string, code: string, newPassword: string) {
+  return request<{ message: string }>('/auth/password-reset/confirm', {
+    method: 'POST',
+    body: JSON.stringify({ login, code, newPassword }),
+  });
+}
+
 export async function apiUpdateProfile(data: { fullName?: string; gender?: string; region?: string; phone?: string }) {
   return request<any>('/auth/profile', {
     method: 'PUT',

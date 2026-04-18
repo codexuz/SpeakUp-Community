@@ -2,9 +2,11 @@ import { useAlert } from '@/components/CustomAlert';
 import { TG } from '@/constants/theme';
 import { apiGetUserProfile, apiLogout } from '@/lib/api';
 import { useAuth } from '@/store/auth';
+import { useTelegram } from '@/store/telegram';
 import { useFocusEffect } from '@react-navigation/native';
+import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
-import { ChevronRight, Edit2, LogOut, MapPin, Monitor, Phone, Shield, User as UserIcon } from 'lucide-react-native';
+import { ChevronRight, Edit2, LogOut, MapPin, Monitor, Phone, Send, Shield, User as UserIcon } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,6 +15,7 @@ export default function ProfileScreen() {
   const { user, logout } = useAuth();
   const router = useRouter();
   const { alert } = useAlert();
+  const { linked: telegramLinked, deepLink: telegramDeepLink, checkLink: checkTelegramLink } = useTelegram();
   const [stats, setStats] = useState({ followers: 0, following: 0 });
 
   useFocusEffect(
@@ -21,7 +24,8 @@ export default function ProfileScreen() {
       apiGetUserProfile(user.id)
         .then((p) => setStats(p.stats))
         .catch(() => {});
-    }, [user?.id]),
+      checkTelegramLink();
+    }, [user?.id, checkTelegramLink]),
   );
 
   const handleLogout = async () => {
@@ -107,6 +111,22 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.divider} />
+
+        <TouchableOpacity
+          style={styles.menuRow}
+          activeOpacity={0.7}
+          onPress={() => {
+            if (!telegramLinked && telegramDeepLink) {
+              Linking.openURL(telegramDeepLink);
+            }
+          }}
+        >
+          <Send size={18} color={telegramLinked ? TG.green : TG.accent} />
+          <Text style={[styles.menuText, { color: telegramLinked ? TG.green : TG.textPrimary }]}>
+            {telegramLinked ? 'Telegram Connected' : 'Connect Telegram'}
+          </Text>
+          {!telegramLinked && <ChevronRight size={18} color={TG.textHint} style={{ marginLeft: 'auto' }} />}
+        </TouchableOpacity>
 
         <TouchableOpacity style={styles.menuRow} activeOpacity={0.7} onPress={() => router.push('/sessions' as any)}>
           <Monitor size={18} color={TG.textSecondary} />

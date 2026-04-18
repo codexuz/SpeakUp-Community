@@ -3,9 +3,11 @@ import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
 import { apiFetchMyVerificationStatus, apiGetUserProfile, apiLogout, apiRequestTeacherVerification } from '@/lib/api';
 import { useAuth } from '@/store/auth';
+import { useTelegram } from '@/store/telegram';
 import { useFocusEffect } from '@react-navigation/native';
+import * as ExpoLinking from 'expo-linking';
 import { useRouter } from 'expo-router';
-import { Award, ChevronRight, Edit2, LogOut, MapPin, MessageCircle, Monitor, Phone, Shield, User as UserIcon } from 'lucide-react-native';
+import { Award, ChevronRight, Edit2, LogOut, MapPin, MessageCircle, Monitor, Phone, Send, Shield, User as UserIcon } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, Image, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -15,6 +17,7 @@ export default function ProfileScreen() {
   const router = useRouter();
   const toast = useToast();
   const { alert } = useAlert();
+  const { linked: telegramLinked, deepLink: telegramDeepLink, checkLink: checkTelegramLink } = useTelegram();
   const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
   const [verificationLoading, setVerificationLoading] = useState(false);
   const [verifyModal, setVerifyModal] = useState(false);
@@ -32,7 +35,8 @@ export default function ProfileScreen() {
           }
         })
         .catch(() => {});
-    }, [user?.id]),
+      checkTelegramLink();
+    }, [user?.id, checkTelegramLink]),
   );
 
   const loadVerificationStatus = useCallback(async () => {
@@ -182,6 +186,22 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.divider} />
+
+        <TouchableOpacity
+          style={styles.menuRow}
+          activeOpacity={0.7}
+          onPress={() => {
+            if (!telegramLinked && telegramDeepLink) {
+              ExpoLinking.openURL(telegramDeepLink);
+            }
+          }}
+        >
+          <Send size={18} color={telegramLinked ? TG.green : TG.accent} />
+          <Text style={[styles.menuText, { color: telegramLinked ? TG.green : TG.textPrimary }]}>
+            {telegramLinked ? 'Telegram Connected' : 'Connect Telegram'}
+          </Text>
+          {!telegramLinked && <ChevronRight size={18} color={TG.textHint} style={{ marginLeft: 'auto' }} />}
+        </TouchableOpacity>
 
         <TouchableOpacity style={styles.menuRow} activeOpacity={0.7} onPress={() => router.push('/sessions' as any)}>
           <Monitor size={18} color={TG.textSecondary} />

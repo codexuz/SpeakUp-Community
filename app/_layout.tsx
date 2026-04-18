@@ -6,12 +6,14 @@ import { StatusBar, StyleSheet, View } from 'react-native';
 import 'react-native-reanimated';
 
 import { CustomAlertProvider } from '@/components/CustomAlert';
+import TelegramLinkModal from '@/components/TelegramLinkModal';
 import { ToastProvider } from '@/components/Toast';
 import { TG } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useInAppUpdates } from '@/hooks/useInAppUpdates';
 import { useNotifications } from '@/hooks/useNotifications';
 import { AuthProvider, useAuth } from '@/store/auth';
+import { TelegramProvider, useTelegram } from '@/store/telegram';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -24,6 +26,7 @@ function getRoleRoute(role?: string): '/(student)' | '/(teacher)' | '/(admin)' {
 function RootNavigator() {
   const colorScheme = useColorScheme();
   const { isAuthenticated, isLoading, user } = useAuth();
+  const { linked: telegramLinked, checkLink: checkTelegramLink } = useTelegram();
   const segments = useSegments();
 
   useNotifications();
@@ -34,6 +37,12 @@ function RootNavigator() {
       SplashScreen.hideAsync();
     }
   }, [isLoading]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      checkTelegramLink();
+    }
+  }, [isAuthenticated, checkTelegramLink]);
 
   const inAuthGroup = segments[0] === '(auth)';
   const seg = segments[0] as string;
@@ -109,6 +118,7 @@ function RootNavigator() {
         <Stack.Screen name="lecture/[id]" options={{ headerShown: false }} />
       </Stack>
       {needsRedirect && <Redirect href={redirectTarget as any} />}
+      {isAuthenticated && !telegramLinked && <TelegramLinkModal />}
     </ThemeProvider>
   );
 }
@@ -116,11 +126,13 @@ function RootNavigator() {
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <ToastProvider>
-        <CustomAlertProvider>
-          <RootNavigator />
-        </CustomAlertProvider>
-      </ToastProvider>
+      <TelegramProvider>
+        <ToastProvider>
+          <CustomAlertProvider>
+            <RootNavigator />
+          </CustomAlertProvider>
+        </ToastProvider>
+      </TelegramProvider>
     </AuthProvider>
   );
 }
