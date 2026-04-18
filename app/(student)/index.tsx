@@ -311,33 +311,54 @@ export default function StudentHomeScreen() {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.coursesListContent}
               keyExtractor={(item) => item.id}
-              renderItem={({ item }) => {
-                const isActive = item.progressPercent > 0 && item.progressPercent < 100;
-                const isComplete = item.progressPercent >= 100;
+              renderItem={({ item, index }) => {
+                const pct = Math.min(item.progressPercent, 100);
+                const isComplete = pct >= 100;
+                const LEVEL_COLORS: Record<string, { bg: string; dark: string }> = {
+                  'A1':           { bg: '#58CC02', dark: '#4CAD02' },
+                  'A2':           { bg: '#1CB0F6', dark: '#1899D6' },
+                  'B1':           { bg: '#FF9600', dark: '#E08600' },
+                  'B2':           { bg: '#CE82FF', dark: '#B56AE8' },
+                  'C1':           { bg: '#FF4B4B', dark: '#E04343' },
+                  'C2':           { bg: '#2B70C9', dark: '#2460B0' },
+                  'Beginner':     { bg: '#58CC02', dark: '#4CAD02' },
+                  'Elementary':   { bg: '#1CB0F6', dark: '#1899D6' },
+                  'Intermediate': { bg: '#FF9600', dark: '#E08600' },
+                  'Advanced':     { bg: '#CE82FF', dark: '#B56AE8' },
+                };
+                const c = LEVEL_COLORS[item.level] || { bg: '#1E90FF', dark: '#1873CC' };
+
                 return (
                   <TouchableOpacity
-                    style={styles.courseCard}
-                    activeOpacity={0.8}
+                    activeOpacity={0.85}
                     onPress={() => router.push(`/course/${item.id}` as any)}
+                    style={styles.courseCard}
                   >
-                    {item.imageUrl ? (
-                      <Image source={{ uri: item.imageUrl }} style={styles.courseImage} />
-                    ) : (
-                      <View style={[styles.courseImage, styles.courseImagePlaceholder]}>
-                        <BookOpen size={28} color={COLORS.primary} strokeWidth={1.5} />
-                      </View>
-                    )}
-                    <View style={styles.courseInfo}>
-                      <Text style={styles.courseLevel}>{item.level}</Text>
-                      <Text style={styles.courseTitle} numberOfLines={2}>{item.title}</Text>
-                      <Text style={styles.courseLessons}>{item.completedLessons}/{item.totalLessons} lessons</Text>
-                      <View style={styles.courseProgressBarBg}>
-                        <View style={[
-                          styles.courseProgressBarFill,
-                          { width: `${Math.min(item.progressPercent, 100)}%` },
-                          isComplete && { backgroundColor: COLORS.success },
-                          isActive && { backgroundColor: COLORS.primary },
-                        ]} />
+                    <View style={[styles.courseCardInner, { backgroundColor: c.bg }]}>
+                      {/* Bottom depth layer */}
+                      <View style={[styles.courseCardDepth, { backgroundColor: c.dark }]} />
+
+                      {/* Content */}
+                      <View style={styles.courseContent}>
+                        <View style={styles.courseTopRow}>
+                          <View style={styles.courseLevelPill}>
+                            <Text style={styles.courseLevelText}>{item.level}</Text>
+                          </View>
+                          {isComplete && <CheckCircle2 size={18} color="#fff" />}
+                        </View>
+
+                        <Text style={styles.courseTitle} numberOfLines={2}>{item.title}</Text>
+
+                        <View style={styles.courseBottomRow}>
+                          <Text style={styles.courseLessonsText}>
+                            {item.completedLessons}/{item.totalLessons} lessons
+                          </Text>
+                          <View style={styles.courseProgressPill}>
+                            <View style={styles.courseProgressBarBg}>
+                              <View style={[styles.courseProgressBarFill, { width: `${Math.max(pct, 4)}%` as any }]} />
+                            </View>
+                          </View>
+                        </View>
                       </View>
                     </View>
                   </TouchableOpacity>
@@ -806,59 +827,78 @@ const styles = StyleSheet.create({
   },
   coursesListContent: {
     paddingHorizontal: 20,
-    gap: 14,
+    gap: 12,
   },
   courseCard: {
-    width: 160,
-    backgroundColor: COLORS.surface,
-    borderRadius: 20,
+    width: 165,
+  },
+  courseCardInner: {
+    borderRadius: 18,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.03)',
+    position: 'relative',
+    paddingBottom: 6,
   },
-  courseImage: {
-    width: '100%',
-    height: 90,
-    backgroundColor: '#EEF2FF',
+  courseCardDepth: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 6,
+    borderBottomLeftRadius: 18,
+    borderBottomRightRadius: 18,
   },
-  courseImagePlaceholder: {
-    justifyContent: 'center',
+  courseContent: {
+    padding: 16,
+    paddingBottom: 14,
+  },
+  courseTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 14,
   },
-  courseInfo: {
-    padding: 12,
+  courseLevelPill: {
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
-  courseLevel: {
+  courseLevelText: {
     fontSize: 11,
-    fontWeight: '700',
-    color: COLORS.primary,
+    fontWeight: '800',
+    color: '#fff',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 4,
+    letterSpacing: 0.3,
   },
   courseTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: COLORS.text,
-    lineHeight: 19,
-    marginBottom: 6,
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#fff',
+    lineHeight: 21,
+    marginBottom: 16,
+    minHeight: 42,
   },
-  courseLessons: {
+  courseBottomRow: {
+    gap: 8,
+  },
+  courseLessonsText: {
     fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.textMuted,
-    marginBottom: 8,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.85)',
+  },
+  courseProgressPill: {
+    marginTop: 2,
   },
   courseProgressBarBg: {
-    height: 5,
-    backgroundColor: '#E5E7EB',
-    borderRadius: 3,
+    height: 8,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    borderRadius: 4,
     overflow: 'hidden',
   },
   courseProgressBarFill: {
     height: '100%',
-    backgroundColor: '#D1D5DB',
-    borderRadius: 3,
+    borderRadius: 4,
+    backgroundColor: '#fff',
   },
 
   // Stats Grid
