@@ -1,6 +1,8 @@
+import * as Application from 'expo-application';
 import * as Notifications from 'expo-notifications';
 import { useEffect, useState } from 'react';
 
+import { apiRemovePushToken } from '@/lib/api';
 import { registerForPushNotifications } from '@/lib/notifications';
 import { useAuth } from '@/store/auth';
 
@@ -48,6 +50,10 @@ export function useNotifications() {
       isActive = false;
       notificationSubscription.remove();
       responseSubscription.remove();
+
+      // Remove this device's push token when user logs out
+      const deviceId = Application.getAndroidId?.() ?? 'unknown';
+      apiRemovePushToken(deviceId).catch(() => {});
     };
   }, [user?.id]);
 

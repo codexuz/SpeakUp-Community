@@ -62,10 +62,17 @@ export async function apiRegister(payload: {
   });
 }
 
-export async function apiUpdatePushToken(_userId: string, pushToken: string) {
+export async function apiUpdatePushToken(_userId: string, pushToken: string, deviceId: string) {
   return request<any>('/auth/push-token', {
     method: 'PUT',
-    body: JSON.stringify({ pushToken }),
+    body: JSON.stringify({ pushToken, deviceId }),
+  });
+}
+
+export async function apiRemovePushToken(deviceId: string) {
+  return request<any>('/auth/push-token', {
+    method: 'DELETE',
+    body: JSON.stringify({ deviceId }),
   });
 }
 
@@ -334,10 +341,10 @@ export async function apiDeleteReview(speakingId: string) {
 // Community Feed
 // =============================================
 
-export async function apiFetchCommunityFeed(strategy: string = 'latest', page = 1, limit = 20) {
-  return request<{ data: any[]; pagination: any; strategy: string }>(
-    `/community/feed?strategy=${strategy}&page=${page}&limit=${limit}`,
-  );
+export async function apiFetchCommunityFeed(strategy: string = 'latest', page = 1, limit = 20, examType?: 'cefr' | 'ielts') {
+  let url = `/community/feed?strategy=${strategy}&page=${page}&limit=${limit}`;
+  if (examType) url += `&examType=${examType}`;
+  return request<{ data: any[]; pagination: any; strategy: string }>(url);
 }
 
 // =============================================

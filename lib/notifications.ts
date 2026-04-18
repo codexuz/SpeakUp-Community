@@ -1,4 +1,5 @@
 import { apiUpdatePushToken } from '@/lib/api';
+import * as Application from 'expo-application';
 import * as Notifications from 'expo-notifications';
 import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
@@ -37,9 +38,12 @@ export async function registerForPushNotifications(userId: string) {
   const tokenData = await Notifications.getExpoPushTokenAsync();
   const token = tokenData.data;
 
-  // Send token to backend
+  // Use a stable device identifier so the backend can track tokens per device
+  const deviceId = Application.getAndroidId?.() ?? (await Application.getIosIdForVendorAsync?.()) ?? 'unknown';
+
+  // Send token + deviceId to backend
   try {
-    await apiUpdatePushToken(userId, token);
+    await apiUpdatePushToken(userId, token, deviceId);
   } catch (e) {
     console.warn('Failed to save push token to server:', e);
   }

@@ -23,6 +23,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type Strategy = 'latest' | 'trending' | 'top';
+type ExamType = 'cefr' | 'ielts';
 
 export default function CommunityScreen() {
   const { user } = useAuth();
@@ -33,6 +34,7 @@ export default function CommunityScreen() {
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [strategy, setStrategy] = useState<Strategy>('latest');
+  const [examType, setExamType] = useState<ExamType>('cefr');
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -44,11 +46,11 @@ export default function CommunityScreen() {
   const [feedback, setFeedback] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const loadFeed = async (s: Strategy = strategy, p = 1, append = false) => {
+  const loadFeed = async (s: Strategy = strategy, p = 1, append = false, exam: ExamType = examType) => {
     if (p === 1) setLoading(true);
     else setLoadingMore(true);
     try {
-      const result = await apiFetchCommunityFeed(s, p);
+      const result = await apiFetchCommunityFeed(s, p, 20, s === 'top' ? exam : undefined);
       const items = result.data || [];
       if (append) {
         setSubmissions(prev => [...prev, ...items]);
@@ -67,12 +69,18 @@ export default function CommunityScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      loadFeed(strategy, 1);
-    }, [strategy])
+      loadFeed(strategy, 1, false, examType);
+    }, [strategy, examType])
   );
 
   const changeStrategy = (s: Strategy) => {
     setStrategy(s);
+    setPage(1);
+    setHasMore(true);
+  };
+
+  const changeExamType = (e: ExamType) => {
+    setExamType(e);
     setPage(1);
     setHasMore(true);
   };
@@ -272,6 +280,23 @@ export default function CommunityScreen() {
         ))}
       </View>
 
+      {strategy === 'top' && (
+        <View style={styles.examTypeBar}>
+          {(['cefr', 'ielts'] as ExamType[]).map(e => (
+            <TouchableOpacity
+              key={e}
+              style={[styles.examTypeTab, examType === e && styles.examTypeTabActive]}
+              activeOpacity={0.7}
+              onPress={() => changeExamType(e)}
+            >
+              <Text style={[styles.examTypeText, examType === e && styles.examTypeTextActive]}>
+                {e.toUpperCase()}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
       {loading ? (
         <View style={{ flex: 1, backgroundColor: TG.bgSecondary, justifyContent: 'center', alignItems: 'center' }}>
           <ActivityIndicator size="large" color={TG.accent} />
@@ -361,6 +386,11 @@ const styles = StyleSheet.create({
   tabActive: { backgroundColor: TG.accent },
   tabText: { fontSize: 13, fontWeight: '600', color: TG.textSecondary },
   tabTextActive: { color: TG.textWhite },
+  examTypeBar: { flexDirection: 'row', backgroundColor: TG.bg, paddingHorizontal: 12, paddingBottom: 8, gap: 8, borderBottomWidth: 0.5, borderBottomColor: TG.separator },
+  examTypeTab: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 12, backgroundColor: TG.bgSecondary },
+  examTypeTabActive: { backgroundColor: TG.accent },
+  examTypeText: { fontSize: 12, fontWeight: '700', color: TG.textSecondary },
+  examTypeTextActive: { color: TG.textWhite },
   listContent: { paddingHorizontal: 12, paddingTop: 8, paddingBottom: 100 },
   card: {
     backgroundColor: TG.bg,
