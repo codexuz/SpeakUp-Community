@@ -7,13 +7,13 @@ import { useRouter } from 'expo-router';
 import { ChevronRight, Flame, Heart, MessageCircle, Mic, Star, TrendingUp } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import {
-    ActivityIndicator,
-    FlatList,
-    Image,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  FlatList,
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -284,7 +284,7 @@ const styles = StyleSheet.create({
   tabActive: { backgroundColor: TG.accent },
   tabText: { fontSize: 13, fontWeight: '600', color: TG.textSecondary },
   tabTextActive: { color: TG.textWhite },
-  examTypeBar: { flexDirection: 'row', backgroundColor: TG.bg, paddingHorizontal: 12, paddingBottom: 8, gap: 8, borderBottomWidth: 0.5, borderBottomColor: TG.separator },
+  examTypeBar: { flexDirection: 'row', backgroundColor: TG.bg, paddingHorizontal: 12, paddingBottom: 8, paddingTop: 8, gap: 8, borderBottomWidth: 0.5, borderBottomColor: TG.separator },
   examTypeTab: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 12, backgroundColor: TG.bgSecondary },
   examTypeTabActive: { backgroundColor: TG.accent },
   examTypeText: { fontSize: 12, fontWeight: '700', color: TG.textSecondary },

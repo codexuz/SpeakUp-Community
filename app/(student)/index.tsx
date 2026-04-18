@@ -471,7 +471,14 @@ export default function StudentHomeScreen() {
                 </View>
                 <View style={styles.testInfo}>
                   <Text style={styles.testTitle}>{test.title}</Text>
-                  <Text style={styles.testSub}>{test.questions?.length || 0} Topics • Speaking</Text>
+                  <View style={styles.testSubRow}>
+                    <Text style={styles.testSub}>{test.questions?.length || 0} Topics • Speaking</Text>
+                    {test.testType && (
+                      <View style={styles.testTypeBadge}>
+                        <Text style={styles.testTypeBadgeText}>{test.testType.toUpperCase()}</Text>
+                      </View>
+                    )}
+                  </View>
                 </View>
                 <View style={styles.playButton}>
                   <PlayIcon fill="#FFF" color="#FFF" size={16} />
@@ -999,6 +1006,22 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: COLORS.textMuted,
     fontWeight: '600',
+  },
+  testSubRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  testTypeBadge: {
+    backgroundColor: COLORS.primary + '18',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  testTypeBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: COLORS.primary,
   },
   playButton: {
     width: 40,
