@@ -180,6 +180,10 @@ export interface ChallengeSubmission {
 
 // ─── Courses ────────────────────────────────────────────────────
 
+export type LessonType = 'practice' | 'lecture' | 'mixed';
+
+export type LectureContentType = 'text' | 'audio' | 'video';
+
 export type ExerciseType =
   | 'listenRepeat'
   | 'speakTheAnswer'
@@ -221,11 +225,47 @@ export interface Lesson {
   id: string;
   unitId: string;
   title: string;
+  type: LessonType;
   order: number;
   xpReward: number;
   completed: boolean;
   score: number | null;
   xpEarned: number;
+}
+
+export interface LectureAttachment {
+  id: string;
+  lectureId: string;
+  url: string;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  order: number;
+}
+
+export interface UserLectureProgress {
+  id: string;
+  userId: string;
+  lectureId: string;
+  completed: boolean;
+  progressPct: number;
+  completedAt: string | null;
+}
+
+export interface Lecture {
+  id: string;
+  lessonId: string;
+  contentType: LectureContentType;
+  title: string;
+  order: number;
+  textBody: string | null;
+  mediaUrl: string | null;
+  thumbnailUrl: string | null;
+  durationSec: number | null;
+  createdAt: string;
+  updatedAt: string;
+  attachments: LectureAttachment[];
+  userProgress?: UserLectureProgress | null;
 }
 
 export interface ExerciseOption {
@@ -315,6 +355,7 @@ export interface ExerciseAttempt {
 export interface LessonDetail {
   id: string;
   title: string;
+  type: LessonType;
   unitId: string;
   order: number;
   xpReward: number;
@@ -323,6 +364,7 @@ export interface LessonDetail {
     title: string;
     course: { id: string; title: string; level: string };
   };
+  lectures: Lecture[];
   exercises: Exercise[];
 }
 

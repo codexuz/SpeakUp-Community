@@ -834,7 +834,7 @@ export async function apiTextToSpeech(text: string, voice: TTSVoice = 'erin') {
 // AI Feedback (v2)
 // =============================================
 
-import type { Achievement, AIFeedback, Challenge, ChallengeSubmission, Course, CourseUnit, Exercise, ExerciseSession, LeaderboardResponse, Lesson, LessonDetail, SessionFeedbackResponse, UserProgress, UserReputation, WeeklySummary } from './types';
+import type { Achievement, AIFeedback, Challenge, ChallengeSubmission, Course, CourseUnit, Exercise, ExerciseSession, LeaderboardResponse, Lecture, Lesson, LessonDetail, SessionFeedbackResponse, UserLectureProgress, UserProgress, UserReputation, WeeklySummary } from './types';
 
 export async function apiFetchAIFeedback(responseId: string) {
   return request<AIFeedback>(`/ai-feedback/${responseId}`);
@@ -1038,16 +1038,140 @@ export async function apiDeleteCourseUnit(id: string) {
   return request(`/courses/admin/units/${id}`, { method: 'DELETE' });
 }
 
-export async function apiCreateLessonAdmin(data: { unitId: string; title: string; order?: number; xpReward?: number }) {
+export async function apiCreateLessonAdmin(data: { unitId: string; title: string; type?: string; order?: number; xpReward?: number }) {
   return request<Lesson>('/courses/admin/lessons', { method: 'POST', body: JSON.stringify(data) });
 }
 
-export async function apiUpdateLessonAdmin(id: string, data: Partial<{ title: string; order: number; xpReward: number }>) {
+export async function apiUpdateLessonAdmin(id: string, data: Partial<{ title: string; type: string; order: number; xpReward: number }>) {
   return request<Lesson>(`/courses/admin/lessons/${id}`, { method: 'PUT', body: JSON.stringify(data) });
 }
 
 export async function apiDeleteLessonAdmin(id: string) {
   return request(`/courses/admin/lessons/${id}`, { method: 'DELETE' });
+}
+
+// =============================================
+// Lecture Admin (v2)
+// =============================================
+
+export async function apiCreateLecture(data: {
+  lessonId: string;
+  contentType: string;
+  title: string;
+  order?: number;
+  textBody?: string | null;
+  mediaUrl?: string | null;
+  thumbnailUrl?: string | null;
+  durationSec?: number | null;
+}) {
+  return request<Lecture>('/courses/admin/lectures', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function apiCreateLectureMultipart(data: {
+  lessonId: string;
+  contentType: string;
+  title: string;
+  order?: number;
+  textBody?: string | null;
+  durationSec?: number | null;
+  mediaUri?: string;
+  thumbnailUri?: string;
+  attachmentUris?: { uri: string; name: string; type: string }[];
+}) {
+  const url = `${API_URL}/courses/admin/lectures`;
+  const token = await getStoredAuthToken();
+  const headers: Record<string, string> = {
+    'User-Agent': getUserAgent(),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+
+  const formData = new FormData();
+  formData.append('lessonId', data.lessonId);
+  formData.append('contentType', data.contentType);
+  formData.append('title', data.title);
+  if (data.order != null) formData.append('order', String(data.order));
+  if (data.textBody) formData.append('textBody', data.textBody);
+  if (data.durationSec != null) formData.append('durationSec', String(data.durationSec));
+  if (data.mediaUri) {
+    formData.append('media', {
+      uri: data.mediaUri,
+      name: `media_${Date.now()}.${data.contentType === 'audio' ? 'mp3' : 'mp4'}`,
+      type: data.contentType === 'audio' ? 'audio/mpeg' : 'video/mp4',
+    } as any);
+  }
+  if (data.thumbnailUri) {
+    formData.append('thumbnail', {
+      uri: data.thumbnailUri,
+      name: `thumb_${Date.now()}.jpg`,
+      type: 'image/jpeg',
+    } as any);
+  }
+  if (data.attachmentUris?.length) {
+    for (const att of data.attachmentUris) {
+      formData.append('attachments', { uri: att.uri, name: att.name, type: att.type } as any);
+    }
+  }
+
+  const res = await fetch(url, { method: 'POST', headers, body: formData });
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(errBody.error || `Create lecture failed: ${res.status}`);
+  }
+  return res.json() as Promise<Lecture>;
+}
+
+export async function apiUpdateLecture(id: string, data: Partial<{
+  contentType: string;
+  title: string;
+  order: number;
+  textBody: string | null;
+  mediaUrl: string | null;
+  thumbnailUrl: string | null;
+  durationSec: number | null;
+}>) {
+  return request<Lecture>(`/courses/admin/lectures/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+}
+
+export async function apiDeleteLecture(id: string) {
+  return request(`/courses/admin/lectures/${id}`, { method: 'DELETE' });
+}
+
+export async function apiAddLectureAttachments(lectureId: string, files: { uri: string; name: string; type: string }[]) {
+  const url = `${API_URL}/courses/admin/lectures/${lectureId}/attachments`;
+  const token = await getStoredAuthToken();
+  const headers: Record<string, string> = {
+    'User-Agent': getUserAgent(),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+  const formData = new FormData();
+  for (const f of files) {
+    formData.append('files', { uri: f.uri, name: f.name, type: f.type } as any);
+  }
+  const res = await fetch(url, { method: 'POST', headers, body: formData });
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(errBody.error || `Upload failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function apiDeleteLectureAttachment(attachmentId: string) {
+  return request(`/courses/admin/lecture-attachments/${attachmentId}`, { method: 'DELETE' });
+}
+
+// =============================================
+// Lecture Viewer — Student (v2)
+// =============================================
+
+export async function apiFetchLecture(lectureId: string) {
+  return request<Lecture>(`/courses/lectures/${lectureId}`);
+}
+
+export async function apiUpdateLectureProgress(lectureId: string, data: { progressPct: number; completed?: boolean }) {
+  return request<UserLectureProgress>(`/courses/lectures/${lectureId}/progress`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
 }
 
 export async function apiCreateExercise(data: {

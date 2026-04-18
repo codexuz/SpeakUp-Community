@@ -1,10 +1,10 @@
-# Courses & Duolingo-style Exercises — Complete Guide
+# Courses, Lectures & Exercises — Complete Guide
 
 > **API base:** `/api/courses`
 > **Auth:** All endpoints require `Authorization: Bearer <token>`
-> **Roles:** Exercise creation requires `admin` role. Students access player endpoints.
+> **Roles:** Lecture/Exercise creation requires `admin` role. Students access player and lecture viewer endpoints.
 
-This document covers the full course/exercise system: data model, all API endpoints, payload examples for every exercise type, the exercise builder UI for teachers/admins, and the exercise player UI for students.
+This document covers the full course system: data model, all API endpoints (lectures + exercises), payload examples, and UI/UX guidance.
 
 ---
 
@@ -15,12 +15,15 @@ This document covers the full course/exercise system: data model, all API endpoi
 3. [Exercise Types Reference](#3-exercise-types-reference)
 4. [API Endpoints — Browse & Progress](#4-api-endpoints--browse--progress)
 5. [API Endpoints — Admin Builder](#5-api-endpoints--admin-builder)
-6. [API Endpoints — Exercise Player](#6-api-endpoints--exercise-player)
-7. [TypeScript Types](#7-typescript-types)
-8. [Exercise Builder UI/UX (Teacher/Admin)](#8-exercise-builder-uiux-teacheradmin)
-9. [Exercise Player UI/UX (Student)](#9-exercise-player-uiux-student)
-10. [Course Map UI/UX](#10-course-map-uiux)
-11. [Expo Implementation Notes](#11-expo-implementation-notes)
+6. [API Endpoints — Lecture Viewer (Student)](#6-api-endpoints--lecture-viewer-student)
+7. [API Endpoints — Exercise Player](#7-api-endpoints--exercise-player)
+8. [TypeScript Types](#8-typescript-types)
+9. [Lecture Builder UI/UX (Admin)](#9-lecture-builder-uiux-admin)
+10. [Lecture Viewer UI/UX (Student)](#10-lecture-viewer-uiux-student)
+11. [Exercise Builder UI/UX (Teacher/Admin)](#11-exercise-builder-uiux-teacheradmin)
+12. [Exercise Player UI/UX (Student)](#12-exercise-player-uiux-student)
+13. [Course Map UI/UX](#13-course-map-uiux)
+14. [Expo Implementation Notes](#14-expo-implementation-notes)
 
 ---
 
@@ -29,7 +32,9 @@ This document covers the full course/exercise system: data model, all API endpoi
 ```
 Course
  └── CourseUnit (ordered)
-      └── Lesson (ordered, xpReward)
+      └── Lesson (ordered, type: practice|lecture|mixed, xpReward)
+           ├── Lecture (ordered, typed: text|audio|video)
+           │    └── LectureAttachment[] — downloadable files (PDF, docs, etc.)
            └── Exercise (ordered, typed)
                 ├── ExerciseOption[]        — for choice-based types
                 ├── ExerciseMatchPair[]     — for match-pairs type
@@ -37,13 +42,17 @@ Course
                 └── ExerciseConversationLine[] — for dialogue types
 ```
 
+**Lesson types:**
+- `practice` — exercises only (current default, backward-compatible)
+- `lecture` — learning content only (text articles, audio, video + file attachments)
+- `mixed` — lecture content followed by practice exercises
+
 **Player flow:**
 
 ```
-Start Session → [Exercise 1] → Submit Attempt → [Exercise 2] → ... → Complete Session
-     ↓                              ↓
-ExerciseSession              ExerciseAttempt (per exercise)
-(hearts, combo, xp)         (userAnswer, isCorrect, xpEarned)
+Lecture lesson:   Open → [Lecture 1] → [Lecture 2] → Mark Read (progress 100%)
+Practice lesson:  Start Session → [Exercise 1] → Submit → ... → Complete Session
+Mixed lesson:     [Lectures] → [Exercises] → Complete
 ```
 
 ---
@@ -58,8 +67,28 @@ ExerciseSession              ExerciseAttempt (per exercise)
 | `Course.isPublished` | `boolean` | Only published courses visible to students |
 | `Course.order` | `int` | Display order on course list |
 | `CourseUnit.order` | `int` | Order within the course |
+| `Lesson.type` | `LessonType` | `practice` (default), `lecture`, or `mixed` |
 | `Lesson.order` | `int` | Order within the unit |
 | `Lesson.xpReward` | `int` | XP earned on first completion (default 10) |
+
+### Lecture fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `contentType` | `LectureContentType` | `text`, `audio`, or `video` |
+| `title` | `string` | Lecture section title |
+| `order` | `int` | Display sequence within the lesson |
+| `textBody` | `string?` | Rich text / markdown content (for `text` type) |
+| `mediaUrl` | `string?` | Audio or video URL (for `audio`/`video` types) |
+| `thumbnailUrl` | `string?` | Preview image for audio/video player |
+| `durationSec` | `int?` | Duration in seconds for audio/video |
+
+### Lecture child models
+
+| Model | Fields | Description |
+|-------|--------|-------------|
+| `LectureAttachment` | `url`, `fileName`, `fileSize`, `mimeType`, `order` | Downloadable files (PDF, docs, slides, etc.) |
+| `UserLectureProgress` | `completed`, `progressPct`, `completedAt` | Per-user read/watch progress (0-100%) |
 
 ### Exercise fields
 
@@ -341,13 +370,14 @@ List published courses with user progress.
 ```
 
 ### `GET /api/courses/:id`
-Course detail with units, lessons, and per-lesson progress.
+Course detail with units, lessons (including `type` field), and per-lesson progress.
 
 **Response includes per-lesson:**
 ```json
 {
   "id": "lesson-uuid",
   "title": "At the Airport",
+  "type": "mixed",
   "order": 3,
   "xpReward": 15,
   "completed": true,
@@ -357,9 +387,9 @@ Course detail with units, lessons, and per-lesson progress.
 ```
 
 ### `GET /api/courses/lessons/:lessonId`
-Lesson detail with all exercises and their structured data.
+Lesson detail with all lectures (+ attachments) and exercises.
 
-**Response:** Full lesson object with exercises including `options[]`, `matchPairs[]`, `wordBankItems[]`, and `conversationLines[]`.
+**Response:** Full lesson object with `lectures[]` (each with `attachments[]`) and `exercises[]` (each with `options[]`, `matchPairs[]`, `wordBankItems[]`, `conversationLines[]`).
 
 ### `POST /api/courses/lessons/:lessonId/complete`
 Mark a lesson as completed (legacy — prefer using exercise session flow).
@@ -392,9 +422,63 @@ All admin endpoints require `admin` role.
 
 | Method | Path | Body |
 |--------|------|------|
-| `POST` | `/api/courses/admin/lessons` | `{ unitId, title, order?, xpReward? }` |
-| `PUT` | `/api/courses/admin/lessons/:id` | `{ title?, order?, xpReward? }` |
+| `POST` | `/api/courses/admin/lessons` | `{ unitId, title, type?, order?, xpReward? }` |
+| `PUT` | `/api/courses/admin/lessons/:id` | `{ title?, type?, order?, xpReward? }` |
 | `DELETE` | `/api/courses/admin/lessons/:id` | — |
+
+> **`type`** values: `"practice"` (default), `"lecture"`, `"mixed"`
+
+### Lectures
+
+#### `POST /api/courses/admin/lectures`
+Create a lecture with optional file uploads (multipart/form-data).
+
+**Form fields:**
+- `lessonId` (required), `contentType` (required: `text`|`audio`|`video`), `title` (required)
+- `order`, `textBody`, `mediaUrl`, `thumbnailUrl`, `durationSec` (optional)
+- `media` — single file upload for audio/video content
+- `thumbnail` — single file upload for preview image
+- `attachments` — up to 10 downloadable files (PDF, docs, etc.)
+
+**JSON-only example (no file upload):**
+```json
+{
+  "lessonId": "uuid",
+  "contentType": "text",
+  "title": "Introduction to Present Perfect",
+  "order": 0,
+  "textBody": "# Present Perfect\n\nThe present perfect tense is used to..."
+}
+```
+
+**Audio/video example (multipart):**
+```
+POST /api/courses/admin/lectures
+Content-Type: multipart/form-data
+
+lessonId=uuid
+contentType=video
+title=Pronunciation Guide
+durationSec=320
+media=@video.mp4
+thumbnail=@preview.jpg
+attachments=@worksheet.pdf
+attachments=@transcript.txt
+```
+
+#### `PUT /api/courses/admin/lectures/:id`
+Update a lecture. Same form fields as create (all optional). When `attachments` files are uploaded, existing attachments are **replaced**.
+
+#### `DELETE /api/courses/admin/lectures/:id`
+Deletes the lecture, its attachments, and all progress records (cascade).
+
+#### `POST /api/courses/admin/lectures/:id/attachments`
+Add files to an existing lecture without replacing existing ones.
+
+**Form field:** `files` — up to 10 files
+
+#### `DELETE /api/courses/admin/lecture-attachments/:id`
+Delete a single attachment.
 
 ### Exercises
 
@@ -434,7 +518,67 @@ Deletes the exercise and all child records (cascade).
 
 ---
 
-## 6. API Endpoints — Exercise Player
+## 6. API Endpoints — Lecture Viewer (Student)
+
+### `GET /api/courses/lectures/:lectureId`
+Get a single lecture with attachments and user progress.
+
+**Response:**
+```json
+{
+  "id": "lecture-uuid",
+  "lessonId": "lesson-uuid",
+  "contentType": "video",
+  "title": "Pronunciation Guide",
+  "order": 0,
+  "textBody": null,
+  "mediaUrl": "https://cdn.example.com/lectures/video.mp4",
+  "thumbnailUrl": "https://cdn.example.com/lectures/thumb.jpg",
+  "durationSec": 320,
+  "attachments": [
+    {
+      "id": "att-uuid",
+      "url": "https://cdn.example.com/files/worksheet.pdf",
+      "fileName": "worksheet.pdf",
+      "fileSize": 245000,
+      "mimeType": "application/pdf",
+      "order": 0
+    }
+  ],
+  "lesson": { "id": "...", "title": "..." },
+  "userProgress": {
+    "completed": false,
+    "progressPct": 45,
+    "completedAt": null
+  }
+}
+```
+
+### `POST /api/courses/lectures/:lectureId/progress`
+Update lecture view/read progress.
+
+**Body:**
+```json
+{ "progressPct": 75 }
+```
+
+When `progressPct` reaches 100, the lecture is automatically marked as `completed`.
+
+**Response:**
+```json
+{
+  "id": "progress-uuid",
+  "userId": "user-uuid",
+  "lectureId": "lecture-uuid",
+  "completed": false,
+  "progressPct": 75,
+  "completedAt": null
+}
+```
+
+---
+
+## 7. API Endpoints — Exercise Player
 
 ### `POST /api/courses/lessons/:lessonId/start`
 Start a new exercise session. Returns session state + all exercises for the lesson.
@@ -515,10 +659,14 @@ Get session state and attempts (e.g. for resuming or reviewing).
 
 ---
 
-## 7. TypeScript Types
+## 8. TypeScript Types
 
 ```ts
 // ─── Enums ──────────────────────────────────────────────────────
+
+type LessonType = "practice" | "lecture" | "mixed";
+
+type LectureContentType = "text" | "audio" | "video";
 
 type ExerciseType =
   | "listenRepeat"
@@ -563,13 +711,51 @@ interface Lesson {
   id: string;
   unitId: string;
   title: string;
+  type: LessonType;
   order: number;
   xpReward: number;
+  lectures?: Lecture[];
   exercises?: Exercise[];
   // Progress overlay
   completed?: boolean;
   score?: number | null;
   xpEarned?: number;
+}
+
+interface Lecture {
+  id: string;
+  lessonId: string;
+  contentType: LectureContentType;
+  title: string;
+  order: number;
+  textBody: string | null;
+  mediaUrl: string | null;
+  thumbnailUrl: string | null;
+  durationSec: number | null;
+  createdAt: string;
+  updatedAt: string;
+  attachments: LectureAttachment[];
+  // Client overlay
+  userProgress?: UserLectureProgress | null;
+}
+
+interface LectureAttachment {
+  id: string;
+  lectureId: string;
+  url: string;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  order: number;
+}
+
+interface UserLectureProgress {
+  id: string;
+  userId: string;
+  lectureId: string;
+  completed: boolean;
+  progressPct: number; // 0-100
+  completedAt: string | null;
 }
 
 interface Exercise {
@@ -662,9 +848,310 @@ interface ExerciseAttempt {
 
 ---
 
-## 8. Exercise Builder UI/UX (Teacher/Admin)
+## 9. Lecture Builder UI/UX (Admin)
 
-### 8.1 Builder Page Flow
+### 9.1 Builder Page Flow (Updated)
+
+```
+Course List → [+ New Course] → Course Editor
+  └── Unit List (drag to reorder)
+       └── Lesson List (drag to reorder)
+            ├── Lesson type selector: [Practice] [Lecture] [Mixed]
+            ├── IF lecture|mixed → Lecture List (drag to reorder)
+            │    └── [+ Add Lecture] → Lecture Editor Modal
+            └── IF practice|mixed → Exercise List (drag to reorder)
+                 └── [+ Add Exercise] → Exercise Editor Modal
+```
+
+### 9.2 Lesson Type Selector
+
+When creating or editing a lesson, show a **segmented control** at the top:
+
+```
+┌─────────────────────────────────────────────────┐
+│  Lesson: "Present Perfect Tense"                │
+│                                                  │
+│  Type: [Practice] [📖 Lecture] [Mixed]          │
+│         ^^^^^^^^                                 │
+│  (Selecting "Lecture" or "Mixed" reveals the     │
+│   lecture section below)                         │
+│                                                  │
+│  ── Lectures (drag to reorder) ──               │
+│  ┌─ 1. Introduction to Present Perfect ─ 📝 ─┐ │
+│  │     Type: text  │  [Edit] [✕]              │ │
+│  ├─ 2. Grammar Rules Explained ──── 🎧 ──────┤ │
+│  │     Type: audio │  5:32  │  [Edit] [✕]    │ │
+│  ├─ 3. Watch: Real Conversations ── 🎬 ──────┤ │
+│  │     Type: video │  8:15  │  [Edit] [✕]    │ │
+│  └────────────────────────────────────────────┘ │
+│  [+ Add Lecture]                                 │
+│                                                  │
+│  ── Exercises (if type = practice|mixed) ──     │
+│  ...                                             │
+└─────────────────────────────────────────────────┘
+```
+
+### 9.3 Lecture Editor Modal
+
+```
+┌─────────────────────────────────────────────────┐
+│  Create Lecture                           [X]   │
+│─────────────────────────────────────────────────│
+│                                                  │
+│  Content Type: [📝 Text] [🎧 Audio] [🎬 Video] │
+│                                                  │
+│  Title: ┌──────────────────────────────────┐    │
+│         │ Introduction to Present Perfect  │    │
+│         └──────────────────────────────────┘    │
+│                                                  │
+│  ┌─ Type-specific fields ──────────────────┐    │
+│  │                                          │    │
+│  │  IF text:                                │    │
+│  │  ┌─ Rich Text Editor ──────────────┐    │    │
+│  │  │ # Present Perfect               │    │    │
+│  │  │ The present perfect tense is...  │    │    │
+│  │  │ **Bold** _italic_ `code`        │    │    │
+│  │  └─────────────────────────────────┘    │    │
+│  │                                          │    │
+│  │  IF audio:                               │    │
+│  │  [🎵 Upload Audio File]  or  [Paste URL]│    │
+│  │  Duration: [__:__] (auto-detected)       │    │
+│  │  [📷 Upload Thumbnail]                   │    │
+│  │                                          │    │
+│  │  IF video:                               │    │
+│  │  [🎬 Upload Video File]  or  [Paste URL]│    │
+│  │  Duration: [__:__] (auto-detected)       │    │
+│  │  [📷 Upload Thumbnail]                   │    │
+│  │                                          │    │
+│  └──────────────────────────────────────────┘    │
+│                                                  │
+│  ── Attachments (downloadable files) ──         │
+│  📎 worksheet.pdf  (245 KB)          [✕]        │
+│  📎 transcript.txt (12 KB)           [✕]        │
+│  [+ Add Files]                                   │
+│                                                  │
+│  Order: [0]                                      │
+│                                                  │
+│                          [Cancel] [Save]         │
+└─────────────────────────────────────────────────┘
+```
+
+### 9.4 UX Recommendations for Lecture Builder
+
+1. **Content type with icons** — Segmented control with 📝/🎧/🎬 icons. Switching type clears the previous content field and shows the relevant one.
+
+2. **Rich text editor** — For `text` type, use a markdown editor with toolbar (bold, italic, headings, lists, code blocks). Libraries: `react-native-pell-rich-editor` or render markdown preview with `react-native-markdown-display`.
+
+3. **Media upload with preview** — After uploading audio/video:
+   - Show an inline player preview (play/pause button + duration).
+   - Auto-detect `durationSec` from the file metadata.
+   - For video: extract a thumbnail frame automatically or let admin upload one.
+
+4. **Attachment management:**
+   - Drag to reorder attachments.
+   - Show file icon based on `mimeType` (PDF icon, DOC icon, etc.).
+   - Show file size in human-readable format.
+   - `[+ Add Files]` opens `expo-document-picker` with multi-select.
+
+5. **Upload to MinIO** — Use `multipart/form-data` with the `media`, `thumbnail`, and `attachments` fields. The server handles storage and returns URLs.
+
+6. **Drag to reorder lectures** — Same `react-native-draggable-flatlist` pattern. Send updated `order` values via `PUT /admin/lectures/:id`.
+
+7. **Duplicate lecture** — One-tap button to copy a lecture's content into a new lecture (new order = last + 1).
+
+8. **Validation before save:**
+   - `text` type: require `textBody` to be non-empty.
+   - `audio`/`video` type: require `mediaUrl` or uploaded file.
+   - All types: require `title`.
+
+---
+
+## 10. Lecture Viewer UI/UX (Student)
+
+### 10.1 Lesson Entry — Type-Based Routing
+
+When student taps a lesson node on the course map:
+
+| Lesson Type | Behavior |
+|-------------|----------|
+| `practice` | Go directly to Exercise Player (existing flow) |
+| `lecture` | Open Lecture Viewer with ordered lecture list |
+| `mixed` | Open Lecture Viewer → after all lectures read, show "Start Practice" button → Exercise Player |
+
+### 10.2 Lecture Viewer — Text Type
+
+```
+┌───────────────────────────────────────────┐
+│  ← Back    Present Perfect Tense    1/3   │  ← Header + lecture position
+│───────────────────────────────────────────│
+│                                           │
+│  Introduction to Present Perfect          │  ← Lecture title
+│  ─────────────────────────────────────    │
+│                                           │
+│  # Present Perfect                        │  ← Rendered markdown
+│                                           │
+│  The present perfect tense is used to     │
+│  describe actions that happened at an     │
+│  unspecified time before now. The exact   │
+│  time is not important.                   │
+│                                           │
+│  **Structure:**                           │
+│  Subject + have/has + past participle     │
+│                                           │
+│  **Examples:**                            │
+│  • I **have visited** France twice.       │
+│  • She **has finished** her homework.     │
+│                                           │
+│  ─────────────────────────────────────    │
+│  📎 Attachments                           │
+│  ┌─────────────────────────────────────┐  │
+│  │ 📄 worksheet.pdf (245 KB)  [⬇ Download]│
+│  │ 📄 grammar-chart.pdf (89 KB) [⬇]     │  │
+│  └─────────────────────────────────────┘  │
+│                                           │
+│  ━━━━━━━━━━━━━━━━━━━━━━━ 100%            │  ← Read progress bar
+│           [ Next Lecture → ]              │
+└───────────────────────────────────────────┘
+```
+
+**Scroll-based progress:** As the user scrolls through text content, `progressPct` updates automatically. When the user reaches the bottom, it sends `{ progressPct: 100 }` to mark as completed.
+
+### 10.3 Lecture Viewer — Audio Type
+
+```
+┌───────────────────────────────────────────┐
+│  ← Back    Grammar Rules Explained  2/3   │
+│───────────────────────────────────────────│
+│                                           │
+│         ┌─────────────────────┐           │
+│         │                     │           │
+│         │   🖼️ Thumbnail      │           │  ← Thumbnail image
+│         │                     │           │
+│         └─────────────────────┘           │
+│                                           │
+│     Grammar Rules Explained               │  ← Title
+│     5:32 • Audio Lesson                   │  ← Duration + type badge
+│                                           │
+│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━         │  ← Audio progress bar
+│  2:15                           5:32      │
+│                                           │
+│         ⏪   [ ▶ Play ]   ⏩              │  ← Audio controls
+│                                           │
+│  Speed: [0.75x] [1x] [1.25x] [1.5x]     │  ← Playback speed
+│                                           │
+│  ─────────────────────────────────────    │
+│  📎 Attachments                           │
+│  📄 transcript.txt (12 KB)    [⬇]        │
+│                                           │
+│           [ Next Lecture → ]              │
+└───────────────────────────────────────────┘
+```
+
+**Audio progress:** `progressPct` = `(currentPosition / totalDuration) * 100`. Auto-sends progress updates at 25%, 50%, 75%, and 100% marks.
+
+### 10.4 Lecture Viewer — Video Type
+
+```
+┌───────────────────────────────────────────┐
+│  ← Back    Real Conversations       3/3   │
+│───────────────────────────────────────────│
+│                                           │
+│  ┌─────────────────────────────────────┐  │
+│  │                                     │  │
+│  │          📹 Video Player            │  │  ← Full-width video
+│  │          (expo-av Video)            │  │
+│  │    ▶ 3:42 ━━━━━━━━━━━━━━━ 8:15     │  │
+│  │    [CC] [⛶ Fullscreen]             │  │
+│  │                                     │  │
+│  └─────────────────────────────────────┘  │
+│                                           │
+│  Watch: Real Conversations                │  ← Title
+│  8:15 • Video Lesson                      │
+│                                           │
+│  Speed: [0.75x] [1x] [1.25x] [1.5x]     │
+│                                           │
+│  ─────────────────────────────────────    │
+│  📎 Attachments                           │
+│  📄 conversation-script.pdf   [⬇]        │
+│                                           │
+│  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 45%        │  ← Overall lecture progress
+│           [ Complete & Continue → ]       │
+└───────────────────────────────────────────┘
+```
+
+**Video progress:** Same as audio — track playback position and auto-send progress updates.
+
+### 10.5 Lecture List View (for lessons with multiple lectures)
+
+```
+┌───────────────────────────────────────────┐
+│  ← Back    Present Perfect Tense          │
+│───────────────────────────────────────────│
+│                                           │
+│  📖 Lecture Content (3 sections)          │
+│                                           │
+│  ┌─────────────────────────────────────┐  │
+│  │ ✅ 1. Introduction to Present Perfect│  │
+│  │    📝 Text • Completed              │  │
+│  ├─────────────────────────────────────┤  │
+│  │ 🔵 2. Grammar Rules Explained       │  │  ← Current (in-progress)
+│  │    🎧 Audio • 5:32 • 45% done      │  │
+│  ├─────────────────────────────────────┤  │
+│  │ ○  3. Watch: Real Conversations     │  │  ← Not started
+│  │    🎬 Video • 8:15                  │  │
+│  └─────────────────────────────────────┘  │
+│                                           │
+│  IF type=mixed AND all lectures completed:│
+│  ─────────────────────────────────────    │
+│  🏋️ Practice Exercises (6 exercises)     │
+│  [ Start Practice → ]                     │
+│                                           │
+└───────────────────────────────────────────┘
+```
+
+### 10.6 Attachment Download
+
+- Tap `[⬇ Download]` → use `expo-file-system` to download to the device.
+- Show download progress indicator on the button.
+- After download, open with `expo-sharing` or `Linking.openURL()` for supported types.
+- Show file icon based on MIME type:
+  - `application/pdf` → 📄
+  - `image/*` → 🖼️
+  - `audio/*` → 🎵
+  - `video/*` → 🎬
+  - default → 📎
+
+### 10.7 Progress Tracking Logic
+
+```ts
+// Auto-track text lecture progress based on scroll position
+function onTextScroll(scrollY: number, contentHeight: number, viewportHeight: number) {
+  const maxScroll = contentHeight - viewportHeight;
+  if (maxScroll <= 0) return 100; // Content fits on screen
+  return Math.min(100, Math.round((scrollY / maxScroll) * 100));
+}
+
+// Auto-track audio/video progress based on playback
+function onPlaybackUpdate(positionMs: number, durationMs: number) {
+  if (durationMs <= 0) return 0;
+  return Math.min(100, Math.round((positionMs / durationMs) * 100));
+}
+
+// Send progress to server (debounced — every 10% change or on complete)
+let lastSentPct = 0;
+function maybeSendProgress(lectureId: string, pct: number) {
+  if (pct >= 100 || pct - lastSentPct >= 10) {
+    api.post(`/courses/lectures/${lectureId}/progress`, { progressPct: pct });
+    lastSentPct = pct;
+  }
+}
+```
+
+---
+
+## 11. Exercise Builder UI/UX (Teacher/Admin)
+
+### 11.1 Builder Page Flow
 
 ```
 Course List → [+ New Course] → Course Editor
@@ -674,7 +1161,7 @@ Course List → [+ New Course] → Course Editor
                  └── [+ Add Exercise] → Exercise Editor Modal
 ```
 
-### 8.2 Exercise Editor Modal — Layout
+### 11.2 Exercise Editor Modal — Layout
 
 The modal should adapt its form fields based on the selected `type`.
 
@@ -706,7 +1193,7 @@ The modal should adapt its form fields based on the selected `type`.
 └─────────────────────────────────────────────────┘
 ```
 
-### 8.3 Type-Specific Field Panels
+### 11.3 Type-Specific Field Panels
 
 Show/hide these sections based on the selected exercise type:
 
@@ -725,7 +1212,7 @@ Show/hide these sections based on the selected exercise type:
 | `completeConversation` | Conversation builder: rows with speaker dropdown, text, `isUserTurn` toggle, accepted answers |
 | `roleplay` | Conversation builder: same as above but user turns expect audio recording |
 
-### 8.4 UX Recommendations for Builder
+### 11.4 UX Recommendations for Builder
 
 1. **Type selector with icons** — Use visual cards instead of a plain dropdown. Each card shows the exercise type icon + a one-line description. Group into categories:
    - **Listen** — listenRepeat, listenAndChoose, tapWhatYouHear
@@ -764,9 +1251,9 @@ Show/hide these sections based on the selected exercise type:
 
 ---
 
-## 9. Exercise Player UI/UX (Student)
+## 12. Exercise Player UI/UX (Student)
 
-### 9.1 Session Flow
+### 12.1 Session Flow
 
 ```
 ┌───────────────────────────────────────────┐
@@ -793,7 +1280,7 @@ Show/hide these sections based on the selected exercise type:
 └───────────────────────────────────────────┘
 ```
 
-### 9.2 Exercise Type UI Templates
+### 12.2 Exercise Type UI Templates
 
 #### Multiple Choice / Listen & Choose / Tap What You Hear
 - Show prompt text at top.
@@ -850,7 +1337,7 @@ Show/hide these sections based on the selected exercise type:
 - After recording, show a mini waveform in the bubble.
 - Scoring is optional (based on speech comparison if AI enabled).
 
-### 9.3 Hearts System
+### 12.3 Hearts System
 
 | Event | Effect |
 |-------|--------|
@@ -860,7 +1347,7 @@ Show/hide these sections based on the selected exercise type:
 
 **UI:** Hearts row at top-left, displayed as ❤️ icons. Lost hearts shown as 🖤.
 
-### 9.4 Combo & XP System
+### 12.4 Combo & XP System
 
 | Event | Effect |
 |-------|--------|
@@ -873,7 +1360,7 @@ Show/hide these sections based on the selected exercise type:
 - XP earned floats up as `+15 XP` animation after each correct answer.
 - Progress bar fills based on `currentExercise / totalExercises`.
 
-### 9.5 Session Complete Screen
+### 12.5 Session Complete Screen
 
 ```
 ┌───────────────────────────────────────────┐
@@ -899,7 +1386,7 @@ Show/hide these sections based on the selected exercise type:
 - **Continue** — Returns to the course map. The completed lesson node changes to a star/checkmark.
 - Celebration confetti animation on first completion.
 
-### 9.6 Animations & Feedback
+### 12.6 Animations & Feedback
 
 | Event | Animation |
 |-------|-----------|
@@ -915,32 +1402,39 @@ Use `react-native-reanimated` for spring/timing animations, `expo-haptics` for h
 
 ---
 
-## 10. Course Map UI/UX
+## 13. Course Map UI/UX
 
-### 10.1 Duolingo-style Path Layout
+### 13.1 Duolingo-style Path Layout
 
-Instead of a flat list, show lessons as nodes on a **winding vertical path** (snake pattern):
+Instead of a flat list, show lessons as nodes on a **winding vertical path** (snake pattern). Each node now shows **lesson type** with a distinct icon:
 
 ```
-         ★ (Lesson 1 — completed)
+         ★🏋️ (Lesson 1 — practice, completed)
         /
-       ●  (Lesson 2 — completed)
+       ★📖 (Lesson 2 — lecture, completed)
         \
-         ◉  (Lesson 3 — current)
+         ◉📖🏋️ (Lesson 3 — mixed, current)
         /
-       🔒 (Lesson 4 — locked)
+       🔒🏋️ (Lesson 4 — practice, locked)
         \
-         🔒 (Lesson 5 — locked)
+         🔒📖 (Lesson 5 — lecture, locked)
 ```
 
 **Node states:**
 | State | Visual | Interaction |
 |-------|--------|-------------|
 | Completed | Gold star + checkmark | Tap to replay (no XP) |
-| Current | Glowing/pulsing circle, larger | Tap to start session |
+| Current | Glowing/pulsing circle, larger | Tap to start |
 | Locked | Gray circle + 🔒 | Tap shows "Complete previous lesson first" |
 
-### 10.2 Unit Headers
+**Lesson type badges on nodes:**
+| Type | Badge | Description |
+|------|-------|-------------|
+| `practice` | 🏋️ | Exercise icon |
+| `lecture` | 📖 | Book icon |
+| `mixed` | 📖🏋️ | Both icons |
+
+### 13.2 Unit Headers
 
 Between lesson node groups, show unit title banners:
 
@@ -951,7 +1445,7 @@ Between lesson node groups, show unit title banners:
       🔒 → 🔒 → 🔒
 ```
 
-### 10.3 Progress Indicators
+### 13.3 Progress Indicators
 
 - **Course card** (list screen): circular progress ring showing `progressPercent`.
 - **Unit**: `3/6 lessons completed` text under the unit header.
@@ -959,16 +1453,27 @@ Between lesson node groups, show unit title banners:
 
 ---
 
-## 11. Expo Implementation Notes
+## 14. Expo Implementation Notes
 
-### 11.1 Key Dependencies
+### 14.1 Key Dependencies
 
 ```bash
-npx expo install expo-av expo-haptics expo-document-picker
-npm install react-native-reanimated react-native-gesture-handler react-native-draggable-flatlist
+npx expo install expo-av expo-haptics expo-document-picker expo-file-system expo-sharing
+npm install react-native-reanimated react-native-gesture-handler react-native-draggable-flatlist react-native-markdown-display
 ```
 
-### 11.2 Answer Validation (Client-Side)
+| Package | Used for |
+|---------|----------|
+| `expo-av` | Audio/video playback in lectures, audio recording in exercises |
+| `expo-haptics` | Haptic feedback on exercise answers |
+| `expo-document-picker` | Uploading lecture media + attachments (admin) |
+| `expo-file-system` | Downloading lecture attachments (student) |
+| `expo-sharing` | Opening downloaded files (student) |
+| `react-native-markdown-display` | Rendering text lecture `textBody` as rich content |
+| `react-native-reanimated` | Animations (exercise feedback, lecture transitions) |
+| `react-native-draggable-flatlist` | Reordering lectures + exercises (admin) |
+
+### 14.2 Answer Validation (Client-Side)
 
 The client should validate answers locally for instant feedback, then confirm with the server via the attempt endpoint.
 
@@ -1023,7 +1528,7 @@ function validateAnswer(exercise: Exercise, userAnswer: any): boolean {
 }
 ```
 
-### 11.3 Audio Recording Helper
+### 14.3 Audio Recording Helper
 
 ```ts
 import { Audio } from "expo-av";
@@ -1046,22 +1551,200 @@ async function stopAndUpload(recording: Audio.Recording): Promise<string> {
 }
 ```
 
-### 11.4 Recommended Screen Structure
+### 14.4 Recommended Screen Structure
 
 ```
 app/
   (tabs)/
     courses/
-      index.tsx          — Course list (GET /api/courses)
-      [courseId].tsx      — Course map with units & lesson nodes (GET /api/courses/:id)
+      index.tsx              — Course list (GET /api/courses)
+      [courseId].tsx          — Course map with units & lesson nodes (GET /api/courses/:id)
+      lesson/    — Course list (GET /api/courses)
+      [courseId].tsx          — Course map with units & lesson nodes (GET /api/courses/:id)
       lesson/
-        [lessonId].tsx   — Exercise player (POST start → attempt loop → complete)
-        review.tsx       — Review mistakes after session
+        [lessonId].tsx       — Lesson router: checks lesson.type → routes to lectures or exercises
+        lectures/
+          index.tsx          — Lecture list for a lesson (shows all lectures with progress)
+          [lectureId].tsx    — Lecture viewer (text/audio/video + attachments + progress tracking)
+        exercises/
+          [lessonId].tsx     — Exercise player (POST start → attempt loop → complete)
+          review.tsx         — Review mistakes after session
   (admin)/
     courses/
-      index.tsx          — Admin course list with [+ Create]
+      index.tsx              — Admin course list with [+ Create]
       [courseId]/
-        edit.tsx         — Course/unit/lesson editor with drag-to-reorder
+        edit.tsx             — Course/unit/lesson editor with drag-to-reorder
+        lectures/
+          [lessonId].tsx     — Lecture list + [+ Add Lecture] → modal editor
         exercises/
-          [lessonId].tsx — Exercise list + [+ Add Exercise] → modal editor
+          [lessonId].tsx     — Exercise list + [+ Add Exercise] → modal editor
+```
+
+### 11.5 Lesson Router Logic
+
+The lesson screen should route based on `lesson.type`:
+
+```ts
+// app/(tabs)/courses/lesson/[lessonId].tsx
+
+function LessonScreen({ lesson }: { lesson: Lesson }) {
+  switch (lesson.type) {
+    case "lecture":
+      // Show lecture list → tap each to view
+      return <LectureListScreen lesson={lesson} />;
+
+    case "mixed":
+      // Show lecture list first, then "Start Practice" button
+      // when all lectures are completed
+      return <MixedLessonScreen lesson={lesson} />;
+
+    case "practice":
+    default:
+      // Go directly to exercise player (existing flow)
+      return <ExercisePlayerScreen lesson={lesson} />;
+  }
+}
+```
+
+### 11.6 Lecture Media Playback
+
+```ts
+import { Audio, Video, ResizeMode } from "expo-av";
+
+// Audio lecture playback
+async function playAudioLecture(mediaUrl: string) {
+  const { sound } = await Audio.Sound.createAsync(
+    { uri: mediaUrl },
+    { shouldPlay: true },
+    (status) => {
+      if (status.isLoaded && status.durationMillis) {
+        const pct = Math.round((status.positionMillis / status.durationMillis) * 100);
+        maybeSendProgress(lectureId, pct);
+      }
+    }
+  );
+  return sound;
+}
+
+// Video lecture — use <Video> component
+// <Video
+//   source={{ uri: lecture.mediaUrl }}
+//   resizeMode={ResizeMode.CONTAIN}
+//   useNativeControls
+//   onPlaybackStatusUpdate={(status) => { ... }}
+//   style={{ width: '100%', aspectRatio: 16/9 }}
+// />
+```
+
+### 11.7 Lecture Attachment Download
+
+```ts
+import * as FileSystem from "expo-file-system";
+import * as Sharing from "expo-sharing";
+
+async function downloadAttachment(attachment: LectureAttachment) {
+  const fileUri = FileSystem.documentDirectory + attachment.fileName;
+
+  const download = FileSystem.createDownloadResumable(
+    attachment.url,
+    fileUri,
+    {},
+    (progress) => {
+      const pct = progress.totalBytesWritten / progress.totalBytesExpectedToWrite;
+      // Update download progress UI
+    }
+  );
+
+  const result = await download.downloadAsync();
+  if (result?.uri) {
+    await Sharing.shareAsync(result.uri);
+  }
+}
+        edit.tsx             — Course/unit/lesson editor with drag-to-reorder
+        lectures/
+          [lessonId].tsx     — Lecture list + [+ Add Lecture] → modal editor
+        exercises/
+          [lessonId].tsx     — Exercise list + [+ Add Exercise] → modal editor
+```
+
+### 14.5 Lesson Router Logic
+
+The lesson screen should route based on `lesson.type`:
+
+```ts
+// app/(tabs)/courses/lesson/[lessonId].tsx
+
+function LessonScreen({ lesson }: { lesson: Lesson }) {
+  switch (lesson.type) {
+    case "lecture":
+      // Show lecture list → tap each to view
+      return <LectureListScreen lesson={lesson} />;
+
+    case "mixed":
+      // Show lecture list first, then "Start Practice" button
+      // when all lectures are completed
+      return <MixedLessonScreen lesson={lesson} />;
+
+    case "practice":
+    default:
+      // Go directly to exercise player (existing flow)
+      return <ExercisePlayerScreen lesson={lesson} />;
+  }
+}
+```
+
+### 14.6 Lecture Media Playback
+
+```ts
+import { Audio, Video, ResizeMode } from "expo-av";
+
+// Audio lecture playback
+async function playAudioLecture(mediaUrl: string) {
+  const { sound } = await Audio.Sound.createAsync(
+    { uri: mediaUrl },
+    { shouldPlay: true },
+    (status) => {
+      if (status.isLoaded && status.durationMillis) {
+        const pct = Math.round((status.positionMillis / status.durationMillis) * 100);
+        maybeSendProgress(lectureId, pct);
+      }
+    }
+  );
+  return sound;
+}
+
+// Video lecture — use <Video> component
+// <Video
+//   source={{ uri: lecture.mediaUrl }}
+//   resizeMode={ResizeMode.CONTAIN}
+//   useNativeControls
+//   onPlaybackStatusUpdate={(status) => { ... }}
+//   style={{ width: '100%', aspectRatio: 16/9 }}
+// />
+```
+
+### 14.7 Lecture Attachment Download
+
+```ts
+import * as FileSystem from "expo-file-system";
+import * as Sharing from "expo-sharing";
+
+async function downloadAttachment(attachment: LectureAttachment) {
+  const fileUri = FileSystem.documentDirectory + attachment.fileName;
+
+  const download = FileSystem.createDownloadResumable(
+    attachment.url,
+    fileUri,
+    {},
+    (progress) => {
+      const pct = progress.totalBytesWritten / progress.totalBytesExpectedToWrite;
+      // Update download progress UI
+    }
+  );
+
+  const result = await download.downloadAsync();
+  if (result?.uri) {
+    await Sharing.shareAsync(result.uri);
+  }
+}
 ```

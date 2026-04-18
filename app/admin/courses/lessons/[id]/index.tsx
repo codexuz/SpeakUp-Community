@@ -2,20 +2,25 @@ import { useAlert } from '@/components/CustomAlert';
 import { useToast } from '@/components/Toast';
 import WaveformPlayer from '@/components/WaveformPlayer';
 import { TG } from '@/constants/theme';
-import { apiCreateExercise, apiDeleteExercise, apiFetchLesson, apiTextToSpeech, apiUpdateExercise, TTSVoice } from '@/lib/api';
-import type { Exercise, ExerciseType, LessonDetail } from '@/lib/types';
+import { apiCreateExercise, apiCreateLecture, apiDeleteExercise, apiDeleteLecture, apiFetchLesson, apiTextToSpeech, apiUpdateExercise, apiUpdateLecture, TTSVoice } from '@/lib/api';
+import type { Exercise, ExerciseType, Lecture, LectureContentType, LessonDetail } from '@/lib/types';
 import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   ArrowDown,
   ArrowLeft,
   ArrowUp,
+  BookOpen,
   Check,
   ChevronRight,
   Copy,
+  Edit3,
   Eye,
+  FileText,
+  Film,
   Filter,
   Layers,
+  Mic,
   Plus,
   Search,
   Sparkles,
@@ -284,6 +289,19 @@ export default function LessonBuilderScreen() {
   // Templates
   const [showTemplates, setShowTemplates] = useState(false);
 
+  // ─── Lecture state ─────────────────────────────────────────
+  const [lectureModalVisible, setLectureModalVisible] = useState(false);
+  const [editLectureId, setEditLectureId] = useState<string | null>(null);
+  const [lectureSubmitting, setLectureSubmitting] = useState(false);
+  const [lectureForm, setLectureForm] = useState({
+    contentType: 'text' as LectureContentType,
+    title: '',
+    textBody: '',
+    mediaUrl: '',
+    thumbnailUrl: '',
+    durationSec: '',
+  });
+
   const load = useCallback(async () => {
     try {
       const data = await apiFetchLesson(String(id));
@@ -296,6 +314,101 @@ export default function LessonBuilderScreen() {
   }, [id]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  // ─── Lecture helpers ───────────────────────────────────────
+
+  const lectures = useMemo(() => {
+    if (!lesson?.lectures) return [];
+    return [...lesson.lectures].sort((a, b) => a.order - b.order);
+  }, [lesson]);
+
+  const resetLectureForm = () => setLectureForm({ contentType: 'text', title: '', textBody: '', mediaUrl: '', thumbnailUrl: '', durationSec: '' });
+
+  const openAddLecture = () => {
+    setEditLectureId(null);
+    resetLectureForm();
+    setLectureModalVisible(true);
+  };
+
+  const openEditLecture = (lec: Lecture) => {
+    setEditLectureId(lec.id);
+    setLectureForm({
+      contentType: lec.contentType,
+      title: lec.title,
+      textBody: lec.textBody || '',
+      mediaUrl: lec.mediaUrl || '',
+      thumbnailUrl: lec.thumbnailUrl || '',
+      durationSec: lec.durationSec ? String(lec.durationSec) : '',
+    });
+    setLectureModalVisible(true);
+  };
+
+  const handleSaveLecture = async () => {
+    if (!lesson || !lectureForm.title.trim()) return;
+    setLectureSubmitting(true);
+    try {
+      const payload: any = {
+        contentType: lectureForm.contentType,
+        title: lectureForm.title.trim(),
+        textBody: lectureForm.textBody.trim() || null,
+        mediaUrl: lectureForm.mediaUrl.trim() || null,
+        thumbnailUrl: lectureForm.thumbnailUrl.trim() || null,
+        durationSec: lectureForm.durationSec ? parseInt(lectureForm.durationSec, 10) : null,
+      };
+      if (editLectureId) {
+        await apiUpdateLecture(editLectureId, payload);
+        toast.success('Updated', 'Lecture updated');
+      } else {
+        payload.lessonId = lesson.id;
+        payload.order = lectures.length;
+        await apiCreateLecture(payload);
+        toast.success('Created', 'Lecture added');
+      }
+      setLectureModalVisible(false);
+      load();
+    } catch (e: any) {
+      toast.error('Error', e.message);
+    } finally {
+      setLectureSubmitting(false);
+    }
+  };
+
+  const handleDeleteLecture = (lec: Lecture) => {
+    alert('Delete Lecture', `Delete "${lec.title}"?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive',
+        onPress: async () => {
+          try { await apiDeleteLecture(lec.id); load(); toast.success('Deleted', 'Lecture removed'); }
+          catch (e: any) { toast.error('Error', e.message); }
+        },
+      },
+    ], 'destructive');
+  };
+
+  const handleReorderLecture = async (lec: Lecture, direction: 'up' | 'down') => {
+    const sorted = [...lectures];
+    const idx = sorted.findIndex((l) => l.id === lec.id);
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= sorted.length) return;
+    try {
+      await Promise.all([
+        apiUpdateLecture(sorted[idx].id, { order: sorted[swapIdx].order }),
+        apiUpdateLecture(sorted[swapIdx].id, { order: sorted[idx].order }),
+      ]);
+      load();
+    } catch (e: any) {
+      toast.error('Error', e.message);
+    }
+  };
+
+  const getLectureContentIcon = (ct: LectureContentType) => {
+    switch (ct) {
+      case 'text': return <FileText size={16} color={TG.accent} />;
+      case 'audio': return <Mic size={16} color="#E17055" />;
+      case 'video': return <Film size={16} color="#6C5CE7" />;
+    }
+  };
 
   // ─── Derived data ──────────────────────────────────────────
 
@@ -638,6 +751,64 @@ export default function LessonBuilderScreen() {
   }
 
   const allExercises = [...(lesson.exercises || [])].sort((a, b) => a.order - b.order);
+
+  const showLectureSection = lesson.type === 'lecture' || lesson.type === 'mixed';
+  const showExerciseSection = lesson.type === 'practice' || lesson.type === 'mixed' || !lesson.type;
+
+  // ─── Render: Lecture Section ─────────────────────────────
+
+  const renderLectureSection = () => {
+    if (!showLectureSection) return null;
+    return (
+      <View style={s.lectureSection}>
+        <View style={s.lectureSectionHeader}>
+          <BookOpen size={18} color={TG.accent} />
+          <Text style={s.lectureSectionTitle}>Lectures ({lectures.length})</Text>
+        </View>
+
+        {lectures.map((lec, idx) => (
+          <View key={lec.id} style={s.lectureCard}>
+            <View style={s.lectureCardLeft}>
+              <View style={[s.lectureIconBox, { backgroundColor: lec.contentType === 'text' ? TG.accent + '15' : lec.contentType === 'audio' ? '#E1705515' : '#6C5CE715' }]}>
+                {getLectureContentIcon(lec.contentType)}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.lectureCardTitle} numberOfLines={1}>{lec.title}</Text>
+                <Text style={s.lectureCardMeta}>
+                  {lec.contentType.charAt(0).toUpperCase() + lec.contentType.slice(1)}
+                  {lec.durationSec ? ` • ${Math.floor(lec.durationSec / 60)}:${String(lec.durationSec % 60).padStart(2, '0')}` : ''}
+                  {lec.attachments?.length ? ` • ${lec.attachments.length} file${lec.attachments.length > 1 ? 's' : ''}` : ''}
+                </Text>
+              </View>
+            </View>
+            <View style={s.lectureCardActions}>
+              {idx > 0 && (
+                <TouchableOpacity onPress={() => handleReorderLecture(lec, 'up')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <ArrowUp size={14} color={TG.textHint} />
+                </TouchableOpacity>
+              )}
+              {idx < lectures.length - 1 && (
+                <TouchableOpacity onPress={() => handleReorderLecture(lec, 'down')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <ArrowDown size={14} color={TG.textHint} />
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity onPress={() => openEditLecture(lec)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Edit3 size={14} color={TG.textHint} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => handleDeleteLecture(lec)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Trash2 size={14} color={TG.red} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        ))}
+
+        <TouchableOpacity style={s.addLectureBtn} onPress={openAddLecture} activeOpacity={0.7}>
+          <Plus size={16} color={TG.accent} />
+          <Text style={s.addLectureBtnText}>Add Lecture</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
 
   // ─── Render: Stats Dashboard ─────────────────────────────
 
@@ -1671,14 +1842,23 @@ export default function LessonBuilderScreen() {
               <Text style={s.lessonTitle}>{lesson.title}</Text>
               <View style={s.lessonMeta}>
                 <View style={s.badge}><Text style={s.badgeText}>{lesson.unit.title}</Text></View>
+                {lesson.type && (
+                  <View style={[s.badge, { backgroundColor: lesson.type === 'practice' ? TG.green + '15' : lesson.type === 'lecture' ? TG.accent + '15' : TG.gold + '15' }]}>
+                    <Text style={[s.badgeText, { color: lesson.type === 'practice' ? TG.green : lesson.type === 'lecture' ? TG.accent : TG.gold }]}>
+                      {lesson.type === 'practice' ? '🏋️ Practice' : lesson.type === 'lecture' ? '📖 Lecture' : '📖🏋️ Mixed'}
+                    </Text>
+                  </View>
+                )}
                 <View style={[s.badge, { backgroundColor: TG.gold + '15' }]}>
                   <Text style={[s.badgeText, { color: TG.gold }]}>⚡ {lesson.xpReward} XP</Text>
                 </View>
               </View>
             </View>
 
-            {renderStatsDashboard()}
-            {allExercises.length > 0 && renderFilterBar()}
+            {renderLectureSection()}
+
+            {showExerciseSection && renderStatsDashboard()}
+            {showExerciseSection && allExercises.length > 0 && renderFilterBar()}
 
             {(searchQuery || filterType || filterDifficulty) && (
               <Text style={s.resultsCount}>
@@ -1687,10 +1867,11 @@ export default function LessonBuilderScreen() {
             )}
           </>
         }
-        data={exercises}
+        data={showExerciseSection ? exercises : []}
         keyExtractor={(e) => String(e.id)}
         renderItem={renderExerciseCard}
         ListEmptyComponent={
+          !showExerciseSection ? null :
           allExercises.length === 0 ? (
             <View style={s.emptyState}>
               <Text style={s.emptyIcon}>📝</Text>
@@ -1706,18 +1887,119 @@ export default function LessonBuilderScreen() {
           )
         }
         ListFooterComponent={
-          <View style={s.footerActions}>
-            <TouchableOpacity style={s.addBtn} onPress={openAddExercise} activeOpacity={0.7}>
-              <Plus size={20} color={TG.textWhite} />
-              <Text style={s.addBtnText}>Add Exercise</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={s.templateBtn} onPress={() => setShowTemplates(true)} activeOpacity={0.7}>
-              <Sparkles size={18} color={TG.accent} />
-              <Text style={s.templateBtnText}>Use Template</Text>
-            </TouchableOpacity>
-          </View>
+          showExerciseSection ? (
+            <View style={s.footerActions}>
+              <TouchableOpacity style={s.addBtn} onPress={openAddExercise} activeOpacity={0.7}>
+                <Plus size={20} color={TG.textWhite} />
+                <Text style={s.addBtnText}>Add Exercise</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.templateBtn} onPress={() => setShowTemplates(true)} activeOpacity={0.7}>
+                <Sparkles size={18} color={TG.accent} />
+                <Text style={s.templateBtnText}>Use Template</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null
         }
       />
+
+      {/* ─── Lecture Editor Modal ─────────────────────── */}
+      <Modal visible={lectureModalVisible} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={s.modalSafe}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+            <View style={s.modalHeader}>
+              <TouchableOpacity onPress={() => setLectureModalVisible(false)}>
+                <X size={22} color={TG.textPrimary} />
+              </TouchableOpacity>
+              <Text style={s.modalTitle}>{editLectureId ? 'Edit Lecture' : 'New Lecture'}</Text>
+              <TouchableOpacity
+                onPress={handleSaveLecture}
+                disabled={!lectureForm.title.trim() || lectureSubmitting}
+                style={[s.saveHeaderBtn, (!lectureForm.title.trim() || lectureSubmitting) && { opacity: 0.4 }]}
+              >
+                {lectureSubmitting ? <ActivityIndicator size="small" color={TG.accent} /> : <Text style={s.saveHeaderText}>Save</Text>}
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={s.modalScroll} contentContainerStyle={s.modalContent} keyboardShouldPersistTaps="handled">
+              <Text style={s.label}>Content Type</Text>
+              <View style={s.lectureTypeRow}>
+                {(['text', 'audio', 'video'] as LectureContentType[]).map((ct) => (
+                  <TouchableOpacity
+                    key={ct}
+                    style={[s.lectureTypeBtn, lectureForm.contentType === ct && s.lectureTypeBtnActive]}
+                    onPress={() => setLectureForm((p) => ({ ...p, contentType: ct }))}
+                  >
+                    {ct === 'text' ? <FileText size={18} color={lectureForm.contentType === ct ? TG.accent : TG.textHint} /> :
+                     ct === 'audio' ? <Mic size={18} color={lectureForm.contentType === ct ? '#E17055' : TG.textHint} /> :
+                     <Film size={18} color={lectureForm.contentType === ct ? '#6C5CE7' : TG.textHint} />}
+                    <Text style={[s.lectureTypeBtnText, lectureForm.contentType === ct && s.lectureTypeBtnTextActive]}>
+                      {ct.charAt(0).toUpperCase() + ct.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={s.label}>Title</Text>
+              <TextInput
+                style={s.input}
+                value={lectureForm.title}
+                onChangeText={(v) => setLectureForm((p) => ({ ...p, title: v }))}
+                placeholder="e.g. Introduction to Present Perfect"
+                placeholderTextColor={TG.textHint}
+              />
+
+              {lectureForm.contentType === 'text' && (
+                <>
+                  <Text style={s.label}>Content (Markdown)</Text>
+                  <TextInput
+                    style={[s.input, { height: 200, textAlignVertical: 'top' }]}
+                    value={lectureForm.textBody}
+                    onChangeText={(v) => setLectureForm((p) => ({ ...p, textBody: v }))}
+                    placeholder="# Heading\n\nWrite your lecture content here using Markdown..."
+                    placeholderTextColor={TG.textHint}
+                    multiline
+                  />
+                </>
+              )}
+
+              {(lectureForm.contentType === 'audio' || lectureForm.contentType === 'video') && (
+                <>
+                  <Text style={s.label}>Media URL</Text>
+                  <TextInput
+                    style={s.input}
+                    value={lectureForm.mediaUrl}
+                    onChangeText={(v) => setLectureForm((p) => ({ ...p, mediaUrl: v }))}
+                    placeholder={`https://cdn.example.com/${lectureForm.contentType === 'audio' ? 'audio.mp3' : 'video.mp4'}`}
+                    placeholderTextColor={TG.textHint}
+                    autoCapitalize="none"
+                    keyboardType="url"
+                  />
+                  <Text style={s.label}>Thumbnail URL (optional)</Text>
+                  <TextInput
+                    style={s.input}
+                    value={lectureForm.thumbnailUrl}
+                    onChangeText={(v) => setLectureForm((p) => ({ ...p, thumbnailUrl: v }))}
+                    placeholder="https://cdn.example.com/thumb.jpg"
+                    placeholderTextColor={TG.textHint}
+                    autoCapitalize="none"
+                    keyboardType="url"
+                  />
+                  <Text style={s.label}>Duration (seconds)</Text>
+                  <TextInput
+                    style={s.input}
+                    value={lectureForm.durationSec}
+                    onChangeText={(v) => setLectureForm((p) => ({ ...p, durationSec: v.replace(/[^0-9]/g, '') }))}
+                    placeholder="e.g. 320"
+                    placeholderTextColor={TG.textHint}
+                    keyboardType="number-pad"
+                  />
+                </>
+              )}
+
+              <View style={{ height: 40 }} />
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+      </Modal>
 
       {/* ─── Templates Modal ──────────────────────────── */}
       <Modal visible={showTemplates} animationType="slide" presentationStyle="pageSheet">
@@ -2189,4 +2471,24 @@ const s = StyleSheet.create({
   voiceChipTextActive: { color: '#fff' },
   generateBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 10, backgroundColor: TG.bg, borderWidth: 0.5, borderColor: TG.accent },
   generateBtnText: { fontSize: 14, fontWeight: '600', color: TG.accent },
+
+  // Lecture section
+  lectureSection: { backgroundColor: TG.bg, borderRadius: 16, padding: 16, marginBottom: 16, ...SHADOW_SM as any },
+  lectureSectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: TG.separatorLight },
+  lectureSectionTitle: { fontSize: 16, fontWeight: '700', color: TG.textPrimary },
+  lectureCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, paddingHorizontal: 4, borderBottomWidth: 0.5, borderBottomColor: TG.separatorLight },
+  lectureCardLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+  lectureIconBox: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  lectureCardTitle: { fontSize: 15, fontWeight: '600', color: TG.textPrimary },
+  lectureCardMeta: { fontSize: 12, color: TG.textHint, marginTop: 2 },
+  lectureCardActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  addLectureBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 12, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, borderColor: TG.accent, borderStyle: 'dashed' },
+  addLectureBtnText: { fontSize: 14, fontWeight: '700', color: TG.accent },
+
+  // Lecture modal
+  lectureTypeRow: { flexDirection: 'row', gap: 8, marginBottom: 20 },
+  lectureTypeBtn: { flex: 1, alignItems: 'center', gap: 6, paddingVertical: 12, borderRadius: 12, borderWidth: 1.5, borderColor: TG.separator, backgroundColor: TG.bgSecondary },
+  lectureTypeBtnActive: { borderColor: TG.accent, backgroundColor: TG.accentLight },
+  lectureTypeBtnText: { fontSize: 12, fontWeight: '600', color: TG.textSecondary },
+  lectureTypeBtnTextActive: { color: TG.accent, fontWeight: '700' },
 });

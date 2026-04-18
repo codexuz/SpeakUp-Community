@@ -10,7 +10,7 @@ import {
   apiUpdateCourse,
   apiUpdateCourseUnit,
 } from '@/lib/api';
-import { Course, CourseUnit, Lesson } from '@/lib/types';
+import { Course, CourseUnit, Lesson, LessonType } from '@/lib/types';
 import { useFocusEffect } from '@react-navigation/native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, Edit3, Eye, EyeOff, Image as ImageIcon, Plus, Trash2, X } from 'lucide-react-native';
@@ -49,6 +49,7 @@ export default function CourseBuilderScreen() {
   const [lessonModalVisible, setLessonModalVisible] = useState(false);
   const [activeUnitId, setActiveUnitId] = useState<string | null>(null);
   const [lessonTitle, setLessonTitle] = useState('');
+  const [lessonType, setLessonType] = useState<LessonType>('practice');
   const [submittingLesson, setSubmittingLesson] = useState(false);
 
   const load = useCallback(async () => {
@@ -131,13 +132,14 @@ export default function CourseBuilderScreen() {
   const openAddLesson = (unitId: string) => {
     setActiveUnitId(unitId);
     setLessonTitle('');
+    setLessonType('practice');
     setLessonModalVisible(true);
   };
   const handleSaveLesson = async () => {
     if (!lessonTitle.trim() || !activeUnitId) return;
     setSubmittingLesson(true);
     try {
-      await apiCreateLessonAdmin({ unitId: activeUnitId, title: lessonTitle.trim(), xpReward: 10 });
+      await apiCreateLessonAdmin({ unitId: activeUnitId, title: lessonTitle.trim(), type: lessonType, xpReward: 10 });
       toast.success('Done', 'Lesson added');
       setLessonModalVisible(false);
       load();
@@ -250,7 +252,14 @@ export default function CourseBuilderScreen() {
                 onPress={() => router.push(`/admin/courses/lessons/${lesson.id}` as any)}
               >
                 <View style={styles.lessonDot} />
-                <Text style={styles.lessonTitle}>{lesson.title}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.lessonTitle}>{lesson.title}</Text>
+                  {lesson.type && lesson.type !== 'practice' && (
+                    <Text style={styles.lessonTypeBadge}>
+                      {lesson.type === 'lecture' ? '📖 Lecture' : '📖🏋️ Mixed'}
+                    </Text>
+                  )}
+                </View>
                 <TouchableOpacity onPress={() => handleDeleteLesson(lesson)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                   <X size={16} color={TG.textHint} />
                 </TouchableOpacity>
@@ -309,6 +318,23 @@ export default function CourseBuilderScreen() {
               placeholderTextColor={TG.textHint}
               autoFocus
             />
+            <Text style={styles.lessonTypeLabel}>Lesson Type</Text>
+            <View style={styles.lessonTypeRow}>
+              {(['practice', 'lecture', 'mixed'] as LessonType[]).map((t) => (
+                <TouchableOpacity
+                  key={t}
+                  style={[styles.lessonTypeBtn, lessonType === t && styles.lessonTypeBtnActive]}
+                  onPress={() => setLessonType(t)}
+                >
+                  <Text style={styles.lessonTypeIcon}>
+                    {t === 'practice' ? '🏋️' : t === 'lecture' ? '📖' : '📖🏋️'}
+                  </Text>
+                  <Text style={[styles.lessonTypeBtnText, lessonType === t && styles.lessonTypeBtnTextActive]}>
+                    {t.charAt(0).toUpperCase() + t.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
             <View style={styles.modalBtns}>
               <TouchableOpacity style={styles.modalBtnCancel} onPress={() => setLessonModalVisible(false)}>
                 <Text style={styles.btnTextCancel}>Cancel</Text>
@@ -373,7 +399,8 @@ const styles = StyleSheet.create({
 
   lessonItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, gap: 12 },
   lessonDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: TG.separator },
-  lessonTitle: { flex: 1, fontSize: 15, color: TG.textPrimary },
+  lessonTitle: { fontSize: 15, color: TG.textPrimary },
+  lessonTypeBadge: { fontSize: 11, color: TG.textHint, marginTop: 2 },
 
   addLessonBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, paddingVertical: 8 },
   addLessonText: { fontSize: 14, fontWeight: '600', color: TG.accent },
@@ -394,7 +421,14 @@ const styles = StyleSheet.create({
   modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   modalContent: { backgroundColor: TG.bg, width: '100%', borderRadius: 16, padding: 20 },
   modalTitle: { fontSize: 18, fontWeight: '700', color: TG.textPrimary, marginBottom: 16 },
-  modalInput: { backgroundColor: TG.bgSecondary, borderWidth: 1, borderColor: TG.separator, borderRadius: 10, padding: 14, fontSize: 16, color: TG.textPrimary, marginBottom: 20 },
+  modalInput: { backgroundColor: TG.bgSecondary, borderWidth: 1, borderColor: TG.separator, borderRadius: 10, padding: 14, fontSize: 16, color: TG.textPrimary, marginBottom: 16 },
+  lessonTypeLabel: { fontSize: 13, fontWeight: '600', color: TG.textSecondary, marginBottom: 8 },
+  lessonTypeRow: { flexDirection: 'row', gap: 8, marginBottom: 20 },
+  lessonTypeBtn: { flex: 1, alignItems: 'center', paddingVertical: 10, paddingHorizontal: 6, borderRadius: 10, borderWidth: 1.5, borderColor: TG.separator, backgroundColor: TG.bgSecondary },
+  lessonTypeBtnActive: { borderColor: TG.accent, backgroundColor: TG.accentLight },
+  lessonTypeIcon: { fontSize: 18, marginBottom: 4 },
+  lessonTypeBtnText: { fontSize: 12, fontWeight: '600', color: TG.textSecondary },
+  lessonTypeBtnTextActive: { color: TG.accent, fontWeight: '700' },
   modalBtns: { flexDirection: 'row', gap: 12 },
   modalBtnCancel: { flex: 1, padding: 14, borderRadius: 10, backgroundColor: TG.separatorLight, alignItems: 'center' },
   btnTextCancel: { color: TG.textSecondary, fontWeight: '600', fontSize: 16 },

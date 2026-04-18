@@ -6,12 +6,18 @@ import { AudioModule, createAudioPlayer, RecordingPresets, useAudioPlayer, useAu
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   ArrowLeft,
+  BookOpen,
   Check,
+  CheckCircle,
+  ChevronRight,
+  FileText,
+  Film,
   Flag,
   Heart,
   Keyboard,
   Lightbulb,
   Mic,
+  Play,
   RotateCcw,
   Volume2,
   X
@@ -162,6 +168,8 @@ export default function LessonPlayerScreen() {
   const [convoHintVisible, setConvoHintVisible] = useState(false);
   const [convoInputText, setConvoInputText] = useState('');
 
+  // Lecture routing
+  const [showExercises, setShowExercises] = useState(false);
   // Audio
   const correctPlayer = useAudioPlayer(correctSound);
   const wrongPlayer = useAudioPlayer(wrongSound);
@@ -607,6 +615,20 @@ export default function LessonPlayerScreen() {
   }
 
   if (!lesson || exercises.length === 0) {
+    // For lecture-only lessons, show the lecture list instead of "no exercises"
+    if (lesson && (lesson.type === 'lecture' || lesson.type === 'mixed') && lesson.lectures?.length) {
+      return (
+        <SafeAreaView style={styles.safeArea}>
+          <StatusBar barStyle="light-content" backgroundColor={TG.headerBg} />
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => router.back()}><ArrowLeft size={22} color={TG.textWhite} /></TouchableOpacity>
+            <Text style={styles.headerTitle} numberOfLines={1}>{lesson.title}</Text>
+            <View style={{ width: 22 }} />
+          </View>
+          <LectureListView lesson={lesson} router={router} onStartPractice={exercises.length > 0 ? () => setShowExercises(true) : undefined} />
+        </SafeAreaView>
+      );
+    }
     return (
       <SafeAreaView style={styles.safeArea}>
         <StatusBar barStyle="light-content" backgroundColor={TG.headerBg} />
@@ -626,6 +648,22 @@ export default function LessonPlayerScreen() {
             <Text style={styles.emptyBackBtnText}>Go Back</Text>
           </TouchableOpacity>
         </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ─── LECTURE LIST (for mixed/lecture lessons) ────────────
+
+  if (lesson.lectures?.length && (lesson.type === 'lecture' || lesson.type === 'mixed') && !showExercises) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="light-content" backgroundColor={TG.headerBg} />
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()}><ArrowLeft size={22} color={TG.textWhite} /></TouchableOpacity>
+          <Text style={styles.headerTitle} numberOfLines={1}>{lesson.title}</Text>
+          <View style={{ width: 22 }} />
+        </View>
+        <LectureListView lesson={lesson} router={router} onStartPractice={lesson.type === 'mixed' && exercises.length > 0 ? () => setShowExercises(true) : undefined} />
       </SafeAreaView>
     );
   }
@@ -1395,6 +1433,112 @@ export default function LessonPlayerScreen() {
     </SafeAreaView>
   );
 }
+
+// ─── Lecture List View ──────────────────────────────────────
+
+function LectureListView({ lesson, router, onStartPractice }: { lesson: LessonDetail; router: any; onStartPractice?: () => void }) {
+  const lectures = [...(lesson.lectures || [])].sort((a, b) => a.order - b.order);
+  const completedCount = lectures.filter((l) => l.userProgress?.completed).length;
+  const allDone = completedCount === lectures.length;
+
+  const getContentIcon = (ct: string) => {
+    switch (ct) {
+      case 'text': return <FileText size={18} color={TG.accent} />;
+      case 'audio': return <Mic size={18} color="#E17055" />;
+      case 'video': return <Film size={18} color="#6C5CE7" />;
+      default: return <BookOpen size={18} color={TG.accent} />;
+    }
+  };
+
+  return (
+    <ScrollView style={{ flex: 1, backgroundColor: TG.bgSecondary }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+      <View style={lectStyles.headerCard}>
+        <BookOpen size={24} color={TG.accent} />
+        <View style={{ flex: 1 }}>
+          <Text style={lectStyles.headerTitle}>
+            {lesson.type === 'mixed' ? 'Lectures & Practice' : 'Lectures'}
+          </Text>
+          <Text style={lectStyles.headerSub}>
+            {completedCount}/{lectures.length} completed
+          </Text>
+        </View>
+        {allDone && <CheckCircle size={20} color={TG.green} />}
+      </View>
+
+      {lectures.map((lec) => {
+        const done = lec.userProgress?.completed;
+        return (
+          <TouchableOpacity
+            key={lec.id}
+            style={lectStyles.lectureRow}
+            activeOpacity={0.7}
+            onPress={() => router.push(`/lecture/${lec.id}`)}
+          >
+            <View style={[lectStyles.iconBox, { backgroundColor: lec.contentType === 'text' ? TG.accent + '15' : lec.contentType === 'audio' ? '#E1705515' : '#6C5CE715' }]}>
+              {getContentIcon(lec.contentType)}
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={lectStyles.lecTitle} numberOfLines={1}>{lec.title}</Text>
+              <Text style={lectStyles.lecMeta}>
+                {lec.contentType.charAt(0).toUpperCase() + lec.contentType.slice(1)}
+                {lec.durationSec ? ` • ${Math.floor(lec.durationSec / 60)}:${String(lec.durationSec % 60).padStart(2, '0')}` : ''}
+              </Text>
+            </View>
+            {done ? (
+              <CheckCircle size={18} color={TG.green} />
+            ) : (
+              <ChevronRight size={18} color={TG.textHint} />
+            )}
+          </TouchableOpacity>
+        );
+      })}
+
+      {onStartPractice && (
+        <TouchableOpacity style={lectStyles.practiceBtn} onPress={onStartPractice} activeOpacity={0.8}>
+          <Play size={18} color="#fff" />
+          <Text style={lectStyles.practiceBtnText}>Start Practice</Text>
+        </TouchableOpacity>
+      )}
+    </ScrollView>
+  );
+}
+
+const lectStyles = StyleSheet.create({
+  headerCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: TG.bg,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+  },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: TG.textPrimary },
+  headerSub: { fontSize: 13, color: TG.textSecondary, marginTop: 2 },
+  lectureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: TG.bg,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 8,
+  },
+  iconBox: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  lecTitle: { fontSize: 15, fontWeight: '600', color: TG.textPrimary },
+  lecMeta: { fontSize: 12, color: TG.textHint, marginTop: 2 },
+  practiceBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: TG.accent,
+    paddingVertical: 14,
+    borderRadius: 14,
+    marginTop: 16,
+  },
+  practiceBtnText: { fontSize: 16, fontWeight: '700', color: '#fff' },
+});
 
 // ─── Styles ─────────────────────────────────────────────────
 
