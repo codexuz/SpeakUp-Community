@@ -1,13 +1,12 @@
-import { TG } from '@/constants/theme';
-import { AlertCircle, CheckCircle, Info, X, XCircle } from 'lucide-react-native';
+import { AlertTriangle, CheckCircle, Info, X } from 'lucide-react-native';
 import React, { createContext, useCallback, useContext, useRef, useState } from 'react';
 import {
-    Animated,
-    Platform,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Animated,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -40,17 +39,18 @@ const ToastContext = createContext<ToastContextType>({
 export const useToast = () => useContext(ToastContext);
 
 // ── Appearance map ──────────────────────────────────────────
-const TOAST_CONFIG: Record<ToastType, { bg: string; border: string; color: string; Icon: any }> = {
-  success: { bg: '#f0fdf4', border: TG.green, color: '#15803d', Icon: CheckCircle },
-  error: { bg: '#fef2f2', border: TG.red, color: '#b91c1c', Icon: XCircle },
-  info: { bg: '#eff6ff', border: TG.accent, color: '#1d4ed8', Icon: Info },
-  warning: { bg: '#fffbeb', border: TG.orange, color: '#92400e', Icon: AlertCircle },
+const TOAST_CONFIG: Record<ToastType, { bg: string; accent: string; Icon: any }> = {
+  success: { bg: '#06d899', accent: '#ffffff', Icon: CheckCircle },
+  error:   { bg: '#e00661', accent: '#ffffff', Icon: AlertTriangle },
+  info:    { bg: '#008bfd', accent: '#ffffff', Icon: Info },
+  warning: { bg: '#3c3c3c', accent: '#ffffff', Icon: Info },
 };
 
 // ── Single toast renderer ───────────────────────────────────
 function ToastItem({ toast, onDismiss }: { toast: ToastData; onDismiss: (id: number) => void }) {
   const translateY = useRef(new Animated.Value(-80)).current;
   const opacity = useRef(new Animated.Value(0)).current;
+  const scale = useRef(new Animated.Value(0.9)).current;
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const config = TOAST_CONFIG[toast.type];
@@ -58,15 +58,17 @@ function ToastItem({ toast, onDismiss }: { toast: ToastData; onDismiss: (id: num
   const dismiss = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
     Animated.parallel([
-      Animated.timing(translateY, { toValue: -80, duration: 250, useNativeDriver: true }),
-      Animated.timing(opacity, { toValue: 0, duration: 250, useNativeDriver: true }),
+      Animated.timing(translateY, { toValue: -80, duration: 200, useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: 0, duration: 200, useNativeDriver: true }),
+      Animated.timing(scale, { toValue: 0.9, duration: 200, useNativeDriver: true }),
     ]).start(() => onDismiss(toast.id));
-  }, [toast.id, onDismiss, translateY, opacity]);
+  }, [toast.id, onDismiss, translateY, opacity, scale]);
 
   React.useEffect(() => {
     Animated.parallel([
-      Animated.spring(translateY, { toValue: 0, tension: 80, friction: 10, useNativeDriver: true }),
-      Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+      Animated.spring(translateY, { toValue: 0, tension: 80, friction: 12, useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: 1, duration: 250, useNativeDriver: true }),
+      Animated.spring(scale, { toValue: 1, tension: 80, friction: 10, useNativeDriver: true }),
     ]).start();
 
     timerRef.current = setTimeout(dismiss, toast.duration ?? 3000);
@@ -74,14 +76,16 @@ function ToastItem({ toast, onDismiss }: { toast: ToastData; onDismiss: (id: num
   }, []);
 
   return (
-    <Animated.View style={[styles.toast, { backgroundColor: config.bg, borderLeftColor: config.border, transform: [{ translateY }], opacity }]}>
-      <config.Icon size={20} color={config.color} />
-      <View style={styles.toastBody}>
-        <Text style={[styles.toastTitle, { color: config.color }]}>{toast.title}</Text>
-        {toast.message ? <Text style={styles.toastMessage} numberOfLines={3}>{toast.message}</Text> : null}
+    <Animated.View style={[styles.toast, { backgroundColor: config.bg, transform: [{ translateY }, { scale }], opacity }]}>
+      <View style={styles.iconCircle}>
+        <config.Icon size={20} color={config.bg} />
       </View>
-      <TouchableOpacity onPress={dismiss} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-        <X size={16} color={TG.textSecondary} />
+      <View style={styles.toastBody}>
+        <Text style={styles.toastTitle} numberOfLines={1}>{toast.title}</Text>
+        {toast.message ? <Text style={styles.toastMessage} numberOfLines={2}>{toast.message}</Text> : null}
+      </View>
+      <TouchableOpacity onPress={dismiss} style={styles.closeBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+        <X size={20} color="rgba(255,255,255,0.85)" />
       </TouchableOpacity>
     </Animated.View>
   );
@@ -126,8 +130,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    left: 12,
-    right: 12,
+    left: 16,
+    right: 16,
     zIndex: 9999,
     alignItems: 'center',
   },
@@ -135,18 +139,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     width: '100%',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderLeftWidth: 4,
-    marginBottom: 8,
-    gap: 10,
+    paddingLeft: 14,
+    paddingRight: 14,
+    paddingVertical: 16,
+    borderRadius: 20,
+    marginBottom: 10,
+    gap: 14,
     ...Platform.select({
-      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 12 },
-      android: { elevation: 6 },
+      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 24 },
+      android: { elevation: 10 },
     }),
   },
+  iconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   toastBody: { flex: 1 },
-  toastTitle: { fontSize: 14, fontWeight: '700' },
-  toastMessage: { fontSize: 13, color: TG.textSecondary, marginTop: 2, lineHeight: 18 },
+  toastTitle: { fontSize: 16, fontWeight: '700', color: '#ffffff' },
+  toastMessage: { fontSize: 13, color: 'rgba(255,255,255,0.85)', marginTop: 2, lineHeight: 18 },
+  closeBtn: {
+    padding: 6,
+  },
 });
