@@ -1,11 +1,11 @@
 import { useAlert } from '@/components/CustomAlert';
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
-import { apiDeleteCourse, apiFetchCourses } from '@/lib/api';
+import { apiDeleteCourse, apiFetchAdminCourses } from '@/lib/api';
 import { Course } from '@/lib/types';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { BookOpen, ChevronRight, Edit3, Plus, Trash2 } from 'lucide-react-native';
+import { BookOpen, ChevronRight, Plus, Trash2 } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
@@ -28,7 +28,7 @@ export default function AdminCoursesScreen() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await apiFetchCourses(undefined, true);
+      const res = await apiFetchAdminCourses();
       setCourses(res.data || []);
     } catch (e: any) {
       toast.error('Error', e.message);

@@ -932,6 +932,10 @@ export async function apiFetchCourses(level?: string, all?: boolean) {
   return request<{ data: Course[] }>(`/courses${qs}`);
 }
 
+export async function apiFetchAdminCourses() {
+  return request<{ data: Course[] }>('/courses/admin/all');
+}
+
 export async function apiFetchCourse(id: string) {
   return request<Course>(`/courses/${id}`);
 }
