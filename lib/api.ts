@@ -208,9 +208,10 @@ export interface PaginatedTestsResponse {
   meta: { total: number; page: number; limit: number; totalPages: number };
 }
 
-export async function apiFetchTests(opts?: { testType?: 'cefr' | 'ielts'; page?: number; limit?: number }) {
+export async function apiFetchTests(opts?: { testType?: 'cefr' | 'ielts'; isPublished?: boolean; page?: number; limit?: number }) {
   const params = new URLSearchParams();
   if (opts?.testType) params.set('testType', opts.testType);
+  if (opts?.isPublished !== undefined) params.set('isPublished', String(opts.isPublished));
   if (opts?.page) params.set('page', String(opts.page));
   if (opts?.limit) params.set('limit', String(opts.limit));
   const query = params.toString() ? `?${params.toString()}` : '';
@@ -549,7 +550,7 @@ export async function apiReviewVerification(id: string, data: { status: 'approve
 // Tests CRUD (teacher/admin)
 // =============================================
 
-export async function apiCreateTest(data: { title: string; description?: string; testType?: 'cefr' | 'ielts' }) {
+export async function apiCreateTest(data: { title: string; description?: string; testType?: 'cefr' | 'ielts'; isPublished?: boolean }) {
   const user = await getStoredUser();
   if (user?.role !== 'admin' && !(user?.role === 'teacher' && user?.verifiedTeacher)) {
     throw new Error('Only verified teachers can create tests');
@@ -560,7 +561,7 @@ export async function apiCreateTest(data: { title: string; description?: string;
   });
 }
 
-export async function apiUpdateTest(testId: number, data: { title?: string; description?: string; testType?: 'cefr' | 'ielts' }) {
+export async function apiUpdateTest(testId: number, data: { title?: string; description?: string; testType?: 'cefr' | 'ielts'; isPublished?: boolean }) {
   return request<any>(`/tests/${testId}`, {
     method: 'PUT',
     body: JSON.stringify(data),

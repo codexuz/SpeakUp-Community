@@ -16,6 +16,7 @@ export interface Test {
   title: string;
   description: string | null;
   testType?: 'cefr' | 'ielts';
+  isPublished?: boolean;
   questions?: Question[];
 }
 

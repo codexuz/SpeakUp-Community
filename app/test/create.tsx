@@ -11,6 +11,7 @@ import {
   Platform,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -28,6 +29,7 @@ export default function CreateTestScreen() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [testType, setTestType] = useState<TestType>('cefr');
+  const [isPublished, setIsPublished] = useState(false);
   const [creating, setCreating] = useState(false);
 
   const isAllowed = user?.role === 'admin' || (user?.role === 'teacher' && user?.verifiedTeacher);
@@ -43,6 +45,7 @@ export default function CreateTestScreen() {
         title: title.trim(),
         description: description.trim() || undefined,
         testType,
+        isPublished,
       });
       toast.success('Created', 'Test created successfully');
       router.back();
@@ -138,6 +141,25 @@ export default function CreateTestScreen() {
               </TouchableOpacity>
             </View>
           </View>
+
+          {/* Publish Toggle */}
+          <View style={styles.fieldGroup}>
+            <Text style={styles.label}>Publish Status</Text>
+            <View style={styles.publishRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.publishTitle}>{isPublished ? 'Published' : 'Draft'}</Text>
+                <Text style={styles.publishSub}>
+                  {isPublished ? 'Visible to all students' : 'Only visible to teachers and admins'}
+                </Text>
+              </View>
+              <Switch
+                value={isPublished}
+                onValueChange={setIsPublished}
+                trackColor={{ false: TG.separator, true: TG.accent }}
+                thumbColor="#fff"
+              />
+            </View>
+          </View>
         </ScrollView>
 
         {/* Bottom Action */}
@@ -229,4 +251,12 @@ const styles = StyleSheet.create({
     backgroundColor: TG.accent, alignItems: 'center',
   },
   createBtnText: { fontSize: 16, fontWeight: '700', color: '#fff' },
+  publishRow: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: TG.bg, borderRadius: 14,
+    paddingHorizontal: 16, paddingVertical: 14,
+    borderWidth: 1, borderColor: TG.separator,
+  },
+  publishTitle: { fontSize: 15, fontWeight: '600', color: TG.textPrimary },
+  publishSub: { fontSize: 12, color: TG.textSecondary, marginTop: 2 },
 });

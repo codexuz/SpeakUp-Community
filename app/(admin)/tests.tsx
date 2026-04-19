@@ -7,12 +7,12 @@ import { useRouter } from 'expo-router';
 import { BookOpen, Check, ChevronRight, Plus, Trash2, X } from 'lucide-react-native';
 import React, { useCallback, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    FlatList,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -21,6 +21,7 @@ interface Test {
   title: string;
   description: string | null;
   testType?: 'cefr' | 'ielts';
+  isPublished?: boolean;
   questions?: any[];
 }
 
@@ -264,6 +265,11 @@ export default function AdminTestsScreen() {
                         {isCefr ? 'CEFR' : 'IELTS'}
                       </Text>
                     </View>
+                    {!item.isPublished && (
+                      <View style={styles.draftBadge}>
+                        <Text style={styles.draftBadgeText}>Draft</Text>
+                      </View>
+                    )}
                   </View>
                   {item.description ? (
                     <Text style={styles.testDesc} numberOfLines={1}>{item.description}</Text>
@@ -368,6 +374,8 @@ const styles = StyleSheet.create({
   typeBadgeText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
   typeBadgeTextCefr: { color: TG.accent },
   typeBadgeTextIelts: { color: TG.purple },
+  draftBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, backgroundColor: '#FFF3CD' },
+  draftBadgeText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5, color: '#856404' },
   emptyText: { color: TG.textSecondary, fontSize: 15 },
   emptyBtn: { backgroundColor: TG.accent, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20, marginTop: 8 },
   emptyBtnText: { color: TG.textWhite, fontWeight: '600', fontSize: 14 },
