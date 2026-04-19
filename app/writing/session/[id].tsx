@@ -20,6 +20,7 @@ import {
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -33,6 +34,19 @@ function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return `${m}m ${s}s`;
+}
+
+const CEFR_LABELS: Record<number, string> = {
+  1: 'A2',
+  2: 'B1',
+  3: 'B2 (Lower)',
+  4: 'B2 (Higher)',
+  5: 'C1',
+  6: 'C2',
+};
+
+function getCefrLabel(score: number): string {
+  return CEFR_LABELS[score] || `${score}`;
 }
 
 export default function WritingSessionDetailScreen() {
@@ -144,45 +158,87 @@ export default function WritingSessionDetailScreen() {
               </Text>
             </View>
           </View>
-          {session.scoreAvg != null && (
+          {(session.scoreAvg != null || session.cefrLevel) && (
             <>
               <View style={styles.infoSeparator} />
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>Overall Score</Text>
                 <View style={styles.overallScoreRow}>
-                  <View style={[styles.miniScoreCircle, { borderColor: getScoreColor(Math.round((session.scoreAvg / 9) * 100)) }]}>
-                    <Text style={[styles.miniScoreValue, { color: getScoreColor(Math.round((session.scoreAvg / 9) * 100)) }]}>
-                      {session.scoreAvg}
-                    </Text>
-                  </View>
+                  {session.examType === 'cefr' ? (
+                    session.scoreAvg != null ? (
+                      <View style={styles.cefrScoreGroup}>
+                        <View style={styles.cefrBadge}>
+                          <Text style={styles.cefrBadgeText}>{getCefrLabel(Math.round(session.scoreAvg))}</Text>
+                        </View>
+                        <Text style={styles.cefrScoreNum}>{session.scoreAvg}/6</Text>
+                      </View>
+                    ) : session.cefrLevel ? (
+                      <View style={styles.cefrBadge}>
+                        <Text style={styles.cefrBadgeText}>{session.cefrLevel}</Text>
+                      </View>
+                    ) : null
+                  ) : session.scoreAvg != null ? (
+                    <View style={[styles.miniScoreCircle, { borderColor: getScoreColor(Math.round((session.scoreAvg / 9) * 100)) }]}>
+                      <Text style={[styles.miniScoreValue, { color: getScoreColor(Math.round((session.scoreAvg / 9) * 100)) }]}>
+                        {session.scoreAvg}
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
               </View>
             </>
           )}
         </View>
 
-        {/* ── Teacher Review ────────────── */}
-        {session.reviews?.[0] && (
+        {/* ── Teacher Reviews ────────────── */}
+        {session.reviews && session.reviews.length > 0 && (
           <View style={[styles.sectionCard, { backgroundColor: TG.greenLight }]}>
             <View style={styles.sectionHeader}>
               <User size={16} color={TG.green} />
-              <Text style={[styles.sectionTitle, { color: TG.green }]}>Teacher Review</Text>
+              <Text style={[styles.sectionTitle, { color: TG.green }]}>Teacher Review{session.reviews.length > 1 ? 's' : ''}</Text>
+              {session.reviews.length > 1 && (
+                <View style={[styles.countBadge, { backgroundColor: TG.green }]}>
+                  <Text style={styles.countBadgeText}>{session.reviews.length}</Text>
+                </View>
+              )}
             </View>
-            <View style={styles.reviewContent}>
-              <View style={styles.reviewScoreRow}>
-                <Star size={16} color={TG.gold} fill={TG.gold} />
-                <Text style={styles.reviewScoreValue}>{session.reviews[0].score}</Text>
-                <Text style={styles.reviewScoreMax}>/9</Text>
+            {session.reviews.map((review, idx) => (
+              <View key={review.id} style={[styles.reviewContent, idx > 0 && styles.reviewDivider]}>
+                {review.reviewer && (
+                  <View style={styles.reviewerRow}>
+                    {review.reviewer.avatarUrl ? (
+                      <Image source={{ uri: review.reviewer.avatarUrl }} style={styles.reviewerAvatar} />
+                    ) : (
+                      <View style={styles.reviewerAvatarFallback}>
+                        <Text style={styles.reviewerAvatarText}>
+                          {review.reviewer.fullName?.charAt(0)?.toUpperCase() || 'T'}
+                        </Text>
+                      </View>
+                    )}
+                    <Text style={styles.reviewerFullName}>{review.reviewer.fullName}</Text>
+                  </View>
+                )}
+                <View style={styles.reviewScoreRow}>
+                  <Star size={16} color={TG.gold} fill={TG.gold} />
+                  {session.examType === 'cefr' ? (
+                    <>
+                      <Text style={styles.reviewScoreValue}>{review.score}/6</Text>
+                      <View style={styles.cefrBadge}>
+                        <Text style={styles.cefrBadgeText}>{getCefrLabel(review.score)}</Text>
+                      </View>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.reviewScoreValue}>{review.score}</Text>
+                      <Text style={styles.reviewScoreMax}>/9</Text>
+                    </>
+                  )}
+                </View>
+                {review.feedback && (
+                  <Text style={styles.reviewFeedbackText}>{review.feedback}</Text>
+                )}
               </View>
-              {session.reviews[0].feedback && (
-                <Text style={styles.reviewFeedbackText}>{session.reviews[0].feedback}</Text>
-              )}
-              {session.reviews[0].reviewer && (
-                <Text style={styles.reviewerName}>
-                  — {session.reviews[0].reviewer.fullName}
-                </Text>
-              )}
-            </View>
+            ))}
           </View>
         )}
 
@@ -345,6 +401,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   miniScoreValue: { fontSize: 14, fontWeight: '800' },
+  cefrBadge: {
+    backgroundColor: TG.accentLight,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  cefrBadgeText: { fontSize: 14, fontWeight: '800', color: TG.accent },
+  cefrScoreGroup: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  cefrScoreNum: { fontSize: 13, fontWeight: '600', color: TG.textSecondary },
 
   // Teacher Review (green card)
   reviewContent: {
@@ -352,11 +417,27 @@ const styles = StyleSheet.create({
     paddingBottom: 14,
     gap: 6,
   },
+  reviewDivider: {
+    borderTopWidth: 0.5,
+    borderTopColor: TG.separatorLight,
+    paddingTop: 14,
+  },
   reviewScoreRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   reviewScoreValue: { fontSize: 22, fontWeight: '800', color: TG.gold },
   reviewScoreMax: { fontSize: 14, color: TG.textHint, fontWeight: '600' },
   reviewFeedbackText: { fontSize: 14, color: TG.textPrimary, lineHeight: 21, marginTop: 4 },
-  reviewerName: { fontSize: 12, color: TG.textSecondary, fontStyle: 'italic', marginTop: 2 },
+  reviewerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
+  reviewerAvatar: { width: 34, height: 34, borderRadius: 17, backgroundColor: TG.bgSecondary },
+  reviewerAvatarFallback: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: TG.green,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  reviewerAvatarText: { fontSize: 14, fontWeight: '700', color: '#fff' },
+  reviewerFullName: { fontSize: 14, fontWeight: '600', color: TG.textPrimary },
 
   // Response items
   responseItem: {

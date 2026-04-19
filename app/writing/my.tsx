@@ -51,8 +51,9 @@ export default function MyWritingSessionsScreen() {
       const res = await apiFetchMyWritingSessions(page, PAGE_LIMIT, statusParam);
       let items = res.data || [];
       // Client-side fallback if backend doesn't filter by status
-      if (tab === 'pending') items = items.filter((s) => !(s.reviews?.length));
-      else if (tab === 'reviewed') items = items.filter((s) => !!(s.reviews?.length));
+      // Use scoreAvg as the reliable reviewed indicator (reviews array may not be populated)
+      if (tab === 'pending') items = items.filter((s) => s.scoreAvg == null && !(s.reviews?.length));
+      else if (tab === 'reviewed') items = items.filter((s) => s.scoreAvg != null || !!(s.reviews?.length));
       if (page === 1) {
         setSessions(items);
       } else {
@@ -140,7 +141,7 @@ export default function MyWritingSessionsScreen() {
             ) : null
           }
           renderItem={({ item }) => {
-            const hasReview = (item.reviews?.length ?? 0) > 0;
+            const hasReview = item.scoreAvg != null || (item.reviews?.length ?? 0) > 0;
             const responseCount = item.responses?.length ?? 0;
 
             return (
