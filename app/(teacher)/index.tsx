@@ -3,7 +3,7 @@ import { apiFetchAnalyticsOverview, apiFetchPendingSpeaking } from '@/lib/api';
 import { useAuth } from '@/store/auth';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { ArrowRight, BellRing, ClipboardList, Mic, Star, Users } from 'lucide-react-native';
+import { ArrowRight, BellRing, ClipboardList, FileText, Mic, Star, Users } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
@@ -180,6 +180,20 @@ export default function TeacherHomeScreen() {
                   </View>
                   <Text style={styles.gridTitle}>Tests</Text>
                   <Text style={styles.gridDesc}>Create speaking tasks</Text>
+                </TouchableOpacity>
+              )}
+
+              {user?.verifiedTeacher && (
+                <TouchableOpacity
+                  style={styles.gridCard}
+                  activeOpacity={0.7}
+                  onPress={() => router.push('/writing' as any)}
+                >
+                  <View style={[styles.gridIcon, { backgroundColor: TG.accentLight }]}>
+                     <FileText size={24} color={TG.accent} />
+                  </View>
+                  <Text style={styles.gridTitle}>Writing</Text>
+                  <Text style={styles.gridDesc}>Create writing tests</Text>
                 </TouchableOpacity>
               )}
             </View>

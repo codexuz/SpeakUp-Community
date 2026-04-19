@@ -2,7 +2,7 @@ import { TG } from '@/constants/theme';
 import { fetchTestsWithQuestions, Test } from '@/lib/data';
 import { useAuth } from '@/store/auth';
 import { useRouter } from 'expo-router';
-import { BarChart3, BookOpen, ChevronRight, ClipboardList, Mic } from 'lucide-react-native';
+import { BarChart3, BookOpen, ChevronRight, ClipboardList, FileText, Mic } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -108,6 +108,23 @@ export default function HomeScreen() {
               <ChevronRight size={20} color={TG.textHint} />
             </TouchableOpacity>
           )}
+
+          {(user.verifiedTeacher || user.role === 'admin') && (
+            <TouchableOpacity 
+              style={styles.actionCard}
+              activeOpacity={0.7}
+              onPress={() => router.push('/writing' as any)}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: TG.accentLight }]}>
+                <FileText size={22} color={TG.accent} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.actionTitle}>Writing Tests</Text>
+                <Text style={styles.actionDesc}>Create writing tests & AI assessment</Text>
+              </View>
+              <ChevronRight size={20} color={TG.textHint} />
+            </TouchableOpacity>
+          )}
         </ScrollView>
       </SafeAreaView>
     );
@@ -128,6 +145,26 @@ export default function HomeScreen() {
       >
         <Text style={styles.greeting}>Hello, {user?.fullName} 👋</Text>
         <Text style={styles.subGreeting}>Choose a test to practice your speaking</Text>
+
+        {/* Writing Quick Links */}
+        <View style={styles.writingRow}>
+          <TouchableOpacity
+            style={styles.writingCard}
+            activeOpacity={0.7}
+            onPress={() => router.push('/writing/tests' as any)}
+          >
+            <FileText size={20} color={TG.accent} />
+            <Text style={styles.writingCardTitle}>Writing Tests</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.writingCard}
+            activeOpacity={0.7}
+            onPress={() => router.push('/writing/my' as any)}
+          >
+            <FileText size={20} color={TG.green} />
+            <Text style={styles.writingCardTitle}>My Writing</Text>
+          </TouchableOpacity>
+        </View>
 
         {loading ? (
           <ActivityIndicator size="large" color={TG.accent} style={{ marginTop: 60 }} />
@@ -239,4 +276,22 @@ const styles = StyleSheet.create({
   },
   actionTitle: { fontSize: 16, fontWeight: '600', color: TG.textPrimary, marginBottom: 2 },
   actionDesc: { fontSize: 13, color: TG.textSecondary },
+
+  writingRow: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingHorizontal: 16,
+    marginBottom: 20,
+  },
+  writingCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: TG.bgSecondary,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+  },
+  writingCardTitle: { fontSize: 14, fontWeight: '600', color: TG.textPrimary },
 });

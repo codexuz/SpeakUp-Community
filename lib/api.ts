@@ -861,7 +861,7 @@ export async function apiTextToSpeech(text: string, voice: TTSVoice = 'erin') {
 // AI Feedback (v2)
 // =============================================
 
-import type { Achievement, AIFeedback, Challenge, ChallengeSubmission, Course, CourseUnit, Exercise, ExerciseSession, LeaderboardResponse, Lecture, Lesson, LessonDetail, SessionFeedbackResponse, UserLectureProgress, UserProgress, UserReputation, WeeklySummary } from './types';
+import type { Achievement, AIFeedback, Challenge, ChallengeSubmission, Course, CourseUnit, Exercise, ExerciseSession, LeaderboardResponse, Lecture, Lesson, LessonDetail, SessionFeedbackResponse, UserLectureProgress, UserProgress, UserReputation, WeeklySummary, WritingAIFeedback, WritingExamType, WritingResponse, WritingReview, WritingSession, WritingSessionFeedbackResponse, WritingTask, WritingTest } from './types';
 
 export async function apiFetchAIFeedback(responseId: string) {
   return request<AIFeedback>(`/ai-feedback/${responseId}`);
@@ -1274,4 +1274,116 @@ export async function apiCompleteSession(sessionId: string) {
 
 export async function apiGetSession(sessionId: string) {
   return request<ExerciseSession>(`/courses/sessions/${sessionId}`);
+}
+
+// =============================================
+// Writing Tests & AI Assessment
+// =============================================
+
+// --- Writing Tests (teacher/admin) ---
+
+export async function apiFetchWritingTests(opts?: { examType?: WritingExamType; page?: number; limit?: number; isPublished?: boolean }) {
+  const params = new URLSearchParams();
+  if (opts?.examType) params.set('examType', opts.examType);
+  if (opts?.page) params.set('page', String(opts.page));
+  if (opts?.limit) params.set('limit', String(opts.limit));
+  if (opts?.isPublished !== undefined) params.set('isPublished', String(opts.isPublished));
+  const query = params.toString() ? `?${params.toString()}` : '';
+  return request<{ data: WritingTest[]; meta: { total: number; page: number; limit: number; totalPages: number } }>(`/writing/tests${query}`);
+}
+
+export async function apiFetchWritingTest(testId: number) {
+  return request<WritingTest>(`/writing/tests/${testId}`);
+}
+
+export async function apiCreateWritingTest(data: { title: string; description?: string; examType: WritingExamType; isPublished?: boolean }) {
+  return request<WritingTest>('/writing/tests', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function apiUpdateWritingTest(testId: number, data: Partial<{ title: string; description: string; examType: WritingExamType; isPublished: boolean }>) {
+  return request<WritingTest>(`/writing/tests/${testId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function apiDeleteWritingTest(testId: number) {
+  return request<{ message: string }>(`/writing/tests/${testId}`, { method: 'DELETE' });
+}
+
+// --- Writing Tasks (teacher/admin) ---
+
+export async function apiFetchWritingTasks(testId: number) {
+  return request<WritingTask[]>(`/writing/tests/${testId}/tasks`);
+}
+
+export async function apiCreateWritingTask(testId: number, data: { taskText: string; part: string; image?: string; minWords?: number; maxWords?: number; timeLimit?: number }) {
+  return request<WritingTask>(`/writing/tests/${testId}/tasks`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function apiUpdateWritingTask(taskId: number, data: Partial<{ taskText: string; part: string; image: string | null; minWords: number; maxWords: number; timeLimit: number }>) {
+  return request<WritingTask>(`/writing/tasks/${taskId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function apiDeleteWritingTask(taskId: number) {
+  return request<{ message: string }>(`/writing/tasks/${taskId}`, { method: 'DELETE' });
+}
+
+// --- Essay Submission (student) ---
+
+export async function apiSubmitEssay(data: {
+  taskId: number;
+  essayText: string;
+  testId?: number;
+  sessionId?: string;
+  visibility?: 'private' | 'group' | 'community' | 'ai_only';
+  groupId?: string;
+  timeTakenSec?: number;
+}) {
+  return request<WritingResponse & { sessionId: string | null }>('/writing/submit', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+// --- Writing Sessions ---
+
+export async function apiFetchMyWritingSessions(page = 1, limit = 20) {
+  return request<{ data: WritingSession[]; pagination: { total: number; page: number; limit: number; totalPages: number } }>(`/writing/my?page=${page}&limit=${limit}`);
+}
+
+export async function apiFetchWritingSession(sessionId: string) {
+  return request<WritingSession>(`/writing/sessions/${sessionId}`);
+}
+
+export async function apiDeleteWritingSession(sessionId: string) {
+  return request<{ success: boolean }>(`/writing/sessions/${sessionId}`, { method: 'DELETE' });
+}
+
+// --- Writing AI Feedback ---
+
+export async function apiFetchWritingAIFeedback(responseId: string) {
+  return request<WritingAIFeedback>(`/writing/ai-feedback/${responseId}`);
+}
+
+export async function apiFetchWritingSessionFeedbacks(sessionId: string) {
+  return request<WritingSessionFeedbackResponse>(`/writing/ai-feedback/session/${sessionId}`);
+}
+
+// --- Writing Teacher Reviews ---
+
+export async function apiSubmitWritingReview(sessionId: string, data: { score: number; feedback?: string }) {
+  return request<WritingReview>(`/writing/sessions/${sessionId}/review`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
 }

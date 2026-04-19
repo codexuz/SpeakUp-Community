@@ -368,6 +368,103 @@ export interface LessonDetail {
   exercises: Exercise[];
 }
 
+// ─── Writing Tests & AI Assessment ──────────────────────────────
+
+export type WritingExamType = 'ielts' | 'cefr';
+
+export interface WritingTest {
+  id: number;
+  title: string;
+  description: string | null;
+  examType: WritingExamType;
+  isPublished: boolean;
+  createdAt: string;
+  tasks?: WritingTask[];
+}
+
+export interface WritingTask {
+  id: number;
+  testId: number;
+  taskText: string;
+  part: string;
+  image: string | null;
+  minWords: number;
+  maxWords: number;
+  timeLimit: number;
+}
+
+export interface WritingSession {
+  id: string;
+  testId: number;
+  userId: string;
+  examType: WritingExamType;
+  visibility: 'private' | 'group' | 'community' | 'ai_only';
+  groupId: string | null;
+  scoreAvg: number | null;
+  cefrLevel: string | null;
+  createdAt: string;
+  test?: Pick<WritingTest, 'id' | 'title' | 'description'>;
+  user?: { id: string; fullName: string; username: string; avatarUrl: string | null };
+  responses?: WritingResponse[];
+  reviews?: WritingReview[];
+  _count?: { responses: number };
+}
+
+export interface WritingResponse {
+  id: string;
+  taskId: number;
+  studentId: string;
+  sessionId: string | null;
+  essayText: string;
+  wordCount: number;
+  timeTakenSec: number | null;
+  createdAt: string;
+  student?: { id: string; fullName: string; username: string; avatarUrl: string | null };
+  task?: Pick<WritingTask, 'id' | 'taskText' | 'part' | 'minWords' | 'maxWords'>;
+  aiFeedback?: WritingAIFeedback | null;
+}
+
+export interface WritingAIFeedback {
+  id: string;
+  responseId: string;
+  examType: WritingExamType;
+  taskAchievement: number;
+  coherenceCohesion: number;
+  lexicalResource: number;
+  grammaticalRange: number;
+  overallScore: number;
+  cefrLevel: string;
+  grammarIssues: GrammarIssue[];
+  vocabSuggestions: VocabSuggestion[];
+  coherenceNotes: { issue: string; suggestion: string }[];
+  taskNotes: string | null;
+  aiSummary: string | null;
+  improvedEssay: string | null;
+  createdAt: string;
+}
+
+export interface WritingReview {
+  id: string;
+  sessionId: string;
+  reviewerId: string;
+  score: number;
+  cefrLevel: string;
+  feedback: string | null;
+  createdAt: string;
+  reviewer?: { id: string; fullName: string; avatarUrl: string | null };
+}
+
+export interface WritingSessionFeedbackResponse {
+  feedbacks: (WritingAIFeedback & {
+    response: { id: string; task: Pick<WritingTask, 'id' | 'taskText' | 'part'> };
+  })[];
+  aggregate: {
+    averageOverallScore: number | null;
+    cefrLevel: string | null;
+    totalResponses: number;
+  };
+}
+
 // ─── Score helpers ──────────────────────────────────────────────
 
 export function isValidScore(score: number, examType: ExamType): boolean {

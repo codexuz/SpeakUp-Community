@@ -116,6 +116,17 @@ function RootNavigator() {
         <Stack.Screen name="challenges/index" options={{ headerShown: false }} />
         <Stack.Screen name="challenges/[id]/index" options={{ headerShown: false }} />
         <Stack.Screen name="lecture/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="writing/index" options={{ headerShown: false }} />
+        <Stack.Screen name="writing/create" options={{ headerShown: false }} />
+        <Stack.Screen name="writing/[id]/index" options={{ headerShown: false }} />
+        <Stack.Screen name="writing/[id]/edit" options={{ headerShown: false }} />
+        <Stack.Screen name="writing/task" options={{ headerShown: false }} />
+        <Stack.Screen name="writing/tests" options={{ headerShown: false }} />
+        <Stack.Screen name="writing/submit" options={{ headerShown: false }} />
+        <Stack.Screen name="writing/my" options={{ headerShown: false }} />
+        <Stack.Screen name="writing/session/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="writing/ai-feedback/[responseId]" options={{ headerShown: false }} />
+        <Stack.Screen name="writing/review/[sessionId]" options={{ headerShown: false }} />
       </Stack>
       {needsRedirect && <Redirect href={redirectTarget as any} />}
       {isAuthenticated && !telegramLinked && <TelegramLinkModal />}

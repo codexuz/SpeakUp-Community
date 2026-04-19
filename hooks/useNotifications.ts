@@ -1,13 +1,23 @@
 import * as Application from 'expo-application';
 import * as Notifications from 'expo-notifications';
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 
 import { apiRemovePushToken } from '@/lib/api';
 import { registerForPushNotifications } from '@/lib/notifications';
 import { useAuth } from '@/store/auth';
 
+function handleNotificationNavigation(data: any, router: ReturnType<typeof useRouter>) {
+  if (data.type === 'writing-ai-feedback' && data.responseId) {
+    router.push(`/ai-feedback/${data.responseId}` as any);
+  } else if (data.type === 'writing-review' && data.sessionId) {
+    router.push(`/session/${data.sessionId}` as any);
+  }
+}
+
 export function useNotifications() {
   const { user } = useAuth();
+  const router = useRouter();
   const [pushToken, setPushToken] = useState<string | null>(null);
   const [initialNotification, setInitialNotification] = useState<Notifications.Notification | null>(null);
 
@@ -25,7 +35,9 @@ export function useNotifications() {
     });
 
     const responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
-      console.log('Notification tapped:', response.notification.request.content.data);
+      const data = response.notification.request.content.data;
+      console.log('Notification tapped:', data);
+      handleNotificationNavigation(data, router);
     });
 
     const setupNotifications = async () => {

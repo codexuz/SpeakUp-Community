@@ -20,6 +20,7 @@ import {
   ChevronRight,
   Clock,
   Crown,
+  FileText,
   Flame,
   Mic,
   Minus,
@@ -486,6 +487,57 @@ export default function StudentHomeScreen() {
               </TouchableOpacity>
             ))
           )}
+        </View>
+
+        {/* ── Practice Writing ────────────────────── */}
+        <View style={styles.testsWrapper}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionTitleWrap}>
+              <FileText size={22} color={COLORS.primary} strokeWidth={2.5} />
+              <Text style={styles.sectionTitle}>Practice Writing</Text>
+            </View>
+            <TouchableOpacity onPress={() => router.push('/writing/tests' as any)}>
+              <Text style={styles.seeAllText}>See All</Text>
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity
+            style={styles.testCard}
+            activeOpacity={0.7}
+            onPress={() => router.push('/writing/tests' as any)}
+          >
+            <View style={styles.testIconWrap}>
+              <FileText size={24} color={COLORS.primary} strokeWidth={2} />
+            </View>
+            <View style={styles.testInfo}>
+              <Text style={styles.testTitle}>Browse Writing Tests</Text>
+              <View style={styles.testSubRow}>
+                <Text style={styles.testSub}>IELTS & CEFR • AI Assessment</Text>
+              </View>
+            </View>
+            <View style={styles.playButton}>
+              <ChevronRight color="#FFF" size={16} />
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.testCard}
+            activeOpacity={0.7}
+            onPress={() => router.push('/writing/my' as any)}
+          >
+            <View style={[styles.testIconWrap, { backgroundColor: COLORS.success + '15' }]}>
+              <FileText size={24} color={COLORS.success} strokeWidth={2} />
+            </View>
+            <View style={styles.testInfo}>
+              <Text style={styles.testTitle}>My Writing Sessions</Text>
+              <View style={styles.testSubRow}>
+                <Text style={styles.testSub}>View your past essays & feedback</Text>
+              </View>
+            </View>
+            <View style={styles.playButton}>
+              <ChevronRight color="#FFF" size={16} />
+            </View>
+          </TouchableOpacity>
         </View>
 
         {/* ── Leaderboard Preview ──────────────────── */}

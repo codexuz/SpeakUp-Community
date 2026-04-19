@@ -9,7 +9,9 @@ export type SSEEventType =
   | 'audio-processed'
   | 'join-request'
   | 'join-approved'
-  | 'join-rejected';
+  | 'join-rejected'
+  | 'writing-ai-feedback'
+  | 'writing-review';
 
 export interface SSEConnection {
   close: () => void;
@@ -38,6 +40,8 @@ export async function connectSSE(
       'join-request',
       'join-approved',
       'join-rejected',
+      'writing-ai-feedback',
+      'writing-review',
     ];
 
     for (const type of eventTypes) {
