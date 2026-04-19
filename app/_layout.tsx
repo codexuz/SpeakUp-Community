@@ -127,6 +127,7 @@ function RootNavigator() {
         <Stack.Screen name="writing/session/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="writing/ai-feedback/[responseId]" options={{ headerShown: false }} />
         <Stack.Screen name="writing/review/[sessionId]" options={{ headerShown: false }} />
+        <Stack.Screen name="writing/pending-reviews" options={{ headerShown: false }} />
       </Stack>
       {needsRedirect && <Redirect href={redirectTarget as any} />}
       {isAuthenticated && !telegramLinked && <TelegramLinkModal />}

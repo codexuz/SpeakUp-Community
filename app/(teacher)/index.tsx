@@ -1,19 +1,19 @@
 import { TG } from '@/constants/theme';
-import { apiFetchAnalyticsOverview, apiFetchPendingSpeaking } from '@/lib/api';
+import { apiFetchAnalyticsOverview, apiFetchPendingSpeaking, apiFetchPendingWritingReviews } from '@/lib/api';
 import { useAuth } from '@/store/auth';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { ArrowRight, BellRing, ClipboardList, FileText, Mic, Star, Users } from 'lucide-react-native';
+import { ArrowRight, BellRing, ClipboardList, FileText, Mic, Pen, Star, Users } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import {
-  ActivityIndicator,
-  Image,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Image,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -23,15 +23,18 @@ export default function TeacherHomeScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
+  const [pendingWritingCount, setPendingWritingCount] = useState(0);
   const [overview, setOverview] = useState<any>(null);
 
   const loadData = useCallback(async () => {
     try {
-      const [pending, analytics] = await Promise.all([
+      const [pending, pendingWriting, analytics] = await Promise.all([
         apiFetchPendingSpeaking(1, 1).catch(() => ({ data: [], pagination: { total: 0 } })),
+        apiFetchPendingWritingReviews(1, 1).catch(() => ({ data: [], pagination: { total: 0 } })),
         apiFetchAnalyticsOverview().catch(() => null),
       ]);
       setPendingCount(pending.pagination?.total || pending.data?.length || 0);
+      setPendingWritingCount(pendingWriting.pagination?.total || pendingWriting.data?.length || 0);
       setOverview(analytics);
     } catch (e) {
       console.error('Failed to load teacher dashboard', e);
@@ -151,6 +154,30 @@ export default function TeacherHomeScreen() {
                </View>
                <ArrowRight size={20} color={pendingCount > 0 ? 'rgba(255,255,255,0.8)' : TG.textHint} />
             </TouchableOpacity>
+
+            {/* Writing Reviews Card */}
+            {user?.verifiedTeacher && (
+              <TouchableOpacity
+                style={[styles.taskCard, pendingWritingCount > 0 ? styles.taskCardUrgent : styles.taskCardNormal, { marginTop: 10 }]}
+                activeOpacity={0.8}
+                onPress={() => router.push('/writing/pending-reviews' as any)}
+              >
+                <View style={[styles.taskIconBg, pendingWritingCount > 0 ? { backgroundColor: 'rgba(255,255,255,0.2)' } : { backgroundColor: TG.accentLight }]}>
+                  <Pen size={24} color={pendingWritingCount > 0 ? '#ffffff' : TG.accent} />
+                </View>
+                <View style={styles.taskTextWrap}>
+                  <Text style={[styles.taskTitle, pendingWritingCount > 0 ? { color: '#ffffff' } : { color: TG.textPrimary }]}>
+                    Writing Reviews
+                  </Text>
+                  <Text style={[styles.taskDesc, pendingWritingCount > 0 ? { color: 'rgba(255,255,255,0.85)' } : { color: TG.textSecondary }]}>
+                    {pendingWritingCount > 0
+                      ? `You have ${pendingWritingCount} essay${pendingWritingCount > 1 ? 's' : ''} waiting for review.`
+                      : 'No pending writing submissions.'}
+                  </Text>
+                </View>
+                <ArrowRight size={20} color={pendingWritingCount > 0 ? 'rgba(255,255,255,0.8)' : TG.textHint} />
+              </TouchableOpacity>
+            )}
 
             <View style={[styles.sectionHeader, { marginTop: 32 }]}>
               <Text style={styles.sectionTitle}>Management</Text>

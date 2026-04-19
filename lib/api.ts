@@ -1357,8 +1357,16 @@ export async function apiSubmitEssay(data: {
 
 // --- Writing Sessions ---
 
-export async function apiFetchMyWritingSessions(page = 1, limit = 20) {
-  return request<{ data: WritingSession[]; pagination: { total: number; page: number; limit: number; totalPages: number } }>(`/writing/my?page=${page}&limit=${limit}`);
+export async function apiFetchPendingWritingReviews(page = 1, limit = 20, examType?: 'ielts' | 'cefr') {
+  let url = `/writing/pending-reviews?page=${page}&limit=${limit}`;
+  if (examType) url += `&examType=${examType}`;
+  return request<{ data: WritingSession[]; pagination: { total: number; page: number; limit: number; totalPages: number } }>(url);
+}
+
+export async function apiFetchMyWritingSessions(page = 1, limit = 20, status?: 'pending' | 'reviewed') {
+  let url = `/writing/my?page=${page}&limit=${limit}`;
+  if (status) url += `&status=${status}`;
+  return request<{ data: WritingSession[]; pagination: { total: number; page: number; limit: number; totalPages: number } }>(url);
 }
 
 export async function apiFetchWritingSession(sessionId: string) {

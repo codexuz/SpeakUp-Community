@@ -2,20 +2,30 @@ import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
 import { apiFetchWritingSession, apiSubmitWritingReview } from '@/lib/api';
 import type { WritingResponse, WritingSession } from '@/lib/types';
+import { getScoreColor } from '@/lib/types';
 import { useAuth } from '@/store/auth';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, Send } from 'lucide-react-native';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  FileText,
+  MessageSquare,
+  Send,
+  ShieldX,
+  Star,
+} from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -66,107 +76,188 @@ export default function WritingReviewScreen() {
 
   if (!isAllowed) {
     return (
-      <SafeAreaView style={[styles.safeArea, { justifyContent: 'center', alignItems: 'center' }]}>
-        <Text style={{ color: TG.textSecondary, fontSize: 16 }}>Verified teacher access required</Text>
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="light-content" backgroundColor={TG.headerBg} />
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <ArrowLeft size={22} color={TG.textWhite} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Review Writing</Text>
+          <View style={{ width: 22 }} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <ShieldX size={48} color={TG.red} />
+          <Text style={styles.restrictedTitle}>Access Restricted</Text>
+          <Text style={styles.restrictedSub}>Verified teacher access is required to review essays.</Text>
+        </View>
       </SafeAreaView>
     );
   }
 
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="light-content" backgroundColor={TG.headerBg} />
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <ArrowLeft size={22} color={TG.textWhite} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Review Writing</Text>
+          <View style={{ width: 22 }} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={TG.aiFeedback} />
+          <Text style={styles.loadingText}>Loading session...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!session) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="light-content" backgroundColor={TG.headerBg} />
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <ArrowLeft size={22} color={TG.textWhite} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Review Writing</Text>
+          <View style={{ width: 22 }} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <AlertTriangle size={40} color={TG.red} />
+          <Text style={styles.errorText}>Session not found</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const scoreColor = score > 0 ? getScoreColor(Math.round((score / 9) * 100)) : TG.textHint;
+
   return (
     <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="light-content" backgroundColor={TG.headerBg} />
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <ArrowLeft size={22} color={TG.textWhite} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Review Writing</Text>
         <View style={{ width: 22 }} />
       </View>
 
-      {loading ? (
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color={TG.accent} />
-        </View>
-      ) : !session ? (
-        <View style={styles.centered}>
-          <Text style={{ color: TG.textSecondary }}>Session not found</Text>
-        </View>
-      ) : (
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
-          <ScrollView
-            style={{ flex: 1, backgroundColor: TG.bgSecondary }}
-            contentContainerStyle={styles.content}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          >
-            {/* Student essays */}
-            <Text style={styles.sectionTitle}>Student Essays</Text>
+          {/* ── Student Essays ────────────── */}
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <FileText size={16} color={TG.accent} />
+              <Text style={styles.sectionTitle}>Student Essays</Text>
+              <View style={styles.countBadge}>
+                <Text style={styles.countBadgeText}>{(session.responses || []).length}</Text>
+              </View>
+            </View>
             {(session.responses || []).map((response: WritingResponse, index: number) => (
-              <View key={response.id} style={styles.essayCard}>
-                <View style={styles.essayHeader}>
+              <View key={response.id} style={styles.essayItem}>
+                <View style={styles.essayItemHeader}>
                   <View style={styles.partBadge}>
                     <Text style={styles.partBadgeText}>{(response as any).task?.part || `Task ${index + 1}`}</Text>
                   </View>
-                  <Text style={styles.wordCount}>
-                    {response.essayText.trim().split(/\s+/).filter(Boolean).length} words
-                  </Text>
+                  <View style={styles.wordCountBadge}>
+                    <Text style={styles.wordCountText}>
+                      {response.essayText.trim().split(/\s+/).filter(Boolean).length} words
+                    </Text>
+                  </View>
                 </View>
                 <Text style={styles.essayText}>{response.essayText}</Text>
               </View>
             ))}
-
-            {/* Score selection */}
-            <Text style={styles.sectionTitle}>Score</Text>
-            <View style={styles.scoreRow}>
-              {SCORE_OPTIONS.map((s) => (
-                <TouchableOpacity
-                  key={s}
-                  style={[styles.scoreChip, score === s && styles.scoreChipActive]}
-                  onPress={() => setScore(s)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.scoreChipText, score === s && styles.scoreChipTextActive]}>{s}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Feedback */}
-            <Text style={styles.sectionTitle}>Feedback (optional)</Text>
-            <TextInput
-              style={styles.feedbackInput}
-              value={feedbackText}
-              onChangeText={setFeedbackText}
-              placeholder="Write your feedback to the student..."
-              placeholderTextColor={TG.textHint}
-              multiline
-              textAlignVertical="top"
-            />
-          </ScrollView>
-
-          <View style={styles.bottomBar}>
-            <TouchableOpacity style={styles.cancelBtn} activeOpacity={0.7} onPress={() => router.back()}>
-              <Text style={styles.cancelBtnText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.submitBtn, (submitting || score === 0) && { opacity: 0.5 }]}
-              activeOpacity={0.7}
-              onPress={handleSubmit}
-              disabled={submitting || score === 0}
-            >
-              {submitting ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <>
-                  <Send size={16} color="#fff" />
-                  <Text style={styles.submitBtnText}>Submit Review</Text>
-                </>
-              )}
-            </TouchableOpacity>
           </View>
-        </KeyboardAvoidingView>
-      )}
+
+          {/* ── Score Selection ───────────── */}
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <Star size={16} color={TG.gold} />
+              <Text style={styles.sectionTitle}>Band Score</Text>
+              {score > 0 && (
+                <View style={[styles.selectedScoreBadge, { backgroundColor: scoreColor }]}>
+                  <Text style={styles.selectedScoreText}>{score}</Text>
+                </View>
+              )}
+            </View>
+            <View style={styles.scoreGrid}>
+              {SCORE_OPTIONS.map((s) => {
+                const isActive = score === s;
+                const chipColor = getScoreColor(Math.round((s / 9) * 100));
+                return (
+                  <TouchableOpacity
+                    key={s}
+                    style={[
+                      styles.scoreChip,
+                      isActive && { backgroundColor: chipColor, borderColor: chipColor },
+                    ]}
+                    onPress={() => setScore(s)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.scoreChipText, isActive && styles.scoreChipTextActive]}>{s}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* ── Feedback ─────────────────── */}
+          <View style={styles.sectionCard}>
+            <View style={[styles.sectionHeader, { borderBottomWidth: 0 }]}>
+              <MessageSquare size={16} color={TG.mentorTeal} />
+              <Text style={styles.sectionTitle}>Feedback</Text>
+              <Text style={styles.optionalLabel}>optional</Text>
+            </View>
+            <View style={styles.feedbackWrapper}>
+              <TextInput
+                style={styles.feedbackInput}
+                value={feedbackText}
+                onChangeText={setFeedbackText}
+                placeholder="Write your feedback to the student..."
+                placeholderTextColor={TG.textHint}
+                multiline
+                textAlignVertical="top"
+              />
+            </View>
+          </View>
+
+          <View style={{ height: 20 }} />
+        </ScrollView>
+
+        {/* ── Bottom Action Bar ──────────── */}
+        <View style={styles.bottomBar}>
+          <TouchableOpacity style={styles.cancelBtn} activeOpacity={0.7} onPress={() => router.back()}>
+            <Text style={styles.cancelBtnText}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.submitBtn, (submitting || score === 0) && styles.submitBtnDisabled]}
+            activeOpacity={0.7}
+            onPress={handleSubmit}
+            disabled={submitting || score === 0}
+          >
+            {submitting ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Send size={16} color="#fff" />
+                <Text style={styles.submitBtnText}>Submit Review</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -175,64 +266,160 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: TG.headerBg },
   header: {
     backgroundColor: TG.headerBg,
-    paddingHorizontal: 16, paddingVertical: 14,
-    flexDirection: 'row', alignItems: 'center', gap: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  headerTitle: { fontSize: 20, fontWeight: '700', color: TG.textWhite, flex: 1 },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: TG.bgSecondary },
-  content: { padding: 16, paddingBottom: 40 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: TG.textPrimary, marginBottom: 12, marginTop: 16 },
-  essayCard: {
-    backgroundColor: TG.bg, borderRadius: 14, padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000', shadowOpacity: 0.04, shadowOffset: { width: 0, height: 2 }, shadowRadius: 8,
-    elevation: 1,
+  headerTitle: { fontSize: 18, fontWeight: '700', color: TG.textWhite },
+
+  // Loading / Error states
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: TG.bg, paddingHorizontal: 40, gap: 14 },
+  loadingText: { fontSize: 15, color: TG.textSecondary },
+  errorText: { fontSize: 15, color: TG.red, textAlign: 'center' },
+  restrictedTitle: { fontSize: 18, fontWeight: '700', color: TG.textPrimary, marginTop: 4 },
+  restrictedSub: { fontSize: 14, color: TG.textSecondary, textAlign: 'center', lineHeight: 20 },
+
+  // Scroll
+  scrollView: { flex: 1, backgroundColor: TG.bgSecondary },
+  scrollContent: { paddingBottom: 100 },
+
+  // Section Card
+  sectionCard: {
+    backgroundColor: TG.bg,
+    marginHorizontal: 14,
+    marginTop: 10,
+    borderRadius: 14,
+    overflow: 'hidden',
   },
-  essayHeader: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: TG.separatorLight,
+  },
+  sectionTitle: { fontSize: 15, fontWeight: '700', color: TG.textPrimary },
+  countBadge: {
+    backgroundColor: TG.accent,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 4,
+  },
+  countBadgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  optionalLabel: { fontSize: 12, color: TG.textHint, fontStyle: 'italic', marginLeft: 'auto' },
+
+  // Essay items
+  essayItem: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: TG.separatorLight,
+  },
+  essayItemHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 10,
   },
   partBadge: {
-    backgroundColor: TG.accentLight, paddingHorizontal: 10, paddingVertical: 4,
+    backgroundColor: TG.accentLight,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
     borderRadius: 8,
   },
   partBadgeText: { fontSize: 12, fontWeight: '700', color: TG.accent },
-  wordCount: { fontSize: 12, color: TG.textHint },
+  wordCountBadge: {
+    backgroundColor: TG.bgSecondary,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  wordCountText: { fontSize: 11, fontWeight: '600', color: TG.textSecondary },
   essayText: { fontSize: 14, color: TG.textPrimary, lineHeight: 22 },
-  scoreRow: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8,
+
+  // Score
+  scoreGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingTop: 4,
+    paddingBottom: 16,
+    justifyContent: 'center',
   },
   scoreChip: {
-    width: 44, height: 44, borderRadius: 22,
-    justifyContent: 'center', alignItems: 'center',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
     backgroundColor: TG.bg,
-    borderWidth: 2, borderColor: TG.separator,
+    borderWidth: 2.5,
+    borderColor: TG.separator,
   },
-  scoreChipActive: { backgroundColor: TG.accent, borderColor: TG.accent },
-  scoreChipText: { fontSize: 16, fontWeight: '700', color: TG.textSecondary },
+  scoreChipText: { fontSize: 17, fontWeight: '700', color: TG.textSecondary },
   scoreChipTextActive: { color: '#fff' },
-  feedbackInput: {
-    backgroundColor: TG.bg, borderRadius: 14,
-    paddingHorizontal: 16, paddingVertical: 14,
-    fontSize: 15, color: TG.textPrimary,
-    minHeight: 120, lineHeight: 22,
-    borderWidth: 1, borderColor: TG.separator,
+  selectedScoreBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 'auto',
   },
+  selectedScoreText: { color: '#fff', fontSize: 12, fontWeight: '800' },
+
+  // Feedback
+  feedbackWrapper: {
+    paddingHorizontal: 14,
+    paddingBottom: 14,
+  },
+  feedbackInput: {
+    backgroundColor: TG.bgSecondary,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: TG.textPrimary,
+    minHeight: 120,
+    lineHeight: 22,
+  },
+
+  // Bottom bar
   bottomBar: {
-    flexDirection: 'row', gap: 12,
-    paddingHorizontal: 20, paddingVertical: 16,
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
     backgroundColor: TG.bg,
-    borderTopWidth: 1, borderTopColor: TG.separator,
+    borderTopWidth: 0.5,
+    borderTopColor: TG.separatorLight,
   },
   cancelBtn: {
-    flex: 1, paddingVertical: 14, borderRadius: 14,
-    backgroundColor: TG.bgSecondary, alignItems: 'center',
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: TG.bgSecondary,
+    alignItems: 'center',
   },
   cancelBtnText: { fontSize: 16, fontWeight: '600', color: TG.textSecondary },
   submitBtn: {
-    flex: 1, paddingVertical: 14, borderRadius: 14,
-    backgroundColor: TG.accent, alignItems: 'center',
-    flexDirection: 'row', justifyContent: 'center', gap: 8,
+    flex: 1.5,
+    paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: TG.accent,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
   },
+  submitBtnDisabled: { opacity: 0.45 },
   submitBtnText: { fontSize: 16, fontWeight: '700', color: '#fff' },
 });
