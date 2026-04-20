@@ -1,19 +1,18 @@
 import { TG } from '@/constants/theme';
-import { apiFetchAllVerifications, apiFetchAnalyticsOverview } from '@/lib/api';
-import { fetchTestsWithQuestions } from '@/lib/data';
+import { apiFetchAllVerifications, apiFetchAnalyticsOverview, apiFetchTests } from '@/lib/api';
 import { useAuth } from '@/store/auth';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { Bell, ChevronRight, ClipboardList, FileText, Image as ImageIcon, Shield } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import {
-    ActivityIndicator,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -31,11 +30,11 @@ export default function AdminHomeScreen() {
       const [verifications, analytics, tests] = await Promise.all([
         apiFetchAllVerifications('pending').catch(() => []),
         apiFetchAnalyticsOverview().catch(() => null),
-        fetchTestsWithQuestions().catch(() => []),
+        apiFetchTests({ limit: 1 }).catch(() => ({ data: [], meta: { total: 0 } })),
       ]);
       setPendingVerifications(Array.isArray(verifications) ? verifications.length : 0);
       setOverview(analytics);
-      setTestCount(Array.isArray(tests) ? tests.length : 0);
+      setTestCount((tests as any)?.meta?.total ?? (tests as any)?.data?.length ?? 0);
     } catch (e) {
       console.error('Failed to load admin dashboard', e);
     } finally {

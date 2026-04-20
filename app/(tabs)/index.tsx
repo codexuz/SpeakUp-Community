@@ -1,5 +1,6 @@
 import { TG } from '@/constants/theme';
-import { fetchTestsWithQuestions, Test } from '@/lib/data';
+import { apiFetchTests } from '@/lib/api';
+import type { Test } from '@/lib/data';
 import { useAuth } from '@/store/auth';
 import { useRouter } from 'expo-router';
 import { BarChart3, BookOpen, ChevronRight, ClipboardList, FileText, Mic } from 'lucide-react-native';
@@ -14,12 +15,14 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  const isStudent = user?.role !== 'teacher' && user?.role !== 'admin';
+
   const loadTests = async () => {
+    if (!isStudent) { setLoading(false); return; }
     setLoading(true);
     try {
-      const data = await fetchTestsWithQuestions();
-      console.log('Fetched tests:', JSON.stringify(data));
-      setTests(data);
+      const res = await apiFetchTests({ limit: 20 });
+      setTests(res.data || []);
     } catch (e) {
       console.error('Failed to load tests', e);
     } finally {
@@ -28,16 +31,17 @@ export default function HomeScreen() {
   };
 
   const onRefresh = useCallback(async () => {
+    if (!isStudent) return;
     setRefreshing(true);
     try {
-      const data = await fetchTestsWithQuestions();
-      setTests(data);
+      const res = await apiFetchTests({ limit: 20 });
+      setTests(res.data || []);
     } catch (e) {
       console.error('Failed to refresh tests', e);
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [isStudent]);
 
   useEffect(() => {
     loadTests();
