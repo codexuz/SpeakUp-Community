@@ -1,39 +1,40 @@
 import { useAlert } from '@/components/CustomAlert';
 import { TG } from '@/constants/theme';
+import { useDatabase } from '@/expo-local-db/DatabaseProvider';
+import { useOfflineCache } from '@/expo-local-db/hooks/useOfflineCache';
 import { apiFetchAchievements, apiFetchProgress, apiFetchReputation, apiGetUserProfile, apiLogout } from '@/lib/api';
 import type { Achievement, UserProgress, UserReputation } from '@/lib/types';
 import { useAuth } from '@/store/auth';
 import { useTelegram } from '@/store/telegram';
-import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Linking from 'expo-linking';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import {
-    Award,
-    ChevronRight,
-    Edit2,
-    Flame,
-    Heart,
-    LogOut,
-    MapPin,
-    Monitor,
-    Phone,
-    Send,
-    Shield,
-    Star,
-    User as UserIcon,
-    Zap,
+  Award,
+  ChevronRight,
+  Edit2,
+  Flame,
+  Heart,
+  LogOut,
+  MapPin,
+  Monitor,
+  Phone,
+  Send,
+  Shield,
+  Star,
+  User as UserIcon,
+  Zap,
 } from 'lucide-react-native';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-    Dimensions,
-    Image,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Dimensions,
+  Image,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -84,6 +85,7 @@ export default function ProfileScreen() {
   const { user, logout } = useAuth();
   const router = useRouter();
   const { alert } = useAlert();
+  const { isReady } = useDatabase();
   const { linked: telegramLinked, deepLink: telegramDeepLink, checkLink: checkTelegramLink } = useTelegram();
   
   const [refreshing, setRefreshing] = useState(false);
@@ -92,35 +94,50 @@ export default function ProfileScreen() {
   const [reputation, setReputation] = useState<UserReputation | null>(null);
   const [achievements, setAchievements] = useState<Achievement[]>([]);
 
-  const loadData = useCallback(async () => {
-    if (!user?.id) return;
-    try {
+  // Offline-first: cache all profile data as one blob
+  const { data: profileData, refresh } = useOfflineCache<{
+    stats: { followers: number; following: number };
+    progress: UserProgress | null;
+    reputation: UserReputation | null;
+    achievements: Achievement[];
+  }>({
+    cacheKey: `student_profile_${user?.id}`,
+    apiFn: async () => {
       const [profileRes, progRes, repRes, achRes] = await Promise.allSettled([
-        apiGetUserProfile(user.id),
+        apiGetUserProfile(user!.id),
         apiFetchProgress(),
-        apiFetchReputation(user.id),
+        apiFetchReputation(user!.id),
         apiFetchAchievements(),
       ]);
+      return {
+        stats: profileRes.status === 'fulfilled' ? profileRes.value.stats : { followers: 0, following: 0 },
+        progress: progRes.status === 'fulfilled' ? progRes.value : null,
+        reputation: repRes.status === 'fulfilled' ? repRes.value : null,
+        achievements: achRes.status === 'fulfilled' ? (achRes.value.data || []) : [],
+      };
+    },
+    enabled: isReady && !!user?.id,
+    deps: [user?.id],
+    staleTime: 60_000,
+  });
 
-      if (profileRes.status === 'fulfilled') setStats(profileRes.value.stats);
-      if (progRes.status === 'fulfilled') setProgress(progRes.value);
-      if (repRes.status === 'fulfilled') setReputation(repRes.value);
-      if (achRes.status === 'fulfilled') setAchievements(achRes.value.data || []);
-    } catch (e) {
-      console.log('Error loading profile data', e);
-    }
-    checkTelegramLink();
-  }, [user?.id, checkTelegramLink]);
+  useEffect(() => {
+    if (!profileData) return;
+    setStats(profileData.stats);
+    setProgress(profileData.progress);
+    setReputation(profileData.reputation);
+    setAchievements(profileData.achievements);
+  }, [profileData]);
 
   useFocusEffect(
     useCallback(() => {
-      loadData();
-    }, [loadData]),
+      checkTelegramLink();
+    }, [checkTelegramLink]),
   );
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadData();
+    await refresh();
     setRefreshing(false);
   };
 

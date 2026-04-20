@@ -10,7 +10,7 @@ import TelegramLinkModal from '@/components/TelegramLinkModal';
 import { ToastProvider } from '@/components/Toast';
 import { TG } from '@/constants/theme';
 import { OfflineIndicator } from '@/expo-local-db/components';
-import { getDatabase } from '@/expo-local-db/database';
+import { DatabaseProvider } from '@/expo-local-db/DatabaseProvider';
 import { clearOldCache } from '@/expo-local-db/mediaCache';
 import { startSyncService, stopSyncService } from '@/expo-local-db/syncService';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -36,9 +36,8 @@ function RootNavigator() {
   useNotifications();
   useInAppUpdates();
 
-  // ── Offline-first: init local DB + sync engine ──────────────
+  // ── Offline-first: init media cache ──────────────────────────
   useEffect(() => {
-    getDatabase(); // Creates tables on first launch
     clearOldCache(); // Prune stale media cache
   }, []);
 
@@ -162,13 +161,15 @@ function RootNavigator() {
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <TelegramProvider>
-        <ToastProvider>
-          <CustomAlertProvider>
-            <RootNavigator />
-          </CustomAlertProvider>
-        </ToastProvider>
-      </TelegramProvider>
+      <DatabaseProvider>
+        <TelegramProvider>
+          <ToastProvider>
+            <CustomAlertProvider>
+              <RootNavigator />
+            </CustomAlertProvider>
+          </ToastProvider>
+        </TelegramProvider>
+      </DatabaseProvider>
     </AuthProvider>
   );
 }

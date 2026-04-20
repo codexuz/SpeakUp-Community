@@ -1,19 +1,20 @@
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
+import { useDatabase } from '@/expo-local-db/DatabaseProvider';
+import { useOfflineCache } from '@/expo-local-db/hooks/useOfflineCache';
 import { apiFetchCommunityFeed, apiLikeSpeaking, apiUnlikeSpeaking } from '@/lib/api';
 import { useAuth } from '@/store/auth';
-import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { ChevronRight, Flame, Heart, MessageCircle, Mic, Star, TrendingUp } from 'lucide-react-native';
-import React, { useCallback, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  FlatList,
-  Image,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    FlatList,
+    Image,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -24,59 +25,59 @@ export default function CommunityScreen() {
   const { user } = useAuth();
   const toast = useToast();
   const router = useRouter();
+  const { isReady } = useDatabase();
 
-  const [submissions, setSubmissions] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [strategy, setStrategy] = useState<Strategy>('latest');
   const [examType, setExamType] = useState<ExamType>('cefr');
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [pendingLikeIds, setPendingLikeIds] = useState<Set<string>>(new Set());
+  const [extraItems, setExtraItems] = useState<any[]>([]);
 
-  const loadFeed = async (s: Strategy = strategy, p = 1, append = false, exam: ExamType = examType) => {
-    if (p === 1) setLoading(true);
-    else setLoadingMore(true);
-    try {
-      const result = await apiFetchCommunityFeed(s, p, 20, s === 'top' ? exam : undefined);
-      const items = result.data || [];
-      if (append) {
-        setSubmissions(prev => [...prev, ...items]);
-      } else {
-        setSubmissions(items);
-      }
-      setHasMore(p < result.pagination.totalPages);
-      setPage(p);
-    } catch (e) {
-      console.error('Failed to load community feed', e);
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
+  // Offline-first: caches page 1 as JSON in SQLite
+  const { data: cachedFeed, isLoading: loading } = useOfflineCache<{ data: any[]; pagination: any }>({
+    cacheKey: `teacher_community_${strategy}_${examType}`,
+    apiFn: () => apiFetchCommunityFeed(strategy, 1, 20, strategy === 'top' ? examType : undefined),
+    enabled: isReady,
+    deps: [strategy, examType],
+    staleTime: 30_000,
+  });
+
+  const submissions = [...(cachedFeed?.data || []), ...extraItems];
+
+  useEffect(() => {
+    setExtraItems([]);
+    setPage(1);
+    setHasMore(true);
+  }, [strategy, examType]);
+
+  useEffect(() => {
+    if (cachedFeed?.pagination) {
+      setHasMore(1 < cachedFeed.pagination.totalPages);
     }
-  };
+  }, [cachedFeed]);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadFeed(strategy, 1, false, examType);
-    }, [strategy, examType])
-  );
+  const loadMore = () => {
+    if (loadingMore || !hasMore) return;
+    const nextPage = page + 1;
+    setLoadingMore(true);
+    apiFetchCommunityFeed(strategy, nextPage, 20, strategy === 'top' ? examType : undefined)
+      .then((result) => {
+        setExtraItems(prev => [...prev, ...(result.data || [])]);
+        setHasMore(nextPage < result.pagination.totalPages);
+        setPage(nextPage);
+      })
+      .catch((e) => console.error('Failed to load more', e))
+      .finally(() => setLoadingMore(false));
+  };
 
   const changeStrategy = (s: Strategy) => {
     setStrategy(s);
-    setPage(1);
-    setHasMore(true);
   };
 
   const changeExamType = (e: ExamType) => {
     setExamType(e);
-    setPage(1);
-    setHasMore(true);
-  };
-
-  const loadMore = () => {
-    if (!loadingMore && hasMore) {
-      loadFeed(strategy, page + 1, true);
-    }
   };
 
   const toggleLike = async (item: any) => {

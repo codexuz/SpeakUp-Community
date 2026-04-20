@@ -1,24 +1,25 @@
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
+import { useDatabase } from '@/expo-local-db/DatabaseProvider';
+import { useOfflineCache } from '@/expo-local-db/hooks/useOfflineCache';
 import { apiFetchCommunityFeed, apiPostReview } from '@/lib/api';
 import { useAuth } from '@/store/auth';
-import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { ChevronRight, Flame, Heart, MessageCircle, Mic, Star, TrendingUp } from 'lucide-react-native';
-import React, { useCallback, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  FlatList,
-  Image,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    FlatList,
+    Image,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    Pressable,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -30,14 +31,14 @@ export default function CommunityScreen() {
   const isTeacher = user?.role === 'teacher';
   const toast = useToast();
   const router = useRouter();
+  const { isReady } = useDatabase();
 
-  const [submissions, setSubmissions] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [strategy, setStrategy] = useState<Strategy>('latest');
   const [examType, setExamType] = useState<ExamType>('cefr');
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [extraItems, setExtraItems] = useState<any[]>([]);
 
   const [reviewModal, setReviewModal] = useState(false);
   const [selectedSub, setSelectedSub] = useState<any>(null);
@@ -45,49 +46,51 @@ export default function CommunityScreen() {
   const [feedback, setFeedback] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const loadFeed = async (s: Strategy = strategy, p = 1, append = false, exam: ExamType = examType) => {
-    if (p === 1) setLoading(true);
-    else setLoadingMore(true);
-    try {
-      const result = await apiFetchCommunityFeed(s, p, 20, s === 'top' ? exam : undefined);
-      const items = result.data || [];
-      if (append) {
-        setSubmissions(prev => [...prev, ...items]);
-      } else {
-        setSubmissions(items);
-      }
-      setHasMore(p < result.pagination.totalPages);
-      setPage(p);
-    } catch (e) {
-      console.error('Failed to load community feed', e);
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-    }
-  };
+  // Offline-first: cache page 1
+  const { data: cachedFeed, isLoading: loading, refresh } = useOfflineCache<{ data: any[]; pagination: any }>({
+    cacheKey: `student_community_${strategy}_${examType}`,
+    apiFn: () => apiFetchCommunityFeed(strategy, 1, 20, strategy === 'top' ? examType : undefined),
+    enabled: isReady,
+    deps: [strategy, examType],
+    staleTime: 60_000,
+  });
 
-  useFocusEffect(
-    useCallback(() => {
-      loadFeed(strategy, 1, false, examType);
-    }, [strategy, examType])
-  );
+  // Reset pagination when strategy or examType changes
+  useEffect(() => {
+    setPage(1);
+    setHasMore(true);
+    setExtraItems([]);
+  }, [strategy, examType]);
+
+  // Update hasMore from cached data
+  useEffect(() => {
+    if (cachedFeed?.pagination) {
+      setHasMore(1 < cachedFeed.pagination.totalPages);
+    }
+  }, [cachedFeed]);
+
+  const submissions = [...(cachedFeed?.data || []), ...extraItems];
 
   const changeStrategy = (s: Strategy) => {
     setStrategy(s);
-    setPage(1);
-    setHasMore(true);
   };
 
   const changeExamType = (e: ExamType) => {
     setExamType(e);
-    setPage(1);
-    setHasMore(true);
   };
 
   const loadMore = () => {
-    if (!loadingMore && hasMore) {
-      loadFeed(strategy, page + 1, true);
-    }
+    if (loadingMore || !hasMore) return;
+    const nextPage = page + 1;
+    setLoadingMore(true);
+    apiFetchCommunityFeed(strategy, nextPage, 20, strategy === 'top' ? examType : undefined)
+      .then((result) => {
+        setExtraItems(prev => [...prev, ...(result.data || [])]);
+        setHasMore(nextPage < result.pagination.totalPages);
+        setPage(nextPage);
+      })
+      .catch((e) => console.error('Failed to load more', e))
+      .finally(() => setLoadingMore(false));
   };
 
   const openReviewModal = (sub: any) => {
@@ -108,7 +111,7 @@ export default function CommunityScreen() {
     try {
       await apiPostReview(selectedSub.id, numScore, feedback);
       setReviewModal(false);
-      loadFeed(strategy, 1);
+      refresh();
     } catch (e: any) {
       toast.error('Error', e.message);
     } finally {

@@ -1,5 +1,6 @@
 import { TG } from '@/constants/theme';
 import { useTelegram } from '@/store/telegram';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Linking from 'expo-linking';
 import { useSegments } from 'expo-router';
 import { Send, X } from 'lucide-react-native';
@@ -8,6 +9,7 @@ import {
   ActivityIndicator,
   Animated,
   Dimensions,
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -19,7 +21,8 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 export default function TelegramLinkModal() {
   const { linked, deepLink, loading, dismissed, checkLink, dismiss, resetDismiss } = useTelegram();
   const segments = useSegments();
-  const translateY = useRef(new Animated.Value(200)).current;
+  const translateY = useRef(new Animated.Value(300)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
   const visible = !linked && !dismissed;
 
   // Reshow sheet on navigation change
@@ -27,63 +30,80 @@ export default function TelegramLinkModal() {
     if (!linked) resetDismiss();
   }, [segments.join('/'), linked]);
 
-  // Animate in/out
+  // Animate in/out with both slide and fade for a premium feel
   useEffect(() => {
-    Animated.spring(translateY, {
-      toValue: visible ? 0 : 200,
-      useNativeDriver: true,
-      tension: 65,
-      friction: 11,
-    }).start();
+    Animated.parallel([
+      Animated.spring(translateY, {
+        toValue: visible ? 0 : 300,
+        useNativeDriver: true,
+        tension: 50,
+        friction: 9,
+      }),
+      Animated.timing(opacity, {
+        toValue: visible ? 1 : 0,
+        duration: visible ? 250 : 200,
+        useNativeDriver: true,
+      })
+    ]).start();
   }, [visible]);
 
   if (linked) return null;
 
   return (
     <Animated.View
-      style={[styles.container, { transform: [{ translateY }] }]}
+      style={[styles.container, { transform: [{ translateY }], opacity }]}
       pointerEvents={visible ? 'auto' : 'none'}
     >
-      <View style={styles.sheet}>
-        {/* Dismiss button */}
-        <TouchableOpacity style={styles.closeBtn} onPress={dismiss} activeOpacity={0.7} hitSlop={8}>
-          <X size={18} color={TG.textSecondary} strokeWidth={2} />
+      <TouchableOpacity 
+        style={styles.card}
+        activeOpacity={0.85}
+        onPress={() => deepLink && Linking.openURL(deepLink)}
+        disabled={!deepLink || loading}
+      >
+        <TouchableOpacity style={styles.closeBtn} onPress={dismiss} activeOpacity={0.6} hitSlop={12}>
+          <X size={16} color={TG.textHint} strokeWidth={2.5} />
         </TouchableOpacity>
 
         <View style={styles.row}>
-          <View style={styles.iconWrap}>
-            <Send size={20} color="#fff" strokeWidth={2} />
-          </View>
+          <LinearGradient 
+            colors={['#38BDF8', '#2563EB']} 
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.iconContainer}
+          >
+            <Send size={16} color="#FFFFFF" strokeWidth={2.5} style={{ marginLeft: -1, marginTop: 1 }} />
+          </LinearGradient>
 
-          <View style={styles.textCol}>
+          <View style={styles.textContainer}>
             <Text style={styles.title}>Connect Telegram</Text>
-            <Text style={styles.subtitle} numberOfLines={2}>
-              Get password resets & notifications
+            <Text style={styles.subtitle} numberOfLines={1}>
+              Get updates & feedback
             </Text>
           </View>
 
           <View style={styles.actions}>
             <TouchableOpacity
-              style={styles.connectBtn}
-              activeOpacity={0.75}
-              onPress={() => {
-                if (deepLink) Linking.openURL(deepLink);
-              }}
-              disabled={!deepLink || loading}
+              style={styles.primaryAction}
+              activeOpacity={0.8}
+              onPress={checkLink}
+              disabled={loading}
             >
-              {loading ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={styles.connectBtnText}>Connect</Text>
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.checkBtn} activeOpacity={0.75} onPress={checkLink}>
-              <Text style={styles.checkBtnText}>Verify</Text>
+              <LinearGradient 
+                colors={['#34A853', '#059669']} 
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.gradientBtn}
+              >
+                {loading ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.primaryBtnText}>Verify</Text>
+                )}
+              </LinearGradient>
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </TouchableOpacity>
     </Animated.View>
   );
 }
@@ -91,97 +111,118 @@ export default function TelegramLinkModal() {
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    bottom: 90,
+    bottom: Platform.OS === 'ios' ? 90 : 70,
     left: 0,
     right: 0,
     alignItems: 'center',
-    zIndex: 999,
+    zIndex: 9999,
   },
-  sheet: {
+  card: {
     width: SCREEN_WIDTH - 24,
     backgroundColor: TG.bg,
-    borderRadius: 16,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    paddingRight: 14,
-    // Shadow
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: TG.separator,
+    borderRadius: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    // Premium soft shadow
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.04)',
   },
   closeBtn: {
     position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    top: -8,
+    right: -8,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     backgroundColor: TG.bgSecondary,
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 2,
+    zIndex: 10,
+    borderWidth: 1,
+    borderColor: TG.separator,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
-  iconWrap: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: TG.accent,
+  iconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  textCol: {
+  textContainer: {
     flex: 1,
-    marginRight: 4,
+    justifyContent: 'center',
   },
   title: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '800',
     color: TG.textPrimary,
+    letterSpacing: -0.2,
     marginBottom: 2,
   },
   subtitle: {
-    fontSize: 12,
+    fontSize: 11,
     color: TG.textSecondary,
-    lineHeight: 16,
+    fontWeight: '500',
   },
   actions: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     gap: 6,
-  },
-  connectBtn: {
-    backgroundColor: TG.accent,
-    borderRadius: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    justifyContent: 'center',
     alignItems: 'center',
+  },
+  primaryAction: {
+    borderRadius: 10,
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  gradientBtn: {
+    borderRadius: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
     minWidth: 70,
   },
-  connectBtnText: {
-    color: '#fff',
-    fontSize: 13,
+  primaryBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
     fontWeight: '700',
+    letterSpacing: 0.1,
   },
-  checkBtn: {
-    backgroundColor: TG.green,
-    borderRadius: 10,
-    paddingVertical: 8,
+  secondaryAction: {
+    paddingVertical: 6,
     paddingHorizontal: 12,
-    justifyContent: 'center',
+    backgroundColor: TG.bgSecondary,
+    borderRadius: 10,
     alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 70,
   },
-  checkBtnText: {
-    color: '#fff',
-    fontSize: 13,
+  secondaryBtnText: {
+    color: TG.textPrimary,
+    fontSize: 12,
     fontWeight: '700',
   },
 });

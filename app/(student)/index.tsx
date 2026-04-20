@@ -1,4 +1,6 @@
 import { TG } from '@/constants/theme';
+import { useDatabase } from '@/expo-local-db/DatabaseProvider';
+import { useOfflineCache } from '@/expo-local-db/hooks/useOfflineCache';
 import {
   apiFetchChallenges,
   apiFetchCourses,
@@ -11,7 +13,7 @@ import type { Test } from '@/lib/data';
 import type { Challenge, Course, LeaderboardEntry, UserProgress, WeeklySummary } from '@/lib/types';
 import { useAuth } from '@/store/auth';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import {
   ArrowDown,
   ArrowUp,
@@ -70,16 +72,10 @@ const COLORS = {
 export default function StudentHomeScreen() {
   const { user } = useAuth();
   const router = useRouter();
-  const [progress, setProgress] = useState<UserProgress | null>(null);
-  const [summary, setSummary] = useState<WeeklySummary | null>(null);
+  const { isReady } = useDatabase();
   const [dailyChallenge, setDailyChallenge] = useState<Challenge | null>(null);
-  const [courses, setCourses] = useState<Course[]>([]);
   const [activeCourse, setActiveCourse] = useState<Course | null>(null);
-  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [userRank, setUserRank] = useState<number>(0);
-  const [tests, setTests] = useState<Test[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [greeting, setGreeting] = useState('Hello');
 
   useEffect(() => {
@@ -89,8 +85,18 @@ export default function StudentHomeScreen() {
     else setGreeting('Good Evening');
   }, []);
 
-  const loadData = async () => {
-    try {
+  // Offline-first: cache all dashboard data as one JSON blob
+  const { data: dashboardData, isLoading: loading, isRefreshing: refreshing, refresh } = useOfflineCache<{
+    progress: UserProgress | null;
+    summary: WeeklySummary | null;
+    challenges: Challenge[];
+    courses: Course[];
+    leaderboard: LeaderboardEntry[];
+    leaderboardRank: number;
+    tests: Test[];
+  }>({
+    cacheKey: 'student_dashboard',
+    apiFn: async () => {
       const [progressRes, summaryRes, challengesRes, coursesRes, lbRes, testsRes] = await Promise.allSettled([
         apiFetchProgress(),
         apiFetchWeeklySummary(),
@@ -99,43 +105,38 @@ export default function StudentHomeScreen() {
         apiFetchLeaderboard('weekly', 5),
         apiFetchTests({ limit: 3 }),
       ]);
+      return {
+        progress: progressRes.status === 'fulfilled' ? progressRes.value : null,
+        summary: summaryRes.status === 'fulfilled' ? summaryRes.value : null,
+        challenges: challengesRes.status === 'fulfilled' ? (challengesRes.value.data || []) : [],
+        courses: coursesRes.status === 'fulfilled' ? (coursesRes.value.data || []) : [],
+        leaderboard: lbRes.status === 'fulfilled' ? (lbRes.value.data || []) : [],
+        leaderboardRank: lbRes.status === 'fulfilled' ? (lbRes.value.userRank || 0) : 0,
+        tests: testsRes.status === 'fulfilled' ? (testsRes.value.data || []) : [],
+      };
+    },
+    enabled: isReady,
+    staleTime: 60_000,
+  });
 
-      if (progressRes.status === 'fulfilled') setProgress(progressRes.value);
-      if (summaryRes.status === 'fulfilled') setSummary(summaryRes.value);
-      if (challengesRes.status === 'fulfilled') {
-        const active = challengesRes.value.data?.find((c: Challenge) => c.isActive && !c.submitted);
-        setDailyChallenge(active || challengesRes.value.data?.[0] || null);
-      }
-      if (coursesRes.status === 'fulfilled') {
-        const allCourses = coursesRes.value.data || [];
-        setCourses(allCourses);
-        const inProgress = allCourses.find((c: Course) => c.progressPercent > 0 && c.progressPercent < 100);
-        setActiveCourse(inProgress || allCourses[0] || null);
-      }
-      if (lbRes.status === 'fulfilled') {
-        setLeaderboard(lbRes.value.data || []);
-        setUserRank(lbRes.value.userRank || 0);
-      }
-      if (testsRes.status === 'fulfilled') setTests(testsRes.value.data || []);
-    } catch (e) {
-      console.error('Failed to load dashboard', e);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const progress = dashboardData?.progress ?? null;
+  const summary = dashboardData?.summary ?? null;
+  const courses = dashboardData?.courses ?? [];
+  const leaderboard = dashboardData?.leaderboard ?? [];
+  const tests = dashboardData?.tests ?? [];
+
+  useEffect(() => {
+    if (!dashboardData) return;
+    setUserRank(dashboardData.leaderboardRank);
+    const active = dashboardData.challenges.find((c: Challenge) => c.isActive && !c.submitted);
+    setDailyChallenge(active || dashboardData.challenges[0] || null);
+    const inProgress = dashboardData.courses.find((c: Course) => c.progressPercent > 0 && c.progressPercent < 100);
+    setActiveCourse(inProgress || dashboardData.courses[0] || null);
+  }, [dashboardData]);
 
   const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await loadData();
-    setRefreshing(false);
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      setLoading(true);
-      loadData();
-    }, []),
-  );
+    await refresh();
+  }, [refresh]);
 
   const getTimeRemaining = (endsAt: string) => {
     const diff = new Date(endsAt).getTime() - Date.now();

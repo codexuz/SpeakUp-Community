@@ -55,7 +55,7 @@ interface UseOfflineFirstResult<T> {
  * 3. **Cache update** — upserts API response into SQLite, triggers re-render
  * 4. **Offline** — silently skips network, UI stays populated from cache
  */
-export function useOfflineFirst<T extends Record<string, unknown>>(
+export function useOfflineFirst<T extends object>(
   options: UseOfflineFirstOptions<T>
 ): UseOfflineFirstResult<T> {
   const {

@@ -1,10 +1,12 @@
 import { useAlert } from '@/components/CustomAlert';
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
+import { useDatabase } from '@/expo-local-db/DatabaseProvider';
+import { useOfflineFirst } from '@/expo-local-db/hooks/useOfflineFirst';
+import { offlineMyGroups } from '@/expo-local-db/offlineApi';
 import { apiJoinGlobalGroup, apiRequestJoinGroup, apiSearchGroups } from '@/lib/api';
-import { fetchMyGroups, Group } from '@/lib/groups';
+import type { Group } from '@/lib/groups';
 import { useAuth } from '@/store/auth';
-import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { Globe, Plus, Search, UserPlus, Users, X } from 'lucide-react-native';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
@@ -57,9 +59,14 @@ export default function GroupsScreen() {
   const router = useRouter();
   const toast = useToast();
   const { alert } = useAlert();
-  const [groups, setGroups] = useState<Group[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const { isReady } = useDatabase();
+
+  // Offline-first: reads groups from SQLite → background-fetches from API
+  const { data: groups, isLoading: loading, isRefreshing: refreshing, refresh } = useOfflineFirst<Group>({
+    ...offlineMyGroups(),
+    enabled: isReady,
+  });
+
   const [searchVisible, setSearchVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchMode, setSearchMode] = useState<'local' | 'global'>('local');
@@ -69,35 +76,9 @@ export default function GroupsScreen() {
   const searchInputRef = useRef<TextInput>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const loadGroups = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await fetchMyGroups();
-      console.log('Fetched groups:', data);
-      setGroups(data);
-    } catch (e) {
-      console.error('Failed to load groups', e);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      const data = await fetchMyGroups();
-      setGroups(data);
-    } catch (e) {
-      console.error('Failed to refresh groups', e);
-    } finally {
-      setRefreshing(false);
-    }
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      void loadGroups();
-    }, [loadGroups])
+    await refresh();
+  }, [refresh]);
   );
 
   const toggleSearch = useCallback(() => {

@@ -1,12 +1,13 @@
 import { useAlert } from '@/components/CustomAlert';
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
+import { useDatabase } from '@/expo-local-db/DatabaseProvider';
+import { useOfflineCache } from '@/expo-local-db/hooks/useOfflineCache';
 import { apiDeleteCourse, apiFetchAdminCourses } from '@/lib/api';
 import { Course } from '@/lib/types';
-import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { BookOpen, ChevronRight, Plus, Trash2 } from 'lucide-react-native';
-import React, { useCallback, useState } from 'react';
+import React from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -22,26 +23,17 @@ export default function AdminCoursesScreen() {
   const router = useRouter();
   const toast = useToast();
   const { alert } = useAlert();
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { isReady } = useDatabase();
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await apiFetchAdminCourses();
-      setCourses(res.data || []);
-    } catch (e: any) {
-      toast.error('Error', e.message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Offline-first: cache admin courses
+  const { data: cachedResult, isLoading: loading, refresh } = useOfflineCache<{ data: Course[] }>({
+    cacheKey: 'admin_courses',
+    apiFn: () => apiFetchAdminCourses(),
+    enabled: isReady,
+    staleTime: 60_000,
+  });
 
-  useFocusEffect(
-    useCallback(() => {
-      load();
-    }, [load])
-  );
+  const courses = cachedResult?.data || [];
 
   const handleDelete = (course: Course) => {
     alert(
@@ -56,7 +48,7 @@ export default function AdminCoursesScreen() {
             try {
               await apiDeleteCourse(course.id);
               toast.success('Deleted', 'Course has been deleted.');
-              load();
+              refresh();
             } catch (e: any) {
               toast.error('Error', e.message);
             }

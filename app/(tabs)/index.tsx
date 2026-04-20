@@ -1,51 +1,32 @@
 import { TG } from '@/constants/theme';
-import { apiFetchTests } from '@/lib/api';
+import { useDatabase } from '@/expo-local-db/DatabaseProvider';
+import { useOfflineFirst } from '@/expo-local-db/hooks/useOfflineFirst';
+import { offlineTests } from '@/expo-local-db/offlineApi';
 import type { Test } from '@/lib/data';
 import { useAuth } from '@/store/auth';
 import { useRouter } from 'expo-router';
 import { BarChart3, BookOpen, ChevronRight, ClipboardList, FileText, Mic } from 'lucide-react-native';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function HomeScreen() {
   const { user } = useAuth();
   const router = useRouter();
-  const [tests, setTests] = useState<Test[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const { isReady } = useDatabase();
 
   const isStudent = user?.role !== 'teacher' && user?.role !== 'admin';
 
-  const loadTests = async () => {
-    if (!isStudent) { setLoading(false); return; }
-    setLoading(true);
-    try {
-      const res = await apiFetchTests({ limit: 20 });
-      setTests(res.data || []);
-    } catch (e) {
-      console.error('Failed to load tests', e);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Offline-first: reads from SQLite instantly, background-fetches when online
+  const { data: tests, isLoading: loading, isRefreshing: refreshing, refresh } = useOfflineFirst<Test>({
+    ...offlineTests({ isPublished: true }),
+    limit: 20,
+    enabled: isReady && isStudent,
+  });
 
   const onRefresh = useCallback(async () => {
-    if (!isStudent) return;
-    setRefreshing(true);
-    try {
-      const res = await apiFetchTests({ limit: 20 });
-      setTests(res.data || []);
-    } catch (e) {
-      console.error('Failed to refresh tests', e);
-    } finally {
-      setRefreshing(false);
-    }
-  }, [isStudent]);
-
-  useEffect(() => {
-    loadTests();
-  }, []);
+    await refresh();
+  }, [refresh]);
 
   if (user?.role === 'teacher' || user?.role === 'admin') {
     return (

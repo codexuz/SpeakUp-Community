@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import NetInfo from '@react-native-community/netinfo';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 
@@ -7,6 +8,7 @@ import { getStoredAuthToken, getStoredUser } from '@/store/auth';
 
 const API_URL = 'https://speakup.impulselc.uz/api'; 
 const CACHE_PREFIX = '@api_cache:';
+const CACHE_TS_PREFIX = '@api_ts:';
 
 function getUserAgent(): string {
   const name = Device.deviceName || Device.modelName || 'Unknown';
@@ -15,12 +17,28 @@ function getUserAgent(): string {
   return `${name} (${os} ${osVersion})`;
 }
 
+/** Read cached response + timestamp from AsyncStorage */
+async function readCache<T>(key: string): Promise<{ data: T; ts: number } | null> {
+  try {
+    const [raw, tsRaw] = await AsyncStorage.multiGet([`${CACHE_PREFIX}${key}`, `${CACHE_TS_PREFIX}${key}`]);
+    if (raw[1]) return { data: JSON.parse(raw[1]) as T, ts: tsRaw[1] ? Number(tsRaw[1]) : 0 };
+  } catch {}
+  return null;
+}
+
+/** Write response + timestamp to AsyncStorage */
+function writeCache(key: string, data: unknown): void {
+  AsyncStorage.multiSet([
+    [`${CACHE_PREFIX}${key}`, JSON.stringify(data)],
+    [`${CACHE_TS_PREFIX}${key}`, String(Date.now())],
+  ]).catch(() => {});
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_URL}${path}`;
   const token = await getStoredAuthToken();
   const method = (options.method || 'GET').toUpperCase();
   const isGet = method === 'GET';
-  const cacheKey = isGet ? `${CACHE_PREFIX}${path}` : null;
 
   try {
     const res = await fetch(url, {
@@ -41,18 +59,14 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const data = await res.json();
 
     // Cache successful GET responses
-    if (cacheKey) {
-      AsyncStorage.setItem(cacheKey, JSON.stringify(data)).catch(() => {});
-    }
+    if (isGet) writeCache(path, data);
 
     return data;
   } catch (err) {
     // On network failure for GET requests, try returning cached data
-    if (cacheKey) {
-      const cached = await AsyncStorage.getItem(cacheKey).catch(() => null);
-      if (cached) {
-        return JSON.parse(cached) as T;
-      }
+    if (isGet) {
+      const cached = await readCache<T>(path);
+      if (cached) return cached.data;
     }
     throw err;
   }
@@ -1428,4 +1442,144 @@ export async function apiBroadcastNotification(data: { title: string; body: stri
     method: 'POST',
     body: JSON.stringify(data),
   });
+}
+
+// =============================================
+// Offline-First Hook (useApi)
+// =============================================
+
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+
+type ApiStatus = 'idle' | 'loading' | 'success' | 'error';
+
+interface UseApiOptions<T> {
+  /** Unique cache key. Defaults to a hash of the function name. */
+  cacheKey: string;
+  /** The API call that returns data */
+  apiFn: () => Promise<T>;
+  /** Whether to fetch on mount/focus. Defaults to true */
+  enabled?: boolean;
+  /** Stale time in ms — skip network if cache is fresh. Defaults to 30_000 (30s). */
+  staleTime?: number;
+  /** Re-run when these deps change */
+  deps?: any[];
+}
+
+interface UseApiResult<T> {
+  data: T | undefined;
+  status: ApiStatus;
+  isLoading: boolean;
+  isRefreshing: boolean;
+  error: Error | null;
+  /** True while showing cached data before network confirms */
+  isStale: boolean;
+  /** Pull-to-refresh / manual refetch */
+  refresh: () => Promise<void>;
+}
+
+/**
+ * Lightweight offline-first data hook using AsyncStorage.
+ *
+ * 1. **Instant** — returns cached data from AsyncStorage (renders immediately)
+ * 2. **Background refresh** — if online & data is stale, fetches from API
+ * 3. **Seamless update** — swaps in fresh data when network responds
+ * 4. **Offline** — silently skips network, UI stays populated from cache
+ *
+ * Works with any API function — no SQLite table mapping needed.
+ */
+export function useApi<T>(options: UseApiOptions<T>): UseApiResult<T> {
+  const { cacheKey, apiFn, enabled = true, staleTime = 30_000, deps = [] } = options;
+
+  const [data, setData] = useState<T | undefined>(undefined);
+  const [status, setStatus] = useState<ApiStatus>('idle');
+  const [error, setError] = useState<Error | null>(null);
+  const [isStale, setIsStale] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const mountedRef = useRef(true);
+  const fetchingRef = useRef(false);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  const load = useCallback(async (force = false) => {
+    if (!enabled) return;
+    if (fetchingRef.current && !force) return;
+
+    // 1) Read cache instantly
+    const cached = await readCache<T>(cacheKey);
+    if (cached && mountedRef.current) {
+      setData(cached.data);
+      setIsStale(true);
+      setStatus('success');
+
+      // Skip network if fresh enough
+      if (!force && Date.now() - cached.ts < staleTime) {
+        setIsStale(false);
+        return;
+      }
+    } else if (mountedRef.current) {
+      setStatus('loading');
+    }
+
+    // 2) Check connectivity
+    const netState = await NetInfo.fetch();
+    if (!netState.isConnected) {
+      if (mountedRef.current) {
+        setIsStale(false);
+        if (!cached) setStatus('error');
+      }
+      return;
+    }
+
+    // 3) Fetch from network in background
+    fetchingRef.current = true;
+    try {
+      const fresh = await apiFn();
+      // apiFn calls request() which already writes to cache
+      if (mountedRef.current) {
+        setData(fresh);
+        setIsStale(false);
+        setStatus('success');
+        setError(null);
+      }
+    } catch (err) {
+      if (mountedRef.current) {
+        setError(err as Error);
+        // Only show error status if we have nothing cached
+        if (!cached) setStatus('error');
+        setIsStale(false);
+      }
+    } finally {
+      fetchingRef.current = false;
+    }
+  }, [cacheKey, apiFn, enabled, staleTime]);
+
+  const refresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await load(true);
+    } finally {
+      if (mountedRef.current) setIsRefreshing(false);
+    }
+  }, [load]);
+
+  // Fetch on focus (like useFocusEffect)
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load, ...deps])
+  );
+
+  return {
+    data,
+    status,
+    isLoading: status === 'loading',
+    isRefreshing,
+    error,
+    isStale,
+    refresh,
+  };
 }

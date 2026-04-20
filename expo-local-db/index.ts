@@ -13,12 +13,14 @@ export {
     generateUUID, getDatabase, getPendingSyncItems, getRowById, insertRow, markSyncItemRetry, queryRows, removeSyncItem, softDeleteRow, updateRow
 } from "./database";
 export type { SyncQueueItem, SyncStatus } from "./database";
+export { DatabaseProvider, useDatabase } from "./DatabaseProvider";
 
 // ─── Sync engine ────────────────────────────────────────────────
 export { getConflicts, resolveConflict, startSyncService, stopSyncService } from "./syncService";
 
 // ─── React hooks ────────────────────────────────────────────────
 export { isOnline, useNetwork } from "./hooks/useNetwork";
+export { useOfflineCache } from "./hooks/useOfflineCache";
 export { useOfflineFirst, useOfflineItem } from "./hooks/useOfflineFirst";
 export { useOfflineMutation } from "./hooks/useOfflineMutation";
 
@@ -27,7 +29,7 @@ export {
     offlineAchievements, offlineAds, offlineChallenges, offlineComment, offlineCommunityFeed, offlineCourses, offlineGroupDetail,
     offlineGroupMembers,
     offlineGroupSubmissions, offlineLeaderboard,
-    offlineLikeSession, offlineMyGroups, offlineProgress, offlineReview, offlineTests, offlineUnlikeSession
+    offlineLikeSession, offlineMyGroups, offlineMySpeaking, offlinePendingSpeaking, offlineProgress, offlineReview, offlineTests, offlineUnlikeSession, offlineWeeklySummary
 } from "./offlineApi";
 
 // ─── Offline chat ───────────────────────────────────────────────

@@ -1,60 +1,61 @@
 import { TG } from '@/constants/theme';
+import { useDatabase } from '@/expo-local-db/DatabaseProvider';
+import { useOfflineCache } from '@/expo-local-db/hooks/useOfflineCache';
 import { apiFetchAnalyticsOverview, apiFetchPendingSpeaking, apiFetchPendingWritingReviews } from '@/lib/api';
 import { useAuth } from '@/store/auth';
-import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { ArrowRight, BellRing, ClipboardList, FileText, Mic, Pen, Star, Users } from 'lucide-react-native';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Image,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Image,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function TeacherHomeScreen() {
   const { user } = useAuth();
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const { isReady } = useDatabase();
   const [pendingCount, setPendingCount] = useState(0);
   const [pendingWritingCount, setPendingWritingCount] = useState(0);
   const [overview, setOverview] = useState<any>(null);
 
-  const loadData = useCallback(async () => {
-    try {
+  // Offline-first: cache teacher dashboard data as JSON
+  const { data: dashboardData, isLoading: loading, isRefreshing: refreshing, refresh } = useOfflineCache<{
+    pending: any;
+    pendingWriting: any;
+    analytics: any;
+  }>({
+    cacheKey: 'teacher_dashboard',
+    apiFn: async () => {
       const [pending, pendingWriting, analytics] = await Promise.all([
         apiFetchPendingSpeaking(1, 1).catch(() => ({ data: [], pagination: { total: 0 } })),
         apiFetchPendingWritingReviews(1, 1).catch(() => ({ data: [], pagination: { total: 0 } })),
         apiFetchAnalyticsOverview().catch(() => null),
       ]);
-      setPendingCount(pending.pagination?.total || pending.data?.length || 0);
-      setPendingWritingCount(pendingWriting.pagination?.total || pendingWriting.data?.length || 0);
-      setOverview(analytics);
-    } catch (e) {
-      console.error('Failed to load teacher dashboard', e);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      return { pending, pendingWriting, analytics };
+    },
+    enabled: isReady,
+    staleTime: 30_000,
+  });
 
-  useFocusEffect(
-    useCallback(() => {
-      setLoading(true);
-      loadData();
-    }, [loadData])
-  );
+  useEffect(() => {
+    if (!dashboardData) return;
+    const { pending, pendingWriting, analytics } = dashboardData;
+    setPendingCount(pending?.pagination?.total || pending?.data?.length || 0);
+    setPendingWritingCount(pendingWriting?.pagination?.total || pendingWriting?.data?.length || 0);
+    setOverview(analytics);
+  }, [dashboardData]);
 
   const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await loadData();
-    setRefreshing(false);
-  }, [loadData]);
+    await refresh();
+  }, [refresh]);
 
   const firstName = user?.fullName?.split(' ')[0] || 'Teacher';
 

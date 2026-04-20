@@ -7,22 +7,25 @@
  */
 
 import {
-    apiCommentOnSession,
-    apiFetchAchievements,
-    apiFetchActiveAds,
-    apiFetchChallenges,
-    apiFetchCommunityFeed,
-    apiFetchCourses,
-    apiFetchGroupById,
-    apiFetchGroupMembers,
-    apiFetchGroupSubmissions,
-    apiFetchLeaderboard,
-    apiFetchMyGroups,
-    apiFetchProgress,
-    apiFetchTests,
-    apiLikeSession,
-    apiPostReview,
-    apiUnlikeSession
+  apiCommentOnSession,
+  apiFetchAchievements,
+  apiFetchActiveAds,
+  apiFetchChallenges,
+  apiFetchCommunityFeed,
+  apiFetchCourses,
+  apiFetchGroupById,
+  apiFetchGroupMembers,
+  apiFetchGroupSubmissions,
+  apiFetchLeaderboard,
+  apiFetchMyGroups,
+  apiFetchMySpeaking,
+  apiFetchPendingSpeaking,
+  apiFetchProgress,
+  apiFetchTests,
+  apiFetchWeeklySummary,
+  apiLikeSession,
+  apiPostReview,
+  apiUnlikeSession
 } from "@/lib/api";
 
 // ─── Helper: camelCase → snake_case ─────────────────────────────
@@ -233,7 +236,7 @@ export function offlineLeaderboard(type: string = "weekly", limit: number = 20) 
     orderBy: type === "weekly" ? "weekly_xp DESC" : "xp DESC",
     limit,
     apiFn: async () => {
-      const res = await apiFetchLeaderboard(type, limit);
+      const res = await apiFetchLeaderboard(type as any, limit);
       // Leaderboard returns {data, userRank, userProgress}
       return (res as any).data ?? [];
     },
@@ -245,6 +248,71 @@ export function offlineLeaderboard(type: string = "weekly", limit: number = 20) 
     },
     kvKey: `offline_leaderboard_${type}`,
     staleTime: 2 * 60_000,
+  };
+}
+
+// ─── My Speaking Recordings ─────────────────────────────────────
+
+export function offlineMySpeaking(page: number = 1) {
+  return {
+    table: "test_sessions",
+    where: "visibility IN ('private', 'community')",
+    orderBy: "created_at DESC",
+    limit: page * 20,
+    apiFn: async () => {
+      const res = await apiFetchMySpeaking(page, 20);
+      return (res as any).data ?? res ?? [];
+    },
+    mapApiToRow: (item: any) => {
+      const row = mapKeys(item);
+      if (item.user?.id) row.user_id = item.user.id;
+      if (item.test?.id) row.test_id = item.test.id;
+      return row;
+    },
+    kvKey: `offline_my_speaking`,
+    staleTime: 60_000,
+  };
+}
+
+// ─── Pending Speaking (Teacher Reviews) ─────────────────────────
+
+export function offlinePendingSpeaking(page: number = 1) {
+  return {
+    table: "test_sessions",
+    where: "visibility = ?",
+    params: ["community"],
+    orderBy: "created_at DESC",
+    limit: page * 20,
+    apiFn: async () => {
+      const res = await apiFetchPendingSpeaking(page, 20);
+      return (res as any).data ?? res ?? [];
+    },
+    mapApiToRow: (item: any) => {
+      const row = mapKeys(item);
+      if (item.user?.id) row.user_id = item.user.id;
+      if (item.test?.id) row.test_id = item.test.id;
+      return row;
+    },
+    kvKey: `offline_pending_speaking`,
+    staleTime: 30_000,
+  };
+}
+
+// ─── Weekly Summary ─────────────────────────────────────────────
+
+export function offlineWeeklySummary() {
+  return {
+    table: "kv_store",
+    apiFn: async () => {
+      const data = await apiFetchWeeklySummary();
+      // Store as KV — it doesn't fit a regular table
+      return [{ key: "weekly_summary", value: JSON.stringify(data) }];
+    },
+    where: "key = ?",
+    params: ["weekly_summary"],
+    idField: "key",
+    staleTime: 5 * 60_000,
+    kvKey: "offline_weekly_summary",
   };
 }
 

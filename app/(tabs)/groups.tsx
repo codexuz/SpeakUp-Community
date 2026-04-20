@@ -1,24 +1,26 @@
 import { useAlert } from '@/components/CustomAlert';
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
+import { useDatabase } from '@/expo-local-db/DatabaseProvider';
+import { useOfflineFirst } from '@/expo-local-db/hooks/useOfflineFirst';
+import { offlineMyGroups } from '@/expo-local-db/offlineApi';
 import { apiJoinGlobalGroup, apiRequestJoinGroup, apiSearchGroups } from '@/lib/api';
-import { fetchMyGroups, Group } from '@/lib/groups';
+import type { Group } from '@/lib/groups';
 import { useAuth } from '@/store/auth';
-import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { ChevronRight, Globe, LogIn, Pencil, Search, UserPlus, Users, X } from 'lucide-react-native';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Animated,
-    FlatList,
-    Platform,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Animated,
+  FlatList,
+  Platform,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -56,9 +58,14 @@ export default function GroupsScreen() {
   const router = useRouter();
   const toast = useToast();
   const { alert } = useAlert();
-  const [groups, setGroups] = useState<Group[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const { isReady } = useDatabase();
+
+  // Offline-first: reads groups from SQLite → background-fetches from API
+  const { data: groups, isLoading: loading, isRefreshing: refreshing, refresh } = useOfflineFirst<Group>({
+    ...offlineMyGroups(),
+    enabled: isReady,
+  });
+
   const [searchVisible, setSearchVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchMode, setSearchMode] = useState<'local' | 'global'>('local');
@@ -68,35 +75,9 @@ export default function GroupsScreen() {
   const searchInputRef = useRef<TextInput>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const loadGroups = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await fetchMyGroups();
-      setGroups(data);
-    } catch (e) {
-      console.error('Failed to load groups', e);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      const data = await fetchMyGroups();
-      setGroups(data);
-    } catch (e) {
-      console.error('Failed to refresh groups', e);
-    } finally {
-      setRefreshing(false);
-    }
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      void loadGroups();
-    }, [loadGroups])
-  );
+    await refresh();
+  }, [refresh]);
 
   const toggleSearch = useCallback(() => {
     if (searchVisible) {
@@ -168,11 +149,11 @@ export default function GroupsScreen() {
     try {
       await apiJoinGlobalGroup(groupId);
       toast.success('Joined', 'You joined the group');
-      loadGroups();
+      refresh();
     } catch (e: any) {
       toast.error('Error', e.message);
     }
-  }, [loadGroups, toast]);
+  }, [refresh, toast]);
 
   const filteredGroups = useMemo(() => {
     if (!searchQuery.trim()) return groups;
@@ -243,7 +224,7 @@ export default function GroupsScreen() {
                 <Globe size={10} color={TG.accent} />
               </View>
             )}
-            {!isUnjoined && roleBadge(group.myRole)}
+            {!isUnjoined && roleBadge(group.myRole ?? undefined)}
           </View>
 
           {/* Bottom row: description / members */}

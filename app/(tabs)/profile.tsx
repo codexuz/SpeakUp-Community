@@ -1,12 +1,13 @@
 import { useAlert } from '@/components/CustomAlert';
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
+import { useDatabase } from '@/expo-local-db/DatabaseProvider';
+import { useOfflineCache } from '@/expo-local-db/hooks/useOfflineCache';
 import { apiFetchMyVerificationStatus, apiGetUserProfile, apiLogout, apiRequestTeacherVerification } from '@/lib/api';
 import { useAuth } from '@/store/auth';
-import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { Award, ChevronRight, Edit2, LogOut, MapPin, Monitor, Phone, Shield, User as UserIcon } from 'lucide-react-native';
-import React, { useCallback, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -15,45 +16,47 @@ export default function ProfileScreen() {
   const router = useRouter();
   const toast = useToast();
   const { alert } = useAlert();
+  const { isReady } = useDatabase();
   const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
   const [verificationLoading, setVerificationLoading] = useState(false);
   const [verifyModal, setVerifyModal] = useState(false);
   const [verifyReason, setVerifyReason] = useState('');
   const [stats, setStats] = useState({ followers: 0, following: 0 });
 
-  useFocusEffect(
-    useCallback(() => {
-      if (!user?.id) return;
-      apiGetUserProfile(user.id)
-        .then((p) => {
-          setStats(p.stats);
-          if (p.user.verifiedTeacher && !user.verifiedTeacher) {
-            updateUser({ verifiedTeacher: true });
-          }
-        })
-        .catch(() => {});
-    }, [user?.id]),
-  );
+  // Offline-first: cache profile data
+  const { data: profileData } = useOfflineCache<{ user: any; stats: any }>({
+    cacheKey: `profile_${user?.id}`,
+    apiFn: () => apiGetUserProfile(user!.id),
+    enabled: isReady && !!user?.id,
+    deps: [user?.id],
+    staleTime: 60_000,
+  });
 
-  const loadVerificationStatus = useCallback(async () => {
-    if (user?.role === 'teacher' || user?.verifiedTeacher) return;
-    try {
-      const result = await apiFetchMyVerificationStatus();
-      const status = result?.status || null;
-      setVerificationStatus(status);
-      if (status === 'approved') {
-        updateUser({ verifiedTeacher: true });
-      }
-    } catch {
-      setVerificationStatus(null);
+  useEffect(() => {
+    if (!profileData) return;
+    setStats(profileData.stats);
+    if (profileData.user.verifiedTeacher && !user?.verifiedTeacher) {
+      updateUser({ verifiedTeacher: true });
     }
-  }, [user?.role, user?.verifiedTeacher]);
+  }, [profileData]);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadVerificationStatus();
-    }, [loadVerificationStatus]),
-  );
+  // Offline-first: cache verification status
+  const { data: verificationData } = useOfflineCache<{ status: string } | null>({
+    cacheKey: `verification_status_${user?.id}`,
+    apiFn: () => apiFetchMyVerificationStatus(),
+    enabled: isReady && !!user?.id && user?.role !== 'teacher' && !user?.verifiedTeacher,
+    deps: [user?.id, user?.role, user?.verifiedTeacher],
+    staleTime: 2 * 60_000,
+  });
+
+  useEffect(() => {
+    if (!verificationData) return;
+    const status = verificationData?.status || null;
+    setVerificationStatus(status);
+    if (status === 'approved') {
+      updateUser({ verifiedTeacher: true });
+    }
+  }, [verificationData]);
 
   const handleLogout = async () => {
     alert('Log Out', 'Are you sure you want to log out?', [

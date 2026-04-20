@@ -1,11 +1,12 @@
 import { useAlert } from '@/components/CustomAlert';
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
+import { useDatabase } from '@/expo-local-db/DatabaseProvider';
+import { useOfflineCache } from '@/expo-local-db/hooks/useOfflineCache';
 import { apiDeleteTest, apiFetchTests } from '@/lib/api';
-import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { BookOpen, Check, ChevronRight, Plus, Trash2, X } from 'lucide-react-native';
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -33,10 +34,10 @@ export default function AdminTestsScreen() {
   const router = useRouter();
   const toast = useToast();
   const { alert } = useAlert();
-  const [tests, setTests] = useState<Test[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
+  const { isReady } = useDatabase();
   const [activeTab, setActiveTab] = useState<FilterTab>('all');
+  const [extraTests, setExtraTests] = useState<Test[]>([]);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [totalPages, setTotalPages] = useState(1);
   const pageRef = useRef(1);
 
@@ -45,47 +46,52 @@ export default function AdminTestsScreen() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [deleting, setDeleting] = useState(false);
 
-  const load = useCallback(async (filter?: FilterTab, page = 1) => {
-    const tab = filter ?? activeTab;
-    if (page === 1) setLoading(true); else setLoadingMore(true);
-    try {
-      const res = await apiFetchTests({
-        testType: tab === 'all' ? undefined : tab,
-        page,
-        limit: PAGE_LIMIT,
-      });
-      const items = res.data || [];
-      if (page === 1) {
-        setTests(items);
-      } else {
-        setTests((prev) => [...prev, ...items]);
-      }
-      setTotalPages(res.meta?.totalPages ?? 1);
-      pageRef.current = page;
-    } catch (e: any) {
-      toast.error('Error', e.message);
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-    }
-  }, [activeTab]);
+  // Offline-first: cache page 1
+  const { data: cachedResult, isLoading: loading, refresh } = useOfflineCache<{ data: Test[]; meta?: any }>({
+    cacheKey: `admin_tests_${activeTab}`,
+    apiFn: () => apiFetchTests({
+      testType: activeTab === 'all' ? undefined : activeTab,
+      page: 1,
+      limit: PAGE_LIMIT,
+    }),
+    enabled: isReady,
+    deps: [activeTab],
+    staleTime: 60_000,
+  });
 
-  useFocusEffect(
-    useCallback(() => {
-      load(undefined, 1);
-    }, [load])
-  );
+  // Reset pagination when tab or cache changes
+  useEffect(() => {
+    setExtraTests([]);
+    pageRef.current = 1;
+    if (cachedResult?.meta?.totalPages) {
+      setTotalPages(cachedResult.meta.totalPages);
+    }
+  }, [cachedResult, activeTab]);
+
+  const tests = [...(cachedResult?.data || []), ...extraTests];
 
   const loadMore = () => {
     if (loadingMore || loading) return;
     if (pageRef.current >= totalPages) return;
-    load(activeTab, pageRef.current + 1);
+    const nextPage = pageRef.current + 1;
+    setLoadingMore(true);
+    apiFetchTests({
+      testType: activeTab === 'all' ? undefined : activeTab,
+      page: nextPage,
+      limit: PAGE_LIMIT,
+    })
+      .then((res) => {
+        setExtraTests(prev => [...prev, ...(res.data || [])]);
+        setTotalPages(res.meta?.totalPages ?? 1);
+        pageRef.current = nextPage;
+      })
+      .catch((e: any) => toast.error('Error', e.message))
+      .finally(() => setLoadingMore(false));
   };
 
   const changeTab = (tab: FilterTab) => {
     setActiveTab(tab);
     exitSelectMode();
-    load(tab, 1);
   };
 
   const enterSelectMode = (testId: number) => {
@@ -138,7 +144,7 @@ export default function AdminTestsScreen() {
             try {
               const ids = Array.from(selected);
               await Promise.all(ids.map((id) => apiDeleteTest(id)));
-              setTests((prev) => prev.filter((t) => !selected.has(t.id)));
+              await refresh();
               toast.success('Deleted', `${count} test${count > 1 ? 's' : ''} deleted`);
               exitSelectMode();
             } catch (e: any) {

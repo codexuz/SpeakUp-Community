@@ -1,62 +1,44 @@
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
+import { useDatabase } from '@/expo-local-db/DatabaseProvider';
+import { useOfflineCache } from '@/expo-local-db/hooks/useOfflineCache';
 import { apiDeleteSession, apiFetchMySpeaking, TestSession } from '@/lib/api';
-import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { Check, ChevronRight, Mic, Star, Trash2, X } from 'lucide-react-native';
-import React, { useCallback, useState } from 'react';
+import React, { useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function StudentRecordingsScreen() {
   const router = useRouter();
   const toast = useToast();
-  const [responses, setResponses] = useState<TestSession[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { isReady } = useDatabase();
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
 
-  const loadResponses = useCallback(async () => {
-    setLoading(true);
-    try {
-      const result = await apiFetchMySpeaking();
-      setResponses(result.data || []);
-    } catch (e) {
-      console.error('Failed to load responses', e);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Offline-first: cache recordings
+  const { data: cachedResult, isLoading: loading, isRefreshing: refreshing, refresh } = useOfflineCache<{ data: TestSession[] }>({
+    cacheKey: 'student_recordings',
+    apiFn: () => apiFetchMySpeaking(),
+    enabled: isReady,
+    staleTime: 60_000,
+  });
 
-  useFocusEffect(
-    useCallback(() => {
-      loadResponses();
-      return () => { setSelectMode(false); setSelected(new Set()); };
-    }, [loadResponses])
-  );
+  const responses = cachedResult?.data || [];
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      const result = await apiFetchMySpeaking();
-      setResponses(result.data || []);
-    } catch (e) {
-      console.error('Failed to refresh', e);
-    } finally {
-      setRefreshing(false);
-    }
-  }, []);
+  const onRefresh = async () => {
+    await refresh();
+  };
 
   const exitSelectMode = () => {
     setSelectMode(false);
@@ -100,10 +82,10 @@ export default function StudentRecordingsScreen() {
       for (const id of selected) {
         await apiDeleteSession(id);
       }
-      await loadResponses();
+      await refresh();
       toast.success('Deleted', `${count} recording${count > 1 ? 's' : ''} deleted`);
     } catch (e: any) {
-      await loadResponses();
+      await refresh();
       toast.error('Error', e.message || 'Failed to delete');
     } finally {
       setDeleting(false);

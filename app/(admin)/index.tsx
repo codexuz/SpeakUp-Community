@@ -1,10 +1,11 @@
 import { TG } from '@/constants/theme';
+import { useDatabase } from '@/expo-local-db/DatabaseProvider';
+import { useOfflineCache } from '@/expo-local-db/hooks/useOfflineCache';
 import { apiFetchAllVerifications, apiFetchAnalyticsOverview, apiFetchTests } from '@/lib/api';
 import { useAuth } from '@/store/auth';
-import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { Bell, ChevronRight, ClipboardList, FileText, Image as ImageIcon, Shield } from 'lucide-react-native';
-import React, { useCallback, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   RefreshControl,
@@ -19,41 +20,40 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 export default function AdminHomeScreen() {
   const { user } = useAuth();
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const { isReady } = useDatabase();
   const [pendingVerifications, setPendingVerifications] = useState(0);
   const [overview, setOverview] = useState<any>(null);
   const [testCount, setTestCount] = useState(0);
 
-  const loadData = useCallback(async () => {
-    try {
+  // Offline-first: cache dashboard data
+  const { data: dashboardData, isLoading: loading, isRefreshing: refreshing, refresh: onRefresh } = useOfflineCache<{
+    pendingVerifications: number;
+    overview: any;
+    testCount: number;
+  }>({
+    cacheKey: 'admin_dashboard',
+    apiFn: async () => {
       const [verifications, analytics, tests] = await Promise.all([
         apiFetchAllVerifications('pending').catch(() => []),
         apiFetchAnalyticsOverview().catch(() => null),
         apiFetchTests({ limit: 1 }).catch(() => ({ data: [], meta: { total: 0 } })),
       ]);
-      setPendingVerifications(Array.isArray(verifications) ? verifications.length : 0);
-      setOverview(analytics);
-      setTestCount((tests as any)?.meta?.total ?? (tests as any)?.data?.length ?? 0);
-    } catch (e) {
-      console.error('Failed to load admin dashboard', e);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      return {
+        pendingVerifications: Array.isArray(verifications) ? verifications.length : 0,
+        overview: analytics,
+        testCount: (tests as any)?.meta?.total ?? (tests as any)?.data?.length ?? 0,
+      };
+    },
+    enabled: isReady,
+    staleTime: 60_000,
+  });
 
-  useFocusEffect(
-    useCallback(() => {
-      setLoading(true);
-      loadData();
-    }, [loadData])
-  );
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await loadData();
-    setRefreshing(false);
-  }, [loadData]);
+  useEffect(() => {
+    if (!dashboardData) return;
+    setPendingVerifications(dashboardData.pendingVerifications);
+    setOverview(dashboardData.overview);
+    setTestCount(dashboardData.testCount);
+  }, [dashboardData]);
 
   return (
     <SafeAreaView style={styles.safeArea}>

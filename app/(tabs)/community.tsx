@@ -1,11 +1,12 @@
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
+import { useDatabase } from '@/expo-local-db/DatabaseProvider';
+import { useOfflineCache } from '@/expo-local-db/hooks/useOfflineCache';
 import { apiFetchCommunityFeed, apiLikeSpeaking, apiPostReview, apiUnlikeSpeaking } from '@/lib/api';
 import { useAuth } from '@/store/auth';
-import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { ChevronRight, Flame, Heart, MessageCircle, Mic, Star, TrendingUp } from 'lucide-react-native';
-import React, { useCallback, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -30,15 +31,16 @@ export default function CommunityScreen() {
   const isTeacher = user?.role === 'teacher';
   const toast = useToast();
   const router = useRouter();
+  const { isReady } = useDatabase();
 
-  const [submissions, setSubmissions] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [strategy, setStrategy] = useState<Strategy>('latest');
   const [examType, setExamType] = useState<ExamType>('cefr');
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [pendingLikeIds, setPendingLikeIds] = useState<Set<string>>(new Set());
+  const [likeOverrides, setLikeOverrides] = useState<Record<string, { isLiked: boolean; likes: number }>>({});
+  const [extraItems, setExtraItems] = useState<any[]>([]);
 
   const [reviewModal, setReviewModal] = useState(false);
   const [selectedSub, setSelectedSub] = useState<any>(null);
@@ -46,49 +48,54 @@ export default function CommunityScreen() {
   const [feedback, setFeedback] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const loadFeed = async (s: Strategy = strategy, p = 1, append = false, exam: ExamType = examType) => {
-    if (p === 1) setLoading(true);
-    else setLoadingMore(true);
-    try {
-      const result = await apiFetchCommunityFeed(s, p, 20, s === 'top' ? exam : undefined);
-      const items = result.data || [];
-      if (append) {
-        setSubmissions(prev => [...prev, ...items]);
-      } else {
-        setSubmissions(items);
-      }
-      setHasMore(p < result.pagination.totalPages);
-      setPage(p);
-    } catch (e) {
-      console.error('Failed to load community feed', e);
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-    }
-  };
+  // Offline-first: caches page 1 as JSON in SQLite, shows instantly
+  const { data: cachedFeed, isLoading: loading, isRefreshing: refreshing, refresh } = useOfflineCache<{ data: any[]; pagination: any }>({
+    cacheKey: `community_${strategy}_${examType}`,
+    apiFn: () => apiFetchCommunityFeed(strategy, 1, 20, strategy === 'top' ? examType : undefined),
+    enabled: isReady,
+    deps: [strategy, examType],
+    staleTime: 30_000,
+  });
 
-  useFocusEffect(
-    useCallback(() => {
-      loadFeed(strategy, 1, false, examType);
-    }, [strategy, examType])
+  const submissions = [...(cachedFeed?.data || []), ...extraItems].map((s) =>
+    likeOverrides[s.id] ? { ...s, ...likeOverrides[s.id] } : s
   );
+
+  // Reset extra items when strategy/examType changes
+  useEffect(() => {
+    setExtraItems([]);
+    setLikeOverrides({});
+    setPage(1);
+    setHasMore(true);
+  }, [strategy, examType]);
+
+  // Update hasMore from cached feed pagination
+  useEffect(() => {
+    if (cachedFeed?.pagination) {
+      setHasMore(1 < cachedFeed.pagination.totalPages);
+    }
+  }, [cachedFeed]);
+
+  const loadMore = () => {
+    if (loadingMore || !hasMore) return;
+    const nextPage = page + 1;
+    setLoadingMore(true);
+    apiFetchCommunityFeed(strategy, nextPage, 20, strategy === 'top' ? examType : undefined)
+      .then((result) => {
+        setExtraItems(prev => [...prev, ...(result.data || [])]);
+        setHasMore(nextPage < result.pagination.totalPages);
+        setPage(nextPage);
+      })
+      .catch((e) => console.error('Failed to load more', e))
+      .finally(() => setLoadingMore(false));
+  };
 
   const changeStrategy = (s: Strategy) => {
     setStrategy(s);
-    setPage(1);
-    setHasMore(true);
   };
 
   const changeExamType = (e: ExamType) => {
     setExamType(e);
-    setPage(1);
-    setHasMore(true);
-  };
-
-  const loadMore = () => {
-    if (!loadingMore && hasMore) {
-      loadFeed(strategy, page + 1, true);
-    }
   };
 
   const toggleLike = async (item: any) => {
@@ -99,11 +106,7 @@ export default function CommunityScreen() {
     const nextLiked = !wasLiked;
     const nextLikes = Math.max(0, prevLikes + (wasLiked ? -1 : 1));
 
-    setSubmissions((prev) =>
-      prev.map((s) =>
-        s.id === item.id ? { ...s, isLiked: nextLiked, likes: nextLikes } : s
-      )
-    );
+    setLikeOverrides((prev) => ({ ...prev, [item.id]: { isLiked: nextLiked, likes: nextLikes } }));
     setPendingLikeIds((prev) => {
       const next = new Set(prev);
       next.add(item.id);
@@ -117,11 +120,7 @@ export default function CommunityScreen() {
         await apiLikeSpeaking(item.id);
       }
     } catch (e: any) {
-      setSubmissions((prev) =>
-        prev.map((s) =>
-          s.id === item.id ? { ...s, isLiked: wasLiked, likes: prevLikes } : s
-        )
-      );
+      setLikeOverrides((prev) => ({ ...prev, [item.id]: { isLiked: wasLiked, likes: prevLikes } }));
       console.warn('Like error', e.message);
       toast.error('Error', e.message || 'Failed to update like');
     } finally {
@@ -151,7 +150,9 @@ export default function CommunityScreen() {
     try {
       await apiPostReview(selectedSub.id, numScore, feedback);
       setReviewModal(false);
-      loadFeed(strategy, 1);
+      setExtraItems([]);
+      setPage(1);
+      refresh();
     } catch (e: any) {
       toast.error('Error', e.message);
     } finally {

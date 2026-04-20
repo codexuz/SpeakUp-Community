@@ -1,13 +1,14 @@
 import { useAlert } from '@/components/CustomAlert';
 import { TG } from '@/constants/theme';
+import { useDatabase } from '@/expo-local-db/DatabaseProvider';
+import { useOfflineCache } from '@/expo-local-db/hooks/useOfflineCache';
 import { apiGetUserProfile, apiLogout } from '@/lib/api';
 import { useAuth } from '@/store/auth';
 import { useTelegram } from '@/store/telegram';
-import { useFocusEffect } from '@react-navigation/native';
 import * as Linking from 'expo-linking';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { ChevronRight, Edit2, LogOut, MapPin, Monitor, Phone, Send, Shield, User as UserIcon } from 'lucide-react-native';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -15,17 +16,27 @@ export default function ProfileScreen() {
   const { user, logout } = useAuth();
   const router = useRouter();
   const { alert } = useAlert();
+  const { isReady } = useDatabase();
   const { linked: telegramLinked, deepLink: telegramDeepLink, checkLink: checkTelegramLink } = useTelegram();
   const [stats, setStats] = useState({ followers: 0, following: 0 });
 
+  // Offline-first: cache profile stats
+  const { data: profileData } = useOfflineCache<{ stats: { followers: number; following: number } }>({
+    cacheKey: `admin_profile_${user?.id}`,
+    apiFn: () => apiGetUserProfile(user!.id),
+    enabled: isReady && !!user?.id,
+    deps: [user?.id],
+    staleTime: 60_000,
+  });
+
+  useEffect(() => {
+    if (profileData?.stats) setStats(profileData.stats);
+  }, [profileData]);
+
   useFocusEffect(
     useCallback(() => {
-      if (!user?.id) return;
-      apiGetUserProfile(user.id)
-        .then((p) => setStats(p.stats))
-        .catch(() => {});
       checkTelegramLink();
-    }, [user?.id, checkTelegramLink]),
+    }, [checkTelegramLink]),
   );
 
   const handleLogout = async () => {

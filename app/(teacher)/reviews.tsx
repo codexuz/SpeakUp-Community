@@ -1,43 +1,35 @@
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
+import { useDatabase } from '@/expo-local-db/DatabaseProvider';
+import { useOfflineCache } from '@/expo-local-db/hooks/useOfflineCache';
 import { apiFetchPendingSpeaking, TestSession } from '@/lib/api';
-import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { ChevronRight, Mic, Mic2, Users } from 'lucide-react-native';
-import React, { useCallback, useState } from 'react';
+import React from 'react';
 import {
-  ActivityIndicator,
-  FlatList,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    FlatList,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function TeacherReviewsScreen() {
   const toast = useToast();
   const router = useRouter();
-  const [sessions, setSessions] = useState<TestSession[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { isReady } = useDatabase();
 
-  const loadSessions = useCallback(async () => {
-    setLoading(true);
-    try {
-      const result = await apiFetchPendingSpeaking();
-      setSessions(result.data || []);
-    } catch (e: any) {
-      toast.error('Error', e.message || 'Failed to load pending reviews');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Offline-first: cache pending reviews as JSON
+  const { data: cachedResult, isLoading: loading } = useOfflineCache<{ data: TestSession[] }>({
+    cacheKey: 'teacher_pending_reviews',
+    apiFn: () => apiFetchPendingSpeaking(),
+    enabled: isReady,
+    staleTime: 30_000,
+  });
 
-  useFocusEffect(
-    useCallback(() => {
-      loadSessions();
-    }, [loadSessions])
-  );
+  const sessions = cachedResult?.data || [];
 
   const renderItem = ({ item }: { item: TestSession }) => {
     const testTitle = item.test?.title || 'Unknown Test';

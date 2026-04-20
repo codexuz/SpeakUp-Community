@@ -1,11 +1,12 @@
 import { useAlert } from '@/components/CustomAlert';
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
+import { useDatabase } from '@/expo-local-db/DatabaseProvider';
+import { useOfflineCache } from '@/expo-local-db/hooks/useOfflineCache';
 import { apiDeleteSpeaking, apiFetchMySpeaking, apiFetchPendingSpeaking, apiPostReview } from '@/lib/api';
 import { useAuth } from '@/store/auth';
-import { useFocusEffect } from '@react-navigation/native';
 import { Mic, Play, Square, Star, Trash2 } from 'lucide-react-native';
-import React, { useCallback, useState } from 'react';
+import React, { useState } from 'react';
 import {
     ActivityIndicator,
     FlatList,
@@ -25,9 +26,8 @@ export default function ResponsesScreen() {
   const isTeacher = user?.role === 'teacher';
   const toast = useToast();
   const { alert } = useAlert();
-  const [responses, setResponses] = useState<any[]>([]);
+  const { isReady } = useDatabase();
   const [playingId, setPlayingId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
 
   const [reviewModal, setReviewModal] = useState(false);
   const [selectedSub, setSelectedSub] = useState<any>(null);
@@ -35,28 +35,16 @@ export default function ResponsesScreen() {
   const [feedback, setFeedback] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const loadResponses = useCallback(async () => {
-    setLoading(true);
-    try {
-      if (isTeacher) {
-        const result = await apiFetchPendingSpeaking();
-        setResponses(result.data || []);
-      } else {
-        const result = await apiFetchMySpeaking();
-        setResponses(result.data || []);
-      }
-    } catch (e) {
-      console.error('Failed to load responses', e);
-    } finally {
-      setLoading(false);
-    }
-  }, [isTeacher]);
+  // Offline-first: caches full API response as JSON
+  const { data: cachedResult, isLoading: loading, refresh } = useOfflineCache<{ data: any[] }>({
+    cacheKey: isTeacher ? 'pending_speaking' : 'my_speaking',
+    apiFn: () => isTeacher ? apiFetchPendingSpeaking() : apiFetchMySpeaking(),
+    enabled: isReady,
+    deps: [isTeacher],
+    staleTime: 30_000,
+  });
 
-  useFocusEffect(
-    useCallback(() => {
-      loadResponses();
-    }, [loadResponses])
-  );
+  const responses = cachedResult?.data || [];
 
   const handleDelete = async (item: any) => {
     alert('Delete', 'Remove this recording?', [
@@ -66,7 +54,7 @@ export default function ResponsesScreen() {
           try {
             await apiDeleteSpeaking(item.id);
           } catch {}
-          loadResponses();
+          refresh();
         }
       }
     ], 'destructive');
@@ -100,7 +88,7 @@ export default function ResponsesScreen() {
     try {
       await apiPostReview(selectedSub.id, numScore, feedback);
       setReviewModal(false);
-      loadResponses();
+      refresh();
     } catch (e: any) {
       toast.error('Error', e.message);
     } finally {

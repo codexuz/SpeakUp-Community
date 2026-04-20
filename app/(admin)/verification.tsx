@@ -1,16 +1,18 @@
 import { useAlert } from '@/components/CustomAlert';
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
+import { useDatabase } from '@/expo-local-db/DatabaseProvider';
+import { useOfflineCache } from '@/expo-local-db/hooks/useOfflineCache';
 import { apiFetchAllVerifications, apiReviewVerification } from '@/lib/api';
 import { Check, Shield, X } from 'lucide-react-native';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
-    ActivityIndicator,
-    FlatList,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -19,26 +21,21 @@ type FilterStatus = 'pending' | 'approved' | 'rejected' | 'all';
 export default function AdminVerificationScreen() {
   const toast = useToast();
   const { alert } = useAlert();
-  const [requests, setRequests] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { isReady } = useDatabase();
   const [filter, setFilter] = useState<FilterStatus>('pending');
 
-  const loadRequests = useCallback(async () => {
-    setLoading(true);
-    try {
+  // Offline-first: cache verification requests
+  const { data: requests, isLoading: loading, refresh } = useOfflineCache<any[]>({
+    cacheKey: `admin_verifications_${filter}`,
+    apiFn: async () => {
       const status = filter === 'all' ? undefined : filter;
       const data = await apiFetchAllVerifications(status);
-      setRequests(data || []);
-    } catch (e: any) {
-      toast.error('Error', e.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [filter]);
-
-  useEffect(() => {
-    loadRequests();
-  }, [loadRequests]);
+      return data || [];
+    },
+    enabled: isReady,
+    deps: [filter],
+    staleTime: 30_000,
+  });
 
   const handleReview = (item: any, status: 'approved' | 'rejected') => {
     const title = status === 'approved' ? 'Approve' : 'Reject';
@@ -50,7 +47,7 @@ export default function AdminVerificationScreen() {
         onPress: async () => {
           try {
             await apiReviewVerification(item.id, { status });
-            loadRequests();
+            refresh();
           } catch (e: any) {
             toast.error('Error', e.message);
           }
@@ -104,7 +101,7 @@ export default function AdminVerificationScreen() {
       ) : (
         <FlatList
           style={{ flex: 1, backgroundColor: TG.bgSecondary }}
-          data={requests}
+          data={requests || []}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ paddingBottom: 40 }}
           showsVerticalScrollIndicator={false}
