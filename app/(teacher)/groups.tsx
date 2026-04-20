@@ -11,17 +11,17 @@ import { useRouter } from 'expo-router';
 import { Globe, Plus, Search, UserPlus, Users, X } from 'lucide-react-native';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Animated,
-    FlatList,
-    Image,
-    Platform,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Animated,
+  FlatList,
+  Image,
+  Platform,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -79,7 +79,6 @@ export default function GroupsScreen() {
   const onRefresh = useCallback(async () => {
     await refresh();
   }, [refresh]);
-  );
 
   const toggleSearch = useCallback(() => {
     if (searchVisible) {
@@ -151,11 +150,11 @@ export default function GroupsScreen() {
     try {
       await apiJoinGlobalGroup(groupId);
       toast.success('Joined', 'You joined the group');
-      loadGroups();
+      refresh();
     } catch (e: any) {
       toast.error('Error', e.message);
     }
-  }, [loadGroups, toast]);
+  }, [refresh, toast]);
 
   const filteredGroups = useMemo(() => {
     if (!searchQuery.trim()) return groups;
