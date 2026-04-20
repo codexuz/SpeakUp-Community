@@ -1,6 +1,6 @@
 import { Asset } from "expo-asset";
 import * as Crypto from "expo-crypto";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import * as SQLite from "expo-sqlite";
 
 // ─── Database Instance ──────────────────────────────────────────

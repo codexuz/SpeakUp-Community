@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 
@@ -5,6 +6,7 @@ import { getStoredAuthToken, getStoredUser } from '@/store/auth';
 
 
 const API_URL = 'https://speakup.impulselc.uz/api'; 
+const CACHE_PREFIX = '@api_cache:';
 
 function getUserAgent(): string {
   const name = Device.deviceName || Device.modelName || 'Unknown';
@@ -16,23 +18,44 @@ function getUserAgent(): string {
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_URL}${path}`;
   const token = await getStoredAuthToken();
+  const method = (options.method || 'GET').toUpperCase();
+  const isGet = method === 'GET';
+  const cacheKey = isGet ? `${CACHE_PREFIX}${path}` : null;
 
-  const res = await fetch(url, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      'User-Agent': getUserAgent(),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options.headers,
-    },
-  });
+  try {
+    const res = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': getUserAgent(),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...options.headers,
+      },
+    });
 
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(body.error || `Request failed: ${res.status}`);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({ error: res.statusText }));
+      throw new Error(body.error || `Request failed: ${res.status}`);
+    }
+
+    const data = await res.json();
+
+    // Cache successful GET responses
+    if (cacheKey) {
+      AsyncStorage.setItem(cacheKey, JSON.stringify(data)).catch(() => {});
+    }
+
+    return data;
+  } catch (err) {
+    // On network failure for GET requests, try returning cached data
+    if (cacheKey) {
+      const cached = await AsyncStorage.getItem(cacheKey).catch(() => null);
+      if (cached) {
+        return JSON.parse(cached) as T;
+      }
+    }
+    throw err;
   }
-
-  return res.json();
 }
 
 // =============================================
