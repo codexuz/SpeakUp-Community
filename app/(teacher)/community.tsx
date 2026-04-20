@@ -1,20 +1,19 @@
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
-import { useDatabase } from '@/expo-local-db/DatabaseProvider';
-import { useOfflineCache } from '@/expo-local-db/hooks/useOfflineCache';
+import { useCachedFetch } from '@/hooks/useCachedFetch';
 import { apiFetchCommunityFeed, apiLikeSpeaking, apiUnlikeSpeaking } from '@/lib/api';
 import { useAuth } from '@/store/auth';
 import { useRouter } from 'expo-router';
 import { ChevronRight, Flame, Heart, MessageCircle, Mic, Star, TrendingUp } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    FlatList,
-    Image,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  FlatList,
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -25,7 +24,6 @@ export default function CommunityScreen() {
   const { user } = useAuth();
   const toast = useToast();
   const router = useRouter();
-  const { isReady } = useDatabase();
 
   const [strategy, setStrategy] = useState<Strategy>('latest');
   const [examType, setExamType] = useState<ExamType>('cefr');
@@ -34,17 +32,18 @@ export default function CommunityScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [pendingLikeIds, setPendingLikeIds] = useState<Set<string>>(new Set());
   const [extraItems, setExtraItems] = useState<any[]>([]);
+  const [likeOverrides, setLikeOverrides] = useState<Record<string, { isLiked: boolean; likes: number }>>({});
 
-  // Offline-first: caches page 1 as JSON in SQLite
-  const { data: cachedFeed, isLoading: loading } = useOfflineCache<{ data: any[]; pagination: any }>({
+  const { data: cachedFeed, isLoading: loading } = useCachedFetch<{ data: any[]; pagination: any }>({
     cacheKey: `teacher_community_${strategy}_${examType}`,
     apiFn: () => apiFetchCommunityFeed(strategy, 1, 20, strategy === 'top' ? examType : undefined),
-    enabled: isReady,
     deps: [strategy, examType],
     staleTime: 30_000,
   });
 
-  const submissions = [...(cachedFeed?.data || []), ...extraItems];
+  const submissions = [...(cachedFeed?.data || []), ...extraItems].map((s) =>
+    likeOverrides[s.id] ? { ...s, ...likeOverrides[s.id] } : s
+  );
 
   useEffect(() => {
     setExtraItems([]);
@@ -88,11 +87,7 @@ export default function CommunityScreen() {
     const nextLiked = !wasLiked;
     const nextLikes = Math.max(0, prevLikes + (wasLiked ? -1 : 1));
 
-    setSubmissions((prev) =>
-      prev.map((s) =>
-        s.id === item.id ? { ...s, isLiked: nextLiked, likes: nextLikes } : s
-      )
-    );
+    setLikeOverrides((prev) => ({ ...prev, [item.id]: { isLiked: nextLiked, likes: nextLikes } }));
     setPendingLikeIds((prev) => {
       const next = new Set(prev);
       next.add(item.id);
@@ -106,11 +101,7 @@ export default function CommunityScreen() {
         await apiLikeSpeaking(item.id);
       }
     } catch (e: any) {
-      setSubmissions((prev) =>
-        prev.map((s) =>
-          s.id === item.id ? { ...s, isLiked: wasLiked, likes: prevLikes } : s
-        )
-      );
+      setLikeOverrides((prev) => ({ ...prev, [item.id]: { isLiked: wasLiked, likes: prevLikes } }));
       console.warn('Like error', e.message);
       toast.error('Error', e.message || 'Failed to update like');
     } finally {

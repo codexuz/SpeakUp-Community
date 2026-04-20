@@ -1,8 +1,7 @@
 import { useAlert } from '@/components/CustomAlert';
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
-import { useDatabase } from '@/expo-local-db/DatabaseProvider';
-import { useOfflineCache } from '@/expo-local-db/hooks/useOfflineCache';
+import { useCachedFetch } from '@/hooks/useCachedFetch';
 import { apiDeleteCourse, apiFetchAdminCourses } from '@/lib/api';
 import { Course } from '@/lib/types';
 import { useRouter } from 'expo-router';
@@ -23,13 +22,10 @@ export default function AdminCoursesScreen() {
   const router = useRouter();
   const toast = useToast();
   const { alert } = useAlert();
-  const { isReady } = useDatabase();
 
-  // Offline-first: cache admin courses
-  const { data: cachedResult, isLoading: loading, refresh } = useOfflineCache<{ data: Course[] }>({
+  const { data: cachedResult, isLoading: loading, refresh } = useCachedFetch<{ data: Course[] }>({
     cacheKey: 'admin_courses',
     apiFn: () => apiFetchAdminCourses(),
-    enabled: isReady,
     staleTime: 60_000,
   });
 

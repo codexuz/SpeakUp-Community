@@ -1,7 +1,6 @@
 import { useAlert } from '@/components/CustomAlert';
 import { TG } from '@/constants/theme';
-import { useDatabase } from '@/expo-local-db/DatabaseProvider';
-import { useOfflineCache } from '@/expo-local-db/hooks/useOfflineCache';
+import { useCachedFetch } from '@/hooks/useCachedFetch';
 import { apiGetUserProfile, apiLogout } from '@/lib/api';
 import { useAuth } from '@/store/auth';
 import { useTelegram } from '@/store/telegram';
@@ -16,15 +15,13 @@ export default function ProfileScreen() {
   const { user, logout } = useAuth();
   const router = useRouter();
   const { alert } = useAlert();
-  const { isReady } = useDatabase();
   const { linked: telegramLinked, deepLink: telegramDeepLink, checkLink: checkTelegramLink } = useTelegram();
   const [stats, setStats] = useState({ followers: 0, following: 0 });
 
-  // Offline-first: cache profile stats
-  const { data: profileData } = useOfflineCache<{ stats: { followers: number; following: number } }>({
+  const { data: profileData } = useCachedFetch<{ stats: { followers: number; following: number } }>({
     cacheKey: `admin_profile_${user?.id}`,
     apiFn: () => apiGetUserProfile(user!.id),
-    enabled: isReady && !!user?.id,
+    enabled: !!user?.id,
     deps: [user?.id],
     staleTime: 60_000,
   });

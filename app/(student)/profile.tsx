@@ -1,7 +1,6 @@
 import { useAlert } from '@/components/CustomAlert';
 import { TG } from '@/constants/theme';
-import { useDatabase } from '@/expo-local-db/DatabaseProvider';
-import { useOfflineCache } from '@/expo-local-db/hooks/useOfflineCache';
+import { useCachedFetch } from '@/hooks/useCachedFetch';
 import { apiFetchAchievements, apiFetchProgress, apiFetchReputation, apiGetUserProfile, apiLogout } from '@/lib/api';
 import type { Achievement, UserProgress, UserReputation } from '@/lib/types';
 import { useAuth } from '@/store/auth';
@@ -85,7 +84,6 @@ export default function ProfileScreen() {
   const { user, logout } = useAuth();
   const router = useRouter();
   const { alert } = useAlert();
-  const { isReady } = useDatabase();
   const { linked: telegramLinked, deepLink: telegramDeepLink, checkLink: checkTelegramLink } = useTelegram();
   
   const [refreshing, setRefreshing] = useState(false);
@@ -94,8 +92,7 @@ export default function ProfileScreen() {
   const [reputation, setReputation] = useState<UserReputation | null>(null);
   const [achievements, setAchievements] = useState<Achievement[]>([]);
 
-  // Offline-first: cache all profile data as one blob
-  const { data: profileData, refresh } = useOfflineCache<{
+  const { data: profileData, refresh } = useCachedFetch<{
     stats: { followers: number; following: number };
     progress: UserProgress | null;
     reputation: UserReputation | null;
@@ -116,7 +113,7 @@ export default function ProfileScreen() {
         achievements: achRes.status === 'fulfilled' ? (achRes.value.data || []) : [],
       };
     },
-    enabled: isReady && !!user?.id,
+    enabled: !!user?.id,
     deps: [user?.id],
     staleTime: 60_000,
   });

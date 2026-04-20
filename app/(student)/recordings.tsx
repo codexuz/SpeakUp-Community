@@ -1,36 +1,32 @@
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
-import { useDatabase } from '@/expo-local-db/DatabaseProvider';
-import { useOfflineCache } from '@/expo-local-db/hooks/useOfflineCache';
+import { useCachedFetch } from '@/hooks/useCachedFetch';
 import { apiDeleteSession, apiFetchMySpeaking, TestSession } from '@/lib/api';
 import { useRouter } from 'expo-router';
 import { Check, ChevronRight, Mic, Star, Trash2, X } from 'lucide-react-native';
 import React, { useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    FlatList,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function StudentRecordingsScreen() {
   const router = useRouter();
   const toast = useToast();
-  const { isReady } = useDatabase();
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
 
-  // Offline-first: cache recordings
-  const { data: cachedResult, isLoading: loading, isRefreshing: refreshing, refresh } = useOfflineCache<{ data: TestSession[] }>({
+  const { data: cachedResult, isLoading: loading, isRefreshing: refreshing, refresh } = useCachedFetch<{ data: TestSession[] }>({
     cacheKey: 'student_recordings',
     apiFn: () => apiFetchMySpeaking(),
-    enabled: isReady,
     staleTime: 60_000,
   });
 

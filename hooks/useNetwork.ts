@@ -5,15 +5,9 @@ export interface NetworkStatus {
   isConnected: boolean;
   isInternetReachable: boolean | null;
   type: string | null;
-  /** Timestamp of last connectivity change */
   lastChangedAt: number;
 }
 
-/**
- * Telegram-style network hook.
- * Returns real-time connectivity status and a `waitForOnline()` promise
- * that resolves once a connection is re-established.
- */
 export function useNetwork() {
   const [status, setStatus] = useState<NetworkStatus>({
     isConnected: true,
@@ -35,7 +29,6 @@ export function useNetwork() {
       });
 
       if (connected) {
-        // Resolve all waiters
         resolversRef.current.forEach((resolve) => resolve());
         resolversRef.current = [];
       }
@@ -44,7 +37,6 @@ export function useNetwork() {
     return () => unsubscribe();
   }, []);
 
-  /** Returns a promise that resolves when the device comes back online */
   const waitForOnline = useCallback((): Promise<void> => {
     if (status.isConnected) return Promise.resolve();
     return new Promise<void>((resolve) => {
@@ -53,17 +45,4 @@ export function useNetwork() {
   }, [status.isConnected]);
 
   return { ...status, waitForOnline };
-}
-
-// ─── Singleton for non-hook contexts ─────────────────────────
-
-let _connected = true;
-
-NetInfo.addEventListener((state) => {
-  _connected = !!state.isConnected;
-});
-
-/** Check connectivity outside of React components */
-export function isOnline(): boolean {
-  return _connected;
 }

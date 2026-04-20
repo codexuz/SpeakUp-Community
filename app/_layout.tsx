@@ -6,17 +6,14 @@ import { StatusBar, StyleSheet, View } from 'react-native';
 import 'react-native-reanimated';
 
 import { CustomAlertProvider } from '@/components/CustomAlert';
+import { OfflineIndicator } from '@/components/OfflineIndicator';
 import TelegramLinkModal from '@/components/TelegramLinkModal';
 import { ToastProvider } from '@/components/Toast';
 import { TG } from '@/constants/theme';
-import { OfflineIndicator } from '@/expo-local-db/components';
-import { DatabaseProvider } from '@/expo-local-db/DatabaseProvider';
-import { clearOldCache } from '@/expo-local-db/mediaCache';
-import { startSyncService, stopSyncService } from '@/expo-local-db/syncService';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useInAppUpdates } from '@/hooks/useInAppUpdates';
 import { useNotifications } from '@/hooks/useNotifications';
-import { AuthProvider, getStoredAuthToken, useAuth } from '@/store/auth';
+import { AuthProvider, useAuth } from '@/store/auth';
 import { TelegramProvider, useTelegram } from '@/store/telegram';
 
 SplashScreen.preventAutoHideAsync();
@@ -35,23 +32,6 @@ function RootNavigator() {
 
   useNotifications();
   useInAppUpdates();
-
-  // ── Offline-first: init media cache ──────────────────────────
-  useEffect(() => {
-    clearOldCache(); // Prune stale media cache
-  }, []);
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      const API_URL = 'https://speakup.impulselc.uz/api';
-      // The sync service needs a synchronous token getter.
-      // We keep a cached reference updated from the auth store.
-      const tokenRef = { current: null as string | null };
-      getStoredAuthToken().then((t) => { tokenRef.current = t; });
-      startSyncService(API_URL, () => tokenRef.current);
-    }
-    return () => stopSyncService();
-  }, [isAuthenticated]);
 
   useEffect(() => {
     if (!isLoading) {
@@ -161,15 +141,13 @@ function RootNavigator() {
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <DatabaseProvider>
-        <TelegramProvider>
-          <ToastProvider>
-            <CustomAlertProvider>
-              <RootNavigator />
-            </CustomAlertProvider>
-          </ToastProvider>
-        </TelegramProvider>
-      </DatabaseProvider>
+      <TelegramProvider>
+        <ToastProvider>
+          <CustomAlertProvider>
+            <RootNavigator />
+          </CustomAlertProvider>
+        </ToastProvider>
+      </TelegramProvider>
     </AuthProvider>
   );
 }

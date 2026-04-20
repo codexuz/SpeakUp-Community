@@ -1,7 +1,6 @@
 import { TG } from '@/constants/theme';
-import { useDatabase } from '@/expo-local-db/DatabaseProvider';
-import { useOfflineFirst } from '@/expo-local-db/hooks/useOfflineFirst';
-import { offlineTests } from '@/expo-local-db/offlineApi';
+import { useCachedFetch } from '@/hooks/useCachedFetch';
+import { apiFetchTests } from '@/lib/api';
 import type { Test } from '@/lib/data';
 import { useAuth } from '@/store/auth';
 import { useRouter } from 'expo-router';
@@ -13,16 +12,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 export default function HomeScreen() {
   const { user } = useAuth();
   const router = useRouter();
-  const { isReady } = useDatabase();
 
   const isStudent = user?.role !== 'teacher' && user?.role !== 'admin';
 
-  // Offline-first: reads from SQLite instantly, background-fetches when online
-  const { data: tests, isLoading: loading, isRefreshing: refreshing, refresh } = useOfflineFirst<Test>({
-    ...offlineTests({ isPublished: true }),
-    limit: 20,
-    enabled: isReady && isStudent,
+  const { data: cachedTests, isLoading: loading, isRefreshing: refreshing, refresh } = useCachedFetch<{ data: Test[] }>({
+    cacheKey: 'published_tests',
+    apiFn: () => apiFetchTests({ isPublished: true, limit: 20 }),
+    enabled: isStudent,
+    staleTime: 5 * 60_000,
   });
+  const tests = cachedTests?.data ?? [];
 
   const onRefresh = useCallback(async () => {
     await refresh();

@@ -1,8 +1,7 @@
 import { useAlert } from '@/components/CustomAlert';
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
-import { useDatabase } from '@/expo-local-db/DatabaseProvider';
-import { useOfflineCache } from '@/expo-local-db/hooks/useOfflineCache';
+import { useCachedFetch } from '@/hooks/useCachedFetch';
 import { apiDeleteTest, apiFetchTests } from '@/lib/api';
 import { useRouter } from 'expo-router';
 import { BookOpen, Check, ChevronRight, Plus, Trash2, X } from 'lucide-react-native';
@@ -34,7 +33,6 @@ export default function AdminTestsScreen() {
   const router = useRouter();
   const toast = useToast();
   const { alert } = useAlert();
-  const { isReady } = useDatabase();
   const [activeTab, setActiveTab] = useState<FilterTab>('all');
   const [extraTests, setExtraTests] = useState<Test[]>([]);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -46,15 +44,13 @@ export default function AdminTestsScreen() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [deleting, setDeleting] = useState(false);
 
-  // Offline-first: cache page 1
-  const { data: cachedResult, isLoading: loading, refresh } = useOfflineCache<{ data: Test[]; meta?: any }>({
+  const { data: cachedResult, isLoading: loading, refresh } = useCachedFetch<{ data: Test[]; meta?: any }>({
     cacheKey: `admin_tests_${activeTab}`,
     apiFn: () => apiFetchTests({
       testType: activeTab === 'all' ? undefined : activeTab,
       page: 1,
       limit: PAGE_LIMIT,
     }),
-    enabled: isReady,
     deps: [activeTab],
     staleTime: 60_000,
   });

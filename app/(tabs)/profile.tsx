@@ -1,8 +1,7 @@
 import { useAlert } from '@/components/CustomAlert';
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
-import { useDatabase } from '@/expo-local-db/DatabaseProvider';
-import { useOfflineCache } from '@/expo-local-db/hooks/useOfflineCache';
+import { useCachedFetch } from '@/hooks/useCachedFetch';
 import { apiFetchMyVerificationStatus, apiGetUserProfile, apiLogout, apiRequestTeacherVerification } from '@/lib/api';
 import { useAuth } from '@/store/auth';
 import { useRouter } from 'expo-router';
@@ -16,18 +15,16 @@ export default function ProfileScreen() {
   const router = useRouter();
   const toast = useToast();
   const { alert } = useAlert();
-  const { isReady } = useDatabase();
   const [verificationStatus, setVerificationStatus] = useState<string | null>(null);
   const [verificationLoading, setVerificationLoading] = useState(false);
   const [verifyModal, setVerifyModal] = useState(false);
   const [verifyReason, setVerifyReason] = useState('');
   const [stats, setStats] = useState({ followers: 0, following: 0 });
 
-  // Offline-first: cache profile data
-  const { data: profileData } = useOfflineCache<{ user: any; stats: any }>({
+  const { data: profileData } = useCachedFetch<{ user: any; stats: any }>({
     cacheKey: `profile_${user?.id}`,
     apiFn: () => apiGetUserProfile(user!.id),
-    enabled: isReady && !!user?.id,
+    enabled: !!user?.id,
     deps: [user?.id],
     staleTime: 60_000,
   });
@@ -40,11 +37,10 @@ export default function ProfileScreen() {
     }
   }, [profileData]);
 
-  // Offline-first: cache verification status
-  const { data: verificationData } = useOfflineCache<{ status: string } | null>({
+  const { data: verificationData } = useCachedFetch<{ status: string } | null>({
     cacheKey: `verification_status_${user?.id}`,
     apiFn: () => apiFetchMyVerificationStatus(),
-    enabled: isReady && !!user?.id && user?.role !== 'teacher' && !user?.verifiedTeacher,
+    enabled: !!user?.id && user?.role !== 'teacher' && !user?.verifiedTeacher,
     deps: [user?.id, user?.role, user?.verifiedTeacher],
     staleTime: 2 * 60_000,
   });

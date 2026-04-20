@@ -1,25 +1,24 @@
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
-import { useDatabase } from '@/expo-local-db/DatabaseProvider';
-import { useOfflineCache } from '@/expo-local-db/hooks/useOfflineCache';
+import { useCachedFetch } from '@/hooks/useCachedFetch';
 import { apiFetchCommunityFeed, apiPostReview } from '@/lib/api';
 import { useAuth } from '@/store/auth';
 import { useRouter } from 'expo-router';
 import { ChevronRight, Flame, Heart, MessageCircle, Mic, Star, TrendingUp } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    FlatList,
-    Image,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    Pressable,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -31,7 +30,6 @@ export default function CommunityScreen() {
   const isTeacher = user?.role === 'teacher';
   const toast = useToast();
   const router = useRouter();
-  const { isReady } = useDatabase();
 
   const [strategy, setStrategy] = useState<Strategy>('latest');
   const [examType, setExamType] = useState<ExamType>('cefr');
@@ -46,11 +44,9 @@ export default function CommunityScreen() {
   const [feedback, setFeedback] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // Offline-first: cache page 1
-  const { data: cachedFeed, isLoading: loading, refresh } = useOfflineCache<{ data: any[]; pagination: any }>({
+  const { data: cachedFeed, isLoading: loading, refresh } = useCachedFetch<{ data: any[]; pagination: any }>({
     cacheKey: `student_community_${strategy}_${examType}`,
     apiFn: () => apiFetchCommunityFeed(strategy, 1, 20, strategy === 'top' ? examType : undefined),
-    enabled: isReady,
     deps: [strategy, examType],
     staleTime: 60_000,
   });

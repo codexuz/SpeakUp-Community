@@ -1,6 +1,5 @@
 import { TG } from '@/constants/theme';
-import { useDatabase } from '@/expo-local-db/DatabaseProvider';
-import { useOfflineCache } from '@/expo-local-db/hooks/useOfflineCache';
+import { useCachedFetch } from '@/hooks/useCachedFetch';
 import {
   apiFetchChallenges,
   apiFetchCourses,
@@ -72,7 +71,6 @@ const COLORS = {
 export default function StudentHomeScreen() {
   const { user } = useAuth();
   const router = useRouter();
-  const { isReady } = useDatabase();
   const [dailyChallenge, setDailyChallenge] = useState<Challenge | null>(null);
   const [activeCourse, setActiveCourse] = useState<Course | null>(null);
   const [userRank, setUserRank] = useState<number>(0);
@@ -85,8 +83,7 @@ export default function StudentHomeScreen() {
     else setGreeting('Good Evening');
   }, []);
 
-  // Offline-first: cache all dashboard data as one JSON blob
-  const { data: dashboardData, isLoading: loading, isRefreshing: refreshing, refresh } = useOfflineCache<{
+  const { data: dashboardData, isLoading: loading, isRefreshing: refreshing, refresh } = useCachedFetch<{
     progress: UserProgress | null;
     summary: WeeklySummary | null;
     challenges: Challenge[];
@@ -115,7 +112,7 @@ export default function StudentHomeScreen() {
         tests: testsRes.status === 'fulfilled' ? (testsRes.value.data || []) : [],
       };
     },
-    enabled: isReady,
+    enabled: true,
     staleTime: 60_000,
   });
 

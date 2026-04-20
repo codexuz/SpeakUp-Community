@@ -1,6 +1,5 @@
 import { TG } from '@/constants/theme';
-import { useDatabase } from '@/expo-local-db/DatabaseProvider';
-import { useOfflineCache } from '@/expo-local-db/hooks/useOfflineCache';
+import { useCachedFetch } from '@/hooks/useCachedFetch';
 import { apiFetchAnalyticsOverview, apiFetchPendingSpeaking, apiFetchPendingWritingReviews } from '@/lib/api';
 import { useAuth } from '@/store/auth';
 import { useRouter } from 'expo-router';
@@ -21,13 +20,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 export default function TeacherHomeScreen() {
   const { user } = useAuth();
   const router = useRouter();
-  const { isReady } = useDatabase();
   const [pendingCount, setPendingCount] = useState(0);
   const [pendingWritingCount, setPendingWritingCount] = useState(0);
   const [overview, setOverview] = useState<any>(null);
 
-  // Offline-first: cache teacher dashboard data as JSON
-  const { data: dashboardData, isLoading: loading, isRefreshing: refreshing, refresh } = useOfflineCache<{
+  const { data: dashboardData, isLoading: loading, isRefreshing: refreshing, refresh } = useCachedFetch<{
     pending: any;
     pendingWriting: any;
     analytics: any;
@@ -41,7 +38,7 @@ export default function TeacherHomeScreen() {
       ]);
       return { pending, pendingWriting, analytics };
     },
-    enabled: isReady,
+    enabled: true,
     staleTime: 30_000,
   });
 

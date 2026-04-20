@@ -1,6 +1,5 @@
 import { TG } from '@/constants/theme';
-import { useDatabase } from '@/expo-local-db/DatabaseProvider';
-import { useOfflineCache } from '@/expo-local-db/hooks/useOfflineCache';
+import { useCachedFetch } from '@/hooks/useCachedFetch';
 import { apiFetchAllVerifications, apiFetchAnalyticsOverview, apiFetchTests } from '@/lib/api';
 import { useAuth } from '@/store/auth';
 import { useRouter } from 'expo-router';
@@ -20,13 +19,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 export default function AdminHomeScreen() {
   const { user } = useAuth();
   const router = useRouter();
-  const { isReady } = useDatabase();
   const [pendingVerifications, setPendingVerifications] = useState(0);
   const [overview, setOverview] = useState<any>(null);
   const [testCount, setTestCount] = useState(0);
 
-  // Offline-first: cache dashboard data
-  const { data: dashboardData, isLoading: loading, isRefreshing: refreshing, refresh: onRefresh } = useOfflineCache<{
+  const { data: dashboardData, isLoading: loading, isRefreshing: refreshing, refresh: onRefresh } = useCachedFetch<{
     pendingVerifications: number;
     overview: any;
     testCount: number;
@@ -44,7 +41,7 @@ export default function AdminHomeScreen() {
         testCount: (tests as any)?.meta?.total ?? (tests as any)?.data?.length ?? 0,
       };
     },
-    enabled: isReady,
+    enabled: true,
     staleTime: 60_000,
   });
 

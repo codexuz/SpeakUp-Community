@@ -1,27 +1,25 @@
 import { useAlert } from '@/components/CustomAlert';
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
-import { useDatabase } from '@/expo-local-db/DatabaseProvider';
-import { useOfflineFirst } from '@/expo-local-db/hooks/useOfflineFirst';
-import { offlineMyGroups } from '@/expo-local-db/offlineApi';
-import { apiJoinGlobalGroup, apiRequestJoinGroup, apiSearchGroups } from '@/lib/api';
+import { useCachedFetch } from '@/hooks/useCachedFetch';
+import { apiFetchMyGroups, apiJoinGlobalGroup, apiRequestJoinGroup, apiSearchGroups } from '@/lib/api';
 import type { Group } from '@/lib/groups';
 import { useAuth } from '@/store/auth';
 import { useRouter } from 'expo-router';
 import { Globe, LogIn, Plus, Search, UserPlus, Users, X } from 'lucide-react-native';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Animated,
-    FlatList,
-    Image,
-    Platform,
-    RefreshControl,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Animated,
+  FlatList,
+  Image,
+  Platform,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -59,11 +57,12 @@ export default function GroupsScreen() {
   const router = useRouter();
   const toast = useToast();
   const { alert } = useAlert();
-  const { isReady } = useDatabase();
-  const { data: groups, isLoading: loading, isRefreshing: refreshing, refresh } = useOfflineFirst<Group>({
-    ...offlineMyGroups(),
-    enabled: isReady,
+  const { data: cachedGroups, isLoading: loading, isRefreshing: refreshing, refresh } = useCachedFetch<Group[]>({
+    cacheKey: 'my_groups',
+    apiFn: () => apiFetchMyGroups(),
+    staleTime: 2 * 60_000,
   });
+  const groups = cachedGroups ?? [];
   const [searchVisible, setSearchVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchMode, setSearchMode] = useState<'local' | 'global'>('local');

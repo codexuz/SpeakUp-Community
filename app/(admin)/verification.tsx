@@ -1,8 +1,7 @@
 import { useAlert } from '@/components/CustomAlert';
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
-import { useDatabase } from '@/expo-local-db/DatabaseProvider';
-import { useOfflineCache } from '@/expo-local-db/hooks/useOfflineCache';
+import { useCachedFetch } from '@/hooks/useCachedFetch';
 import { apiFetchAllVerifications, apiReviewVerification } from '@/lib/api';
 import { Check, Shield, X } from 'lucide-react-native';
 import React, { useState } from 'react';
@@ -21,18 +20,15 @@ type FilterStatus = 'pending' | 'approved' | 'rejected' | 'all';
 export default function AdminVerificationScreen() {
   const toast = useToast();
   const { alert } = useAlert();
-  const { isReady } = useDatabase();
   const [filter, setFilter] = useState<FilterStatus>('pending');
 
-  // Offline-first: cache verification requests
-  const { data: requests, isLoading: loading, refresh } = useOfflineCache<any[]>({
+  const { data: requests, isLoading: loading, refresh } = useCachedFetch<any[]>({
     cacheKey: `admin_verifications_${filter}`,
     apiFn: async () => {
       const status = filter === 'all' ? undefined : filter;
       const data = await apiFetchAllVerifications(status);
       return data || [];
     },
-    enabled: isReady,
     deps: [filter],
     staleTime: 30_000,
   });

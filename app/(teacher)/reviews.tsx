@@ -1,7 +1,6 @@
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
-import { useDatabase } from '@/expo-local-db/DatabaseProvider';
-import { useOfflineCache } from '@/expo-local-db/hooks/useOfflineCache';
+import { useCachedFetch } from '@/hooks/useCachedFetch';
 import { apiFetchPendingSpeaking, TestSession } from '@/lib/api';
 import { useRouter } from 'expo-router';
 import { ChevronRight, Mic, Mic2, Users } from 'lucide-react-native';
@@ -19,13 +18,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 export default function TeacherReviewsScreen() {
   const toast = useToast();
   const router = useRouter();
-  const { isReady } = useDatabase();
 
-  // Offline-first: cache pending reviews as JSON
-  const { data: cachedResult, isLoading: loading } = useOfflineCache<{ data: TestSession[] }>({
+  const { data: cachedResult, isLoading: loading } = useCachedFetch<{ data: TestSession[] }>({
     cacheKey: 'teacher_pending_reviews',
     apiFn: () => apiFetchPendingSpeaking(),
-    enabled: isReady,
     staleTime: 30_000,
   });
 

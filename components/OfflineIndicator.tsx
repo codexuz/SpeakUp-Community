@@ -1,12 +1,7 @@
-/**
- * Telegram-style connection status banner.
- * Slides down when offline, shows "Connecting..." / "Updating..." states.
- */
-
 import { TG } from "@/constants/theme";
+import { useNetwork } from "@/hooks/useNetwork";
 import React, { useEffect, useRef } from "react";
 import { Animated, StyleSheet, Text, View } from "react-native";
-import { useNetwork } from "../hooks/useNetwork";
 
 export function OfflineIndicator() {
   const { isConnected, isInternetReachable } = useNetwork();

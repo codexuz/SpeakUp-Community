@@ -1,23 +1,22 @@
 import { useAlert } from '@/components/CustomAlert';
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
-import { useDatabase } from '@/expo-local-db/DatabaseProvider';
-import { useOfflineCache } from '@/expo-local-db/hooks/useOfflineCache';
+import { useCachedFetch } from '@/hooks/useCachedFetch';
 import { apiDeleteSpeaking, apiFetchMySpeaking, apiFetchPendingSpeaking, apiPostReview } from '@/lib/api';
 import { useAuth } from '@/store/auth';
 import { Mic, Play, Square, Star, Trash2 } from 'lucide-react-native';
 import React, { useState } from 'react';
 import {
-    ActivityIndicator,
-    FlatList,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -26,7 +25,6 @@ export default function ResponsesScreen() {
   const isTeacher = user?.role === 'teacher';
   const toast = useToast();
   const { alert } = useAlert();
-  const { isReady } = useDatabase();
   const [playingId, setPlayingId] = useState<string | null>(null);
 
   const [reviewModal, setReviewModal] = useState(false);
@@ -35,11 +33,9 @@ export default function ResponsesScreen() {
   const [feedback, setFeedback] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // Offline-first: caches full API response as JSON
-  const { data: cachedResult, isLoading: loading, refresh } = useOfflineCache<{ data: any[] }>({
+  const { data: cachedResult, isLoading: loading, refresh } = useCachedFetch<{ data: any[] }>({
     cacheKey: isTeacher ? 'pending_speaking' : 'my_speaking',
     apiFn: () => isTeacher ? apiFetchPendingSpeaking() : apiFetchMySpeaking(),
-    enabled: isReady,
     deps: [isTeacher],
     staleTime: 30_000,
   });
