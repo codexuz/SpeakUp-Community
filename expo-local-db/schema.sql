@@ -258,14 +258,14 @@ CREATE INDEX IF NOT EXISTS idx_teacher_verifications_user ON teacher_verificatio
 CREATE INDEX IF NOT EXISTS idx_teacher_verifications_status ON teacher_verifications(status);
 -- ─── Group Messages ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS group_messages (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id TEXT PRIMARY KEY,
   group_id TEXT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
   sender_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   type TEXT NOT NULL DEFAULT 'text',
   text TEXT,
   entities TEXT,
   -- JSON string
-  reply_to_id INTEGER REFERENCES group_messages(id) ON DELETE
+  reply_to_id TEXT REFERENCES group_messages(id) ON DELETE
   SET
     NULL,
     is_edited INTEGER NOT NULL DEFAULT 0,
@@ -282,7 +282,7 @@ CREATE TABLE IF NOT EXISTS group_message_read_cursors (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   group_id TEXT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  last_read_msg_id INTEGER NOT NULL,
+  last_read_msg_id TEXT NOT NULL,
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
   sync_status TEXT NOT NULL DEFAULT 'pending',
   last_synced_at TEXT,
@@ -293,7 +293,7 @@ CREATE INDEX IF NOT EXISTS idx_read_cursors_user ON group_message_read_cursors(u
 -- ─── Group Message Attachments ──────────────────────────────────
 CREATE TABLE IF NOT EXISTS group_message_attachments (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  message_id INTEGER NOT NULL REFERENCES group_messages(id) ON DELETE CASCADE,
+  message_id TEXT NOT NULL REFERENCES group_messages(id) ON DELETE CASCADE,
   url TEXT NOT NULL,
   file_name TEXT NOT NULL,
   file_size INTEGER NOT NULL,

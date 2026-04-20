@@ -1,7 +1,7 @@
-import * as SQLite from "expo-sqlite";
-import * as FileSystem from "expo-file-system";
 import { Asset } from "expo-asset";
 import * as Crypto from "expo-crypto";
+import * as FileSystem from "expo-file-system";
+import * as SQLite from "expo-sqlite";
 
 // ─── Database Instance ──────────────────────────────────────────
 
@@ -39,11 +39,22 @@ async function initializeDatabase(db: SQLite.SQLiteDatabase): Promise<void> {
     // First run – create all tables
     const schemaSQL = await loadSchemaSQL();
     await db.execAsync(schemaSQL);
-    await setKV(db, "schema_version", "1");
+    await setKV(db, "schema_version", "2");
+  }
+
+  // Migration: v1 → v2 (group_messages.id changed from INTEGER to TEXT)
+  if (version === '1') {
+    // Drop and recreate affected tables — messages are re-synced from server
+    await db.execAsync(`DROP TABLE IF EXISTS group_message_attachments`);
+    await db.execAsync(`DROP TABLE IF EXISTS group_message_read_cursors`);
+    await db.execAsync(`DROP TABLE IF EXISTS group_messages`);
+    const schemaSQL = await loadSchemaSQL();
+    await db.execAsync(schemaSQL);
+    await setKV(db, 'schema_version', '2');
   }
 
   // Future migrations go here:
-  // if (version === '1') { await migrateV1ToV2(db); await setKV(db, 'schema_version', '2'); }
+  // if (version === '2') { await migrateV2ToV3(db); await setKV(db, 'schema_version', '3'); }
 }
 
 async function loadSchemaSQL(): Promise<string> {

@@ -1,11 +1,11 @@
 import NetInfo, { NetInfoState } from "@react-native-community/netinfo";
+import * as SQLite from "expo-sqlite";
 import {
-  getPendingSyncItems,
-  removeSyncItem,
-  markSyncItemRetry,
   bulkUpsert,
-  SyncQueueItem,
   getDatabase,
+  getPendingSyncItems,
+  markSyncItemRetry,
+  removeSyncItem
 } from "./database";
 
 // ─── Configuration ──────────────────────────────────────────────
@@ -213,13 +213,13 @@ export async function resolveConflict(
 
     await db.runAsync(
       `UPDATE ${tableName} SET ${setClauses}, sync_status = 'synced', last_synced_at = datetime('now') WHERE id = ?`,
-      [...values, id]
+      [...values, id] as SQLite.SQLiteBindParams
     );
   } else {
     // keep_local → re-queue for push
     await db.runAsync(
       `UPDATE ${tableName} SET sync_status = 'pending' WHERE id = ?`,
-      [id]
+      [id] as SQLite.SQLiteBindParams
     );
   }
 }
