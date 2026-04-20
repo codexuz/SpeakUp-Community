@@ -1,112 +1,187 @@
 import { TG } from '@/constants/theme';
 import { useTelegram } from '@/store/telegram';
 import * as Linking from 'expo-linking';
-import { Send } from 'lucide-react-native';
-import React from 'react';
-import { ActivityIndicator, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useSegments } from 'expo-router';
+import { Send, X } from 'lucide-react-native';
+import React, { useEffect, useRef } from 'react';
+import {
+  ActivityIndicator,
+  Animated,
+  Dimensions,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function TelegramLinkModal() {
-  const { linked, deepLink, loading, checkLink } = useTelegram();
+  const { linked, deepLink, loading, dismissed, checkLink, dismiss, resetDismiss } = useTelegram();
+  const segments = useSegments();
+  const translateY = useRef(new Animated.Value(200)).current;
+  const visible = !linked && !dismissed;
+
+  // Reshow sheet on navigation change
+  useEffect(() => {
+    if (!linked) resetDismiss();
+  }, [segments.join('/'), linked]);
+
+  // Animate in/out
+  useEffect(() => {
+    Animated.spring(translateY, {
+      toValue: visible ? 0 : 200,
+      useNativeDriver: true,
+      tension: 65,
+      friction: 11,
+    }).start();
+  }, [visible]);
 
   if (linked) return null;
 
   return (
-    <Modal visible={!linked} transparent animationType="fade">
-      <View style={styles.overlay}>
-        <View style={styles.card}>
+    <Animated.View
+      style={[styles.container, { transform: [{ translateY }] }]}
+      pointerEvents={visible ? 'auto' : 'none'}
+    >
+      <View style={styles.sheet}>
+        {/* Dismiss button */}
+        <TouchableOpacity style={styles.closeBtn} onPress={dismiss} activeOpacity={0.7} hitSlop={8}>
+          <X size={18} color={TG.textSecondary} strokeWidth={2} />
+        </TouchableOpacity>
+
+        <View style={styles.row}>
           <View style={styles.iconWrap}>
-            <Send size={32} color={TG.accent} strokeWidth={1.5} />
+            <Send size={20} color="#fff" strokeWidth={2} />
           </View>
 
-          <Text style={styles.title}>Connect Telegram</Text>
-          <Text style={styles.description}>
-            Link your Telegram account to receive password reset codes and important notifications.
-          </Text>
+          <View style={styles.textCol}>
+            <Text style={styles.title}>Connect Telegram</Text>
+            <Text style={styles.subtitle} numberOfLines={2}>
+              Get password resets & notifications
+            </Text>
+          </View>
 
-          <TouchableOpacity
-            style={styles.primaryButton}
-            activeOpacity={0.7}
-            onPress={() => {
-              if (deepLink) Linking.openURL(deepLink);
-            }}
-            disabled={!deepLink || loading}
-          >
-            {loading ? (
-              <ActivityIndicator color={TG.textWhite} />
-            ) : (
-              <Text style={styles.primaryButtonText}>Open Telegram</Text>
-            )}
-          </TouchableOpacity>
+          <View style={styles.actions}>
+            <TouchableOpacity
+              style={styles.connectBtn}
+              activeOpacity={0.75}
+              onPress={() => {
+                if (deepLink) Linking.openURL(deepLink);
+              }}
+              disabled={!deepLink || loading}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.connectBtnText}>Connect</Text>
+              )}
+            </TouchableOpacity>
 
-          <TouchableOpacity style={styles.checkButton} activeOpacity={0.7} onPress={checkLink}>
-            <Text style={styles.checkButtonText}>Check connection</Text>
-          </TouchableOpacity>
+            <TouchableOpacity style={styles.checkBtn} activeOpacity={0.75} onPress={checkLink}>
+              <Text style={styles.checkBtnText}>Verify</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
-    </Modal>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+  container: {
+    position: 'absolute',
+    bottom: 90,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 999,
+  },
+  sheet: {
+    width: SCREEN_WIDTH - 24,
+    backgroundColor: TG.bg,
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    paddingRight: 14,
+    // Shadow
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: TG.separator,
+  },
+  closeBtn: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: TG.bgSecondary,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    zIndex: 2,
   },
-  card: {
-    width: '100%',
-    backgroundColor: TG.bg,
-    borderRadius: 24,
-    padding: 28,
+  row: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
   },
   iconWrap: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: TG.accentLight,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: TG.accent,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
+  },
+  textCol: {
+    flex: 1,
+    marginRight: 4,
   },
   title: {
-    fontSize: 22,
+    fontSize: 14,
     fontWeight: '700',
     color: TG.textPrimary,
-    marginBottom: 8,
+    marginBottom: 2,
   },
-  description: {
-    fontSize: 14,
+  subtitle: {
+    fontSize: 12,
     color: TG.textSecondary,
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 24,
+    lineHeight: 16,
   },
-  primaryButton: {
+  actions: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  connectBtn: {
     backgroundColor: TG.accent,
-    borderRadius: 12,
-    paddingVertical: 16,
-    width: '100%',
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
+    minWidth: 70,
   },
-  primaryButtonText: {
-    color: TG.textWhite,
-    fontSize: 16,
+  connectBtnText: {
+    color: '#fff',
+    fontSize: 13,
     fontWeight: '700',
   },
-  checkButton: {
-    backgroundColor: '#10b981',
-    borderRadius: 12,
-    paddingVertical: 16,
-    width: '100%',
+  checkBtn: {
+    backgroundColor: TG.green,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  checkButtonText: {
-    color: TG.textWhite,
-    fontSize: 16,
+  checkBtnText: {
+    color: '#fff',
+    fontSize: 13,
     fontWeight: '700',
   },
 });

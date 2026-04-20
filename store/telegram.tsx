@@ -6,14 +6,20 @@ interface TelegramContextType {
   linked: boolean;
   deepLink: string | null;
   loading: boolean;
+  dismissed: boolean;
   checkLink: () => Promise<void>;
+  dismiss: () => void;
+  resetDismiss: () => void;
 }
 
 const TelegramContext = createContext<TelegramContextType>({
   linked: false,
   deepLink: null,
   loading: false,
+  dismissed: false,
   checkLink: async () => {},
+  dismiss: () => {},
+  resetDismiss: () => {},
 });
 
 export function TelegramProvider({ children }: { children: React.ReactNode }) {
@@ -21,6 +27,7 @@ export function TelegramProvider({ children }: { children: React.ReactNode }) {
   const [linked, setLinked] = useState(false);
   const [deepLink, setDeepLink] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
 
   const checkLink = useCallback(async () => {
     if (!isAuthenticated) return;
@@ -36,8 +43,11 @@ export function TelegramProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isAuthenticated]);
 
+  const dismiss = useCallback(() => setDismissed(true), []);
+  const resetDismiss = useCallback(() => setDismissed(false), []);
+
   return (
-    <TelegramContext.Provider value={{ linked, deepLink, loading, checkLink }}>
+    <TelegramContext.Provider value={{ linked, deepLink, loading, dismissed, checkLink, dismiss, resetDismiss }}>
       {children}
     </TelegramContext.Provider>
   );

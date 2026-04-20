@@ -4,16 +4,16 @@ import { fetchTestsWithQuestions } from '@/lib/data';
 import { useAuth } from '@/store/auth';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { ChevronRight, ClipboardList, FileText, Image as ImageIcon, Shield } from 'lucide-react-native';
+import { Bell, ChevronRight, ClipboardList, FileText, Image as ImageIcon, Shield } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import {
-  ActivityIndicator,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -162,6 +162,21 @@ export default function AdminHomeScreen() {
             <View style={{ flex: 1 }}>
               <Text style={styles.actionTitle}>Writing Tests</Text>
               <Text style={styles.actionDesc}>Manage writing tests & AI assessment</Text>
+            </View>
+            <ChevronRight size={20} color={TG.textHint} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionCard}
+            activeOpacity={0.7}
+            onPress={() => router.push('/admin/notifications' as any)}
+          >
+            <View style={[styles.actionIcon, { backgroundColor: TG.redLight }]}>
+              <Bell size={22} color={TG.red} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.actionTitle}>Send Notification</Text>
+              <Text style={styles.actionDesc}>Broadcast push to all users</Text>
             </View>
             <ChevronRight size={20} color={TG.textHint} />
           </TouchableOpacity>

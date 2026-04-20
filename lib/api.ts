@@ -1395,3 +1395,14 @@ export async function apiSubmitWritingReview(sessionId: string, data: { score: n
     body: JSON.stringify(data),
   });
 }
+
+// =============================================
+// Notifications (Admin)
+// =============================================
+
+export async function apiBroadcastNotification(data: { title: string; body: string; data?: Record<string, unknown> }) {
+  return request<{ sent: number; message: string }>('/notifications/broadcast', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
