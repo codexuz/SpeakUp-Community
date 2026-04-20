@@ -6,11 +6,11 @@ import {
   deleteMessage,
   editMessage,
   MessageEntity,
-  useGroupChat
+  useGroupChat,
 } from '@/lib/chat';
 import { fetchGroupById, Group } from '@/lib/groups';
 import { entitiesToHtml, htmlToEntities } from '@/lib/markdown';
-import { useAuth } from '@/store/auth';
+import { getStoredAuthToken, useAuth } from '@/store/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { File as ExpoFile, Paths } from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
@@ -421,6 +421,17 @@ function isSameDay(a: string, b: string) {
   );
 }
 
+// ─── Pending upload type ─────────────────────────────────
+interface PendingUpload {
+  id: string;
+  localUri: string;
+  mimeType: string;
+  caption?: string;
+  progress: number; // 0..1
+}
+
+const API_BASE = 'https://speakup.impulselc.uz/api';
+
 export default function GroupMessagingScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
@@ -433,9 +444,9 @@ export default function GroupMessagingScreen() {
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [editingMsg, setEditingMsg] = useState<ChatMessage | null>(null);
   const [selectedMsg, setSelectedMsg] = useState<ChatMessage | null>(null);
-  const [sending, setSending] = useState(false);
   const [viewerAtt, setViewerAtt] = useState<ChatAttachment | null>(null);
   const [viewerOpen, setViewerOpen] = useState(false);
+  const [pendingUploads, setPendingUploads] = useState<PendingUpload[]>([]);
   const inputRef = useRef<EnrichedTextInputInstance>(null);
   const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flatListRef = useRef<FlatList>(null);
@@ -489,7 +500,6 @@ export default function GroupMessagingScreen() {
     const trimmed = text.trim();
     console.log('Sending message:', { trimmed, replyTo, editingMsg, html: htmlRef.current });
     if (!trimmed && !editingMsg) return;
-    setSending(true);
     try {
       let sendText: string;
       let entities: MessageEntity[] = [];
@@ -519,21 +529,26 @@ export default function GroupMessagingScreen() {
 
       console.log('Sending to API:', JSON.stringify({ sendText, entities }));
 
-      if (editingMsg) {
-        await editMessage(id!, editingMsg.id, sendText, entities.length > 0 ? entities : undefined);
-        setEditingMsg(null);
-      } else {
-        await sendChatText(sendText, replyTo?.id, entities.length > 0 ? entities : undefined);
-        setReplyTo(null);
-      }
+      // Clear input immediately like Telegram
+      const currentReply = replyTo;
+      const currentEditing = editingMsg;
       setText('');
       htmlRef.current = '';
       inputRef.current?.setValue('');
+      setReplyTo(null);
+      if (currentEditing) setEditingMsg(null);
       sendTyping(false);
+
+      // Fire-and-forget: send in background
+      if (currentEditing) {
+        editMessage(id!, currentEditing.id, sendText, entities.length > 0 ? entities : undefined)
+          .catch((e: any) => toast.error('Error', e.message));
+      } else {
+        sendChatText(sendText, currentReply?.id, entities.length > 0 ? entities : undefined)
+          .catch((e: any) => toast.error('Error', e.message));
+      }
     } catch (e: any) {
       toast.error('Error', e.message);
-    } finally {
-      setSending(false);
     }
   };
 
@@ -547,27 +562,82 @@ export default function GroupMessagingScreen() {
       quality: 0.8,
     });
     if (result.canceled || !result.assets?.length) return;
-    setSending(true);
+    const caption = text.trim() || undefined;
+    setText('');
+    htmlRef.current = '';
+    inputRef.current?.setValue('');
+
+    const files = result.assets.map((a: ImagePicker.ImagePickerAsset) => {
+      const ext = (a.uri.split('.').pop() || 'jpg').toLowerCase();
+      let defaultMime = `image/${ext}`;
+      if (a.type === 'video' || ['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(ext)) {
+        defaultMime = `video/${ext}`;
+      }
+      return {
+        uri: a.uri,
+        name: `media_${Date.now()}.${ext}`,
+        type: a.mimeType || defaultMime,
+      };
+    });
+
+    // Create pending uploads (one per file) and show in chat immediately
+    const pendingIds: string[] = [];
+    const newPending: PendingUpload[] = files.map((f, i) => {
+      const pid = `pending_${Date.now()}_${i}`;
+      pendingIds.push(pid);
+      return {
+        id: pid,
+        localUri: f.uri,
+        mimeType: f.type,
+        caption: i === 0 ? caption : undefined,
+        progress: 0,
+      };
+    });
+    setPendingUploads((prev) => [...newPending, ...prev]);
+
+    // Upload with XHR for progress tracking
     try {
-      const files = result.assets.map((a: ImagePicker.ImagePickerAsset) => {
-        const ext = (a.uri.split('.').pop() || 'jpg').toLowerCase();
-        let defaultMime = `image/${ext}`;
-        if (a.type === 'video' || ['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(ext)) {
-          defaultMime = `video/${ext}`;
-        }
-        return {
-          uri: a.uri,
-          name: `media_${Date.now()}.${ext}`,
-          type: a.mimeType || defaultMime,
+      const token = await getStoredAuthToken();
+      const formData = new FormData();
+      if (caption) formData.append('text', caption);
+      for (const file of files) {
+        formData.append('files', file as any);
+      }
+
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', `${API_BASE}/group-chat/${id}/messages/attachment`, true);
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable && e.total > 0) {
+            const p = e.loaded / e.total;
+            setPendingUploads((prev) =>
+              prev.map((u) =>
+                pendingIds.includes(u.id) ? { ...u, progress: p } : u,
+              ),
+            );
+          }
         };
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            // Remove pending items — real message arrives via socket
+            setPendingUploads((prev) =>
+              prev.filter((u) => !pendingIds.includes(u.id)),
+            );
+            resolve();
+          } else {
+            reject(new Error('Failed to send files'));
+          }
+        };
+        xhr.onerror = () => reject(new Error('Network error'));
+        xhr.send(formData);
       });
-      await sendFiles(files, text.trim() || undefined);
-      setText('');
-      inputRef.current?.setValue('');
     } catch (e: any) {
+      // Remove pending on error
+      setPendingUploads((prev) =>
+        prev.filter((u) => !pendingIds.includes(u.id)),
+      );
       toast.error('Error', e.message);
-    } finally {
-      setSending(false);
     }
   };
 
@@ -666,7 +736,7 @@ export default function GroupMessagingScreen() {
               <Animated.View style={[styles.bubbleRow, animRow]}>
                 <Pressable
                   onPress={() => setSelectedMsg(msg)}
-                  style={{ flexDirection: 'row' }}
+                  style={{ flexDirection: 'row', flexShrink: 1 }}
                 >
                   {!isMine && showSender && (
                     <View style={styles.senderAvatar}>
@@ -865,6 +935,47 @@ export default function GroupMessagingScreen() {
           contentContainerStyle={{ paddingVertical: 8, paddingHorizontal: 6 }}
           onEndReached={() => hasMore && !loadingMore && loadMessages()}
           onEndReachedThreshold={0.3}
+          ListHeaderComponent={
+            pendingUploads.length > 0 ? (
+              <View style={{ gap: 4 }}>
+                {pendingUploads.map((pu) => (
+                  <View
+                    key={pu.id}
+                    style={[styles.swipeContainer, styles.bubbleRowRight]}
+                  >
+                    <View style={[styles.bubble, styles.bubbleOut]}>
+                      <View style={[styles.mediaTouchable, { opacity: 0.7 }]}>  
+                        {pu.mimeType.startsWith('video/') ? (
+                          <View style={[styles.mediaThumb, styles.mediaPlaceholder]}>
+                            <Video size={28} color="rgba(255,255,255,0.8)" />
+                          </View>
+                        ) : (
+                          <Image
+                            source={{ uri: pu.localUri }}
+                            style={styles.mediaThumb}
+                            resizeMode="cover"
+                          />
+                        )}
+                        {/* Upload progress overlay */}
+                        <View style={styles.mediaDownloadBtn}>
+                          <CircularProgress progress={pu.progress} size={48} />
+                        </View>
+                      </View>
+                      {pu.caption ? (
+                        <Text style={{ fontSize: 15, color: TG.textPrimary, lineHeight: 21, marginTop: 4 }}>
+                          {pu.caption}
+                        </Text>
+                      ) : null}
+                      <View style={styles.timeRow}>
+                        <ActivityIndicator size={10} color={TG.textHint} />
+                        <Text style={[styles.timeText, { marginLeft: 4 }]}>Uploading…</Text>
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            ) : null
+          }
           ListFooterComponent={
             loadingMore ? (
               <ActivityIndicator
@@ -948,14 +1059,10 @@ export default function GroupMessagingScreen() {
           <TouchableOpacity
             style={styles.sendBtn}
             onPress={handleSend}
-            disabled={(!text.trim() && !editingMsg) || sending}
+            disabled={!text.trim() && !editingMsg}
             activeOpacity={0.7}
           >
-            {sending ? (
-              <ActivityIndicator size={18} color={TG.textWhite} />
-            ) : (
-              <Send size={18} color={TG.textWhite} />
-            )}
+            <Send size={18} color={TG.textWhite} />
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -1101,6 +1208,7 @@ const styles = StyleSheet.create({
     paddingTop: 6,
     paddingBottom: 4,
     minWidth: 80,
+    flexShrink: 1,
   },
   bubbleOut: {
     backgroundColor: TG.bubbleOutgoing,
