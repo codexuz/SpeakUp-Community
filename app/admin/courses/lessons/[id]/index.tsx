@@ -1,5 +1,4 @@
 import { useAlert } from '@/components/CustomAlert';
-import MarkdownEditor from '@/components/MarkdownEditor';
 import { useToast } from '@/components/Toast';
 import WaveformPlayer from '@/components/WaveformPlayer';
 import { TG } from '@/constants/theme';
@@ -11,6 +10,7 @@ import {
   ArrowDown,
   ArrowLeft,
   ArrowUp,
+  Bold,
   BookOpen,
   Check,
   ChevronRight,
@@ -20,17 +20,20 @@ import {
   FileText,
   Film,
   Filter,
+  Italic,
   Layers,
   Mic,
   Plus,
   Search,
   Sparkles,
+  Strikethrough,
   Trash2,
+  Underline,
   Volume2,
   X,
   Zap,
 } from 'lucide-react-native';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -45,6 +48,11 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import {
+  EnrichedMarkdownInput,
+  type EnrichedMarkdownInputInstance,
+  type StyleState,
+} from 'react-native-enriched-markdown';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 // ─── Exercise type metadata ────────────────────────────────────
@@ -303,6 +311,10 @@ export default function LessonBuilderScreen() {
     durationSec: '',
   });
 
+  // ─── EnrichedMarkdownInput ref and state ─────────────────────
+  const lectureEditorRef = useRef<EnrichedMarkdownInputInstance>(null);
+  const [editorStyleState, setEditorStyleState] = useState<StyleState | null>(null);
+
   const load = useCallback(async () => {
     try {
       const data = await apiFetchLesson(String(id));
@@ -323,7 +335,11 @@ export default function LessonBuilderScreen() {
     return [...lesson.lectures].sort((a, b) => a.order - b.order);
   }, [lesson]);
 
-  const resetLectureForm = () => setLectureForm({ contentType: 'text', title: '', textBody: '', mediaUrl: '', thumbnailUrl: '', durationSec: '' });
+  const resetLectureForm = () => {
+    setLectureForm({ contentType: 'text', title: '', textBody: '', mediaUrl: '', thumbnailUrl: '', durationSec: '' });
+    // Clear the editor content after modal opens
+    setTimeout(() => lectureEditorRef.current?.setValue(''), 100);
+  };
 
   const openAddLecture = () => {
     setEditLectureId(null);
@@ -342,6 +358,10 @@ export default function LessonBuilderScreen() {
       durationSec: lec.durationSec ? String(lec.durationSec) : '',
     });
     setLectureModalVisible(true);
+    // Set the editor content after modal opens
+    if (lec.textBody) {
+      setTimeout(() => lectureEditorRef.current?.setValue(lec.textBody || ''), 100);
+    }
   };
 
   const handleSaveLecture = async () => {
@@ -1951,12 +1971,48 @@ export default function LessonBuilderScreen() {
               {lectureForm.contentType === 'text' && (
                 <>
                   <Text style={s.label}>Content (Markdown)</Text>
-                  <MarkdownEditor
-                    value={lectureForm.textBody}
-                    onChangeText={(v) => setLectureForm((p) => ({ ...p, textBody: v }))}
-                    placeholder="# Heading&#10;&#10;Write your lecture content here using Markdown..."
-                    minHeight={200}
-                  />
+                  <View style={s.enrichedEditorContainer}>
+                    <View style={s.enrichedToolbar}>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.enrichedToolbarScroll} keyboardShouldPersistTaps="always">
+                        <TouchableOpacity
+                          style={[s.enrichedToolBtn, editorStyleState?.bold?.isActive && s.enrichedToolBtnActive]}
+                          onPress={() => lectureEditorRef.current?.toggleBold()}
+                        >
+                          <Bold size={16} color={editorStyleState?.bold?.isActive ? TG.accent : TG.textPrimary} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[s.enrichedToolBtn, editorStyleState?.italic?.isActive && s.enrichedToolBtnActive]}
+                          onPress={() => lectureEditorRef.current?.toggleItalic()}
+                        >
+                          <Italic size={16} color={editorStyleState?.italic?.isActive ? TG.accent : TG.textPrimary} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[s.enrichedToolBtn, editorStyleState?.underline?.isActive && s.enrichedToolBtnActive]}
+                          onPress={() => lectureEditorRef.current?.toggleUnderline()}
+                        >
+                          <Underline size={16} color={editorStyleState?.underline?.isActive ? TG.accent : TG.textPrimary} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[s.enrichedToolBtn, editorStyleState?.strikethrough?.isActive && s.enrichedToolBtnActive]}
+                          onPress={() => lectureEditorRef.current?.toggleStrikethrough()}
+                        >
+                          <Strikethrough size={16} color={editorStyleState?.strikethrough?.isActive ? TG.accent : TG.textPrimary} />
+                        </TouchableOpacity>
+                      </ScrollView>
+                    </View>
+                    <EnrichedMarkdownInput
+                      ref={lectureEditorRef}
+                      placeholder="Write your lecture content here..."
+                      onChangeState={setEditorStyleState}
+                      onChangeMarkdown={(markdown) => setLectureForm((p) => ({ ...p, textBody: markdown }))}
+                      style={s.enrichedInput}
+                      markdownStyle={{
+                        strong: { color: TG.textPrimary },
+                        em: { color: TG.textPrimary },
+                        link: { color: TG.accent, underline: true },
+                      }}
+                    />
+                  </View>
                 </>
               )}
 
@@ -2490,4 +2546,12 @@ const s = StyleSheet.create({
   lectureTypeBtnActive: { borderColor: TG.accent, backgroundColor: TG.accentLight },
   lectureTypeBtnText: { fontSize: 12, fontWeight: '600', color: TG.textSecondary },
   lectureTypeBtnTextActive: { color: TG.accent, fontWeight: '700' },
+
+  // EnrichedMarkdownInput styles
+  enrichedEditorContainer: { borderWidth: 1, borderColor: TG.separator, borderRadius: 12, backgroundColor: TG.bgSecondary, overflow: 'hidden' },
+  enrichedToolbar: { flexDirection: 'row', alignItems: 'center', backgroundColor: TG.bg, borderBottomWidth: 1, borderBottomColor: TG.separatorLight },
+  enrichedToolbarScroll: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4, paddingVertical: 6, gap: 2 },
+  enrichedToolBtn: { width: 34, height: 34, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  enrichedToolBtnActive: { backgroundColor: TG.accentLight },
+  enrichedInput: { width: '100%' as any, minHeight: 200, fontSize: 16, padding: 12, color: TG.textPrimary, backgroundColor: TG.bgSecondary },
 });
