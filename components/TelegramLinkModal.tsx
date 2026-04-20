@@ -2,7 +2,6 @@ import { TG } from '@/constants/theme';
 import { useTelegram } from '@/store/telegram';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Linking from 'expo-linking';
-import { useSegments } from 'expo-router';
 import { Send, X } from 'lucide-react-native';
 import React, { useEffect, useRef } from 'react';
 import {
@@ -19,16 +18,10 @@ import {
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function TelegramLinkModal() {
-  const { linked, deepLink, loading, dismissed, checkLink, dismiss, resetDismiss } = useTelegram();
-  const segments = useSegments();
+  const { linked, deepLink, loading, dismissed, checkLink, dismiss } = useTelegram();
   const translateY = useRef(new Animated.Value(300)).current;
   const opacity = useRef(new Animated.Value(0)).current;
   const visible = !linked && !dismissed;
-
-  // Reshow sheet on navigation change
-  useEffect(() => {
-    if (!linked) resetDismiss();
-  }, [segments.join('/'), linked]);
 
   // Animate in/out with both slide and fade for a premium feel
   useEffect(() => {
