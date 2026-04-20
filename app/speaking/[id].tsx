@@ -140,6 +140,7 @@ export default function SpeakingScreen() {
     try {
       const perms = await AudioModule.requestRecordingPermissionsAsync();
       if (perms.status === 'granted') {
+        await AudioModule.setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
         await audioRecorder.prepareToRecordAsync();
         audioRecorder.record();
       }

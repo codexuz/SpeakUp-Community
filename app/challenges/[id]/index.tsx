@@ -5,29 +5,29 @@ import { AudioModule, RecordingPresets, useAudioRecorder } from 'expo-audio';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
-  ArrowLeft,
-  CheckCircle2,
-  ChevronRight,
-  Flame,
-  Mic,
-  RotateCcw,
-  Send,
-  Sparkles,
-  Square,
-  Users,
-  Zap
+    ArrowLeft,
+    CheckCircle2,
+    ChevronRight,
+    Flame,
+    Mic,
+    RotateCcw,
+    Send,
+    Sparkles,
+    Square,
+    Users,
+    Zap
 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Animated,
-  Image,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Animated,
+    Image,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -157,6 +157,7 @@ export default function ChallengeDetailScreen() {
     try {
       const perm = await AudioModule.requestRecordingPermissionsAsync();
       if (perm.status !== 'granted') return;
+      await AudioModule.setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
       await recorder.prepareToRecordAsync();
       recorder.record();
       setRecording(true);

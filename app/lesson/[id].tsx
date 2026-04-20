@@ -199,6 +199,7 @@ export default function LessonPlayerScreen() {
         Alert.alert('Microphone Access', 'Please grant microphone permission to record.');
         return;
       }
+      await AudioModule.setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
       await audioRecorder.prepareToRecordAsync();
       audioRecorder.record();
       setIsRecording(true);
@@ -397,6 +398,7 @@ export default function LessonPlayerScreen() {
           Alert.alert('Microphone Access', 'Please grant microphone permission to record.');
           return;
         }
+        await AudioModule.setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
         await audioRecorder.prepareToRecordAsync();
         audioRecorder.record();
         setConvoRecordingTurn(turnIndex);
