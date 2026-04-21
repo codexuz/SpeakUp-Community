@@ -95,8 +95,8 @@ export default function LectureViewerScreen() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, backgroundColor: TG.headerBg }}>
-        <SafeAreaView style={[styles.safe, styles.centered]}>
+      <View style={{ flex: 1, backgroundColor: TG.bgSecondary }}>
+        <SafeAreaView style={{backgroundColor: TG.bgSecondary, flex: 1, alignItems: 'center', justifyContent: 'center'}}>
           <ActivityIndicator size="large" color={TG.accent} />
         </SafeAreaView>
       </View>
@@ -105,7 +105,7 @@ export default function LectureViewerScreen() {
 
   if (!lecture) {
     return (
-      <SafeAreaView style={[styles.safe, styles.centered]}>
+      <SafeAreaView style={{backgroundColor: TG.bgSecondary, flex: 1, alignItems: 'center', justifyContent: 'center'}}>
         <Text style={styles.errorText}>Lecture not found</Text>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <Text style={styles.backBtnText}>Go Back</Text>
