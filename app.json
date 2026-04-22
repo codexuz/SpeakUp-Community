@@ -35,7 +35,7 @@
         "android.permission.MODIFY_AUDIO_SETTINGS"
       ],
       "package": "uz.speakup.edumo",
-      "versionCode": 23,
+      "versionCode": 24,
       "googleServicesFile": "./google-services.json"
     },
     "web": {
