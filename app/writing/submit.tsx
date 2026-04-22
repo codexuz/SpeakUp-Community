@@ -146,7 +146,7 @@ export default function WritingSubmitScreen() {
     }
   };
 
-  const timerColor = timeLeft <= 60 ? TG.red : timeLeft <= 300 ? TG.orange : TG.textSecondary;
+  const timerColor = timeLeft <= 60 ? TG.red : timeLeft <= 300 ? TG.orange : TG.textWhite;
 
   if (loading) {
     return (
