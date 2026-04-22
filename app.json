@@ -2,7 +2,7 @@
   "expo": {
     "name": "SpeakUp",
     "slug": "SpeakUp",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "uz.speakup.edumo",
@@ -11,7 +11,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "uz.speakup.edumo",
-      "buildNumber": "3",
+      "buildNumber": "4",
       "icon": {
         "light": "./assets/images/ios-light.png",
         "dark": "./assets/images/ios-dark.png",
