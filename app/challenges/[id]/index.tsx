@@ -1,3 +1,4 @@
+import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
 import { apiFetchChallenge, apiSubmitChallenge } from '@/lib/api';
 import type { Challenge } from '@/lib/types';
@@ -5,29 +6,29 @@ import { AudioModule, RecordingPresets, useAudioRecorder } from 'expo-audio';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
-    ArrowLeft,
-    CheckCircle2,
-    ChevronRight,
-    Flame,
-    Mic,
-    RotateCcw,
-    Send,
-    Sparkles,
-    Square,
-    Users,
-    Zap
+  ArrowLeft,
+  CheckCircle2,
+  ChevronRight,
+  Flame,
+  Mic,
+  RotateCcw,
+  Send,
+  Sparkles,
+  Square,
+  Users,
+  Zap
 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Animated,
-    Image,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Animated,
+  Image,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -85,6 +86,7 @@ const ws = StyleSheet.create({
 export default function ChallengeDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const toast = useToast();
 
   const [challenge, setChallenge] = useState<Challenge | null>(null);
   const [loading, setLoading] = useState(true);
@@ -109,6 +111,7 @@ export default function ChallengeDetailScreen() {
       if (data.submitted) setSubmitted(true);
     } catch (e) {
       console.error('Failed to load challenge', e);
+      toast.error('Failed to load challenge');
     } finally {
       setLoading(false);
     }
@@ -156,7 +159,10 @@ export default function ChallengeDetailScreen() {
   const handleRecord = async () => {
     try {
       const perm = await AudioModule.requestRecordingPermissionsAsync();
-      if (perm.status !== 'granted') return;
+      if (perm.status !== 'granted') {
+        toast.error('Microphone permission denied');
+        return;
+      }
       await AudioModule.setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
       await recorder.prepareToRecordAsync();
       recorder.record();
@@ -164,6 +170,7 @@ export default function ChallengeDetailScreen() {
       setRecordedUri(null);
     } catch (e) {
       console.error('Recording error', e);
+      toast.error('Failed to start recording');
     }
   };
 
@@ -175,6 +182,7 @@ export default function ChallengeDetailScreen() {
     } catch (e) {
       console.error('Stop error', e);
       setRecording(false);
+      toast.error('Failed to stop recording');
     }
   };
 
@@ -184,8 +192,10 @@ export default function ChallengeDetailScreen() {
     try {
       await apiSubmitChallenge(challenge.id, recordedUri);
       setSubmitted(true);
+      toast.success('Challenge submitted!', 'Your response has been sent for review.');
     } catch (e) {
       console.error('Submit error', e);
+      toast.error('Submission failed', 'Please try again.');
     } finally {
       setSubmitting(false);
     }
