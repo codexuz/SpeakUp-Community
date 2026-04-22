@@ -1,7 +1,8 @@
 import * as Application from 'expo-application';
 import * as Notifications from 'expo-notifications';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Platform } from 'react-native';
 
 import { apiRemovePushToken } from '@/lib/api';
 import { registerForPushNotifications } from '@/lib/notifications';
@@ -20,6 +21,7 @@ export function useNotifications() {
   const router = useRouter();
   const [pushToken, setPushToken] = useState<string | null>(null);
   const [initialNotification, setInitialNotification] = useState<Notifications.Notification | null>(null);
+  const deviceIdRef = useRef<string>('unknown');
 
   useEffect(() => {
     if (!user?.id) {
@@ -29,6 +31,16 @@ export function useNotifications() {
     }
 
     let isActive = true;
+
+    // Resolve device ID once and cache it for cleanup
+    const resolveDeviceId = async () => {
+      if (Platform.OS === 'android') {
+        deviceIdRef.current = Application.getAndroidId() ?? 'unknown';
+      } else {
+        deviceIdRef.current = (await Application.getIosIdForVendorAsync()) ?? 'unknown';
+      }
+    };
+    resolveDeviceId();
 
     const notificationSubscription = Notifications.addNotificationReceivedListener((notification) => {
       console.log('Notification received:', notification.request.content.data);
@@ -64,8 +76,7 @@ export function useNotifications() {
       responseSubscription.remove();
 
       // Remove this device's push token when user logs out
-      const deviceId = Application.getAndroidId?.() ?? 'unknown';
-      apiRemovePushToken(deviceId).catch(() => {});
+      apiRemovePushToken(deviceIdRef.current).catch(() => {});
     };
   }, [user?.id]);
 

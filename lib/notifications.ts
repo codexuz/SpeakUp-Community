@@ -39,7 +39,10 @@ export async function registerForPushNotifications(userId: string) {
   const token = tokenData.data;
 
   // Use a stable device identifier so the backend can track tokens per device
-  const deviceId = Application.getAndroidId?.() ?? (await Application.getIosIdForVendorAsync?.()) ?? 'unknown';
+  const deviceId =
+    Platform.OS === 'android'
+      ? (Application.getAndroidId() ?? 'unknown')
+      : ((await Application.getIosIdForVendorAsync()) ?? 'unknown');
 
   // Send token + deviceId to backend
   try {

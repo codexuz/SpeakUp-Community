@@ -18,11 +18,14 @@ export default function LoginScreen() {
   const toast = useToast();
 
   const handleLogin = async () => {
-    if (!loginInput || !password) return toast.error('Error', 'Please enter both fields.');
+    const trimmedLogin = loginInput.trim();
+    const trimmedPassword = password.trim();
+
+    if (!trimmedLogin || !trimmedPassword) return toast.error('Error', 'Please enter both fields.');
 
     setLoading(true);
     try {
-      const data = await apiLogin(loginInput, password);
+      const data = await apiLogin(trimmedLogin, trimmedPassword);
 
       login({
         token: data.token,

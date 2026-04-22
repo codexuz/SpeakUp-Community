@@ -101,9 +101,9 @@ export default function RegisterScreen() {
     setLoading(true);
     try {
       const data = await apiRegister({
-        username: formData.username,
-        fullName: formData.fullName,
-        password: formData.password,
+        username: formData.username.trim(),
+        fullName: formData.fullName.trim(),
+        password: formData.password.trim(),
         gender: formData.gender,
         region: formData.region,
         avatarUrl: formData.avatarUrl,

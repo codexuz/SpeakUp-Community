@@ -170,7 +170,7 @@ export default function CourseBuilderScreen() {
   if (loading) {
     return (
       <View style={{ flex: 1, backgroundColor: TG.headerBg }}>
-        <SafeAreaView style={[styles.safeArea, styles.centered]}>
+        <SafeAreaView style={{backgroundColor: TG.bgSecondary, flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <ActivityIndicator size="large" color={TG.accent} />
         </SafeAreaView>
       </View>
@@ -179,7 +179,7 @@ export default function CourseBuilderScreen() {
 
   if (!course) {
     return (
-      <SafeAreaView style={[styles.safeArea, styles.centered]}>
+      <SafeAreaView style={{backgroundColor: TG.bgSecondary, flex: 1, alignItems: 'center', justifyContent: 'center' }}>
         <Text style={styles.errorText}>Course not found</Text>
         <TouchableOpacity style={styles.backBtnModal} onPress={() => router.back()}>
           <Text style={styles.backBtnText}>Go Back</Text>
