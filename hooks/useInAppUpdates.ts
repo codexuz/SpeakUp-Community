@@ -11,32 +11,28 @@ export const useInAppUpdates = () => {
 
     const checkForUpdates = async () => {
       try {
-        if (Platform.OS === 'android') {
-          await ExpoInAppUpdates.checkAndStartUpdate(true);
-        } else {
-          const result = await ExpoInAppUpdates.checkForUpdate();
-          console.log('In-app update check result:', result);
-          if (!result.updateAvailable) return;
+        const result = await ExpoInAppUpdates.checkForUpdate();
+        console.log('In-app update check result:', result);
+        if (!result.updateAvailable) return;
 
-          alert(
-            'Update available',
-            'A new version of the app is available with many improvements and bug fixes. Would you like to update now?',
-            [
-              {
-                text: 'Update',
-                onPress: async () => {
-                  try {
-                    await ExpoInAppUpdates.startUpdate();
-                  } catch (err) {
-                    console.error('Failed to start update:', err);
-                  }
-                },
+        alert(
+          'Update available',
+          'A new version of the app is available with many improvements and bug fixes. Would you like to update now?',
+          [
+            {
+              text: 'Update',
+              onPress: async () => {
+                try {
+                  await ExpoInAppUpdates.startUpdate();
+                } catch (err) {
+                  console.error('Failed to start update:', err);
+                }
               },
-              { text: 'Cancel' },
-            ],
-            'info',
-          );
-        }
+            },
+            { text: 'Cancel' },
+          ],
+          'info',
+        );
       } catch (err) {
         console.error('Update check failed:', err);
       }
