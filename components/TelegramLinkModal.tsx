@@ -18,10 +18,10 @@ import {
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function TelegramLinkModal() {
-  const { linked, deepLink, loading, dismissed, checkLink, dismiss } = useTelegram();
+  const { linked, checked, deepLink, loading, dismissed, checkLink, dismiss } = useTelegram();
   const translateY = useRef(new Animated.Value(300)).current;
   const opacity = useRef(new Animated.Value(0)).current;
-  const visible = !linked && !dismissed;
+  const visible = checked && !linked && !dismissed;
 
   // Animate in/out with both slide and fade for a premium feel
   useEffect(() => {
@@ -40,7 +40,7 @@ export default function TelegramLinkModal() {
     ]).start();
   }, [visible]);
 
-  if (linked) return null;
+  if (!checked || linked) return null;
 
   return (
     <Animated.View

@@ -4,6 +4,7 @@ import { useAuth } from './auth';
 
 interface TelegramContextType {
   linked: boolean;
+  checked: boolean;
   deepLink: string | null;
   loading: boolean;
   dismissed: boolean;
@@ -14,6 +15,7 @@ interface TelegramContextType {
 
 const TelegramContext = createContext<TelegramContextType>({
   linked: false,
+  checked: false,
   deepLink: null,
   loading: false,
   dismissed: false,
@@ -25,6 +27,7 @@ const TelegramContext = createContext<TelegramContextType>({
 export function TelegramProvider({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuth();
   const [linked, setLinked] = useState(false);
+  const [checked, setChecked] = useState(false);
   const [deepLink, setDeepLink] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [dismissed, setDismissed] = useState(false);
@@ -39,6 +42,7 @@ export function TelegramProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // silently fail — will retry on next check
     } finally {
+      setChecked(true);
       setLoading(false);
     }
   }, [isAuthenticated]);
@@ -47,7 +51,7 @@ export function TelegramProvider({ children }: { children: React.ReactNode }) {
   const resetDismiss = useCallback(() => setDismissed(false), []);
 
   return (
-    <TelegramContext.Provider value={{ linked, deepLink, loading, dismissed, checkLink, dismiss, resetDismiss }}>
+    <TelegramContext.Provider value={{ linked, checked, deepLink, loading, dismissed, checkLink, dismiss, resetDismiss }}>
       {children}
     </TelegramContext.Provider>
   );
