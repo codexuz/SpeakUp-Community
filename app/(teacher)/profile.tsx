@@ -2,12 +2,13 @@ import { useAlert } from '@/components/CustomAlert';
 import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
 import { useCachedFetch } from '@/hooks/useCachedFetch';
+import { useDeleteAccount } from '@/hooks/useDeleteAccount';
 import { apiFetchMyVerificationStatus, apiGetUserProfile, apiLogout, apiRequestTeacherVerification } from '@/lib/api';
 import { useAuth } from '@/store/auth';
 import { useTelegram } from '@/store/telegram';
 import * as ExpoLinking from 'expo-linking';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { Award, ChevronRight, Edit2, LogOut, MapPin, MessageCircle, Monitor, Phone, Send, Shield, User as UserIcon } from 'lucide-react-native';
+import { Award, ChevronRight, Edit2, LogOut, MapPin, MessageCircle, Monitor, Phone, Send, Shield, Trash2, User as UserIcon } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Image, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -23,6 +24,9 @@ export default function ProfileScreen() {
   const [verifyModal, setVerifyModal] = useState(false);
   const [verifyReason, setVerifyReason] = useState('');
   const [stats, setStats] = useState({ followers: 0, following: 0 });
+  const [deleteModal, setDeleteModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const { deleteAccount, loading: deleteLoading } = useDeleteAccount();
 
   const { data: profileData } = useCachedFetch<{ user: any; stats: any }>({
     cacheKey: `teacher_profile_${user?.id}`,
@@ -79,6 +83,14 @@ export default function ProfileScreen() {
         },
       },
     ], 'warning');
+  };
+
+  const handleConfirmDelete = async () => {
+    try {
+      await deleteAccount(deletePassword.trim());
+    } catch (e: any) {
+      toast.error('Error', e.message);
+    }
   };
 
   const handleSubmitVerification = async () => {
@@ -233,7 +245,56 @@ export default function ProfileScreen() {
           <LogOut size={18} color={TG.red} />
           <Text style={styles.logoutText}>Log Out</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity style={styles.deleteRow} onPress={() => setDeleteModal(true)} activeOpacity={0.7}>
+          <Trash2 size={18} color={TG.red} />
+          <Text style={styles.deleteText}>Delete Account</Text>
+        </TouchableOpacity>
       </ScrollView>
+
+      {/* Delete Account Modal */}
+      <Modal visible={deleteModal} animationType="slide" transparent>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Delete Account</Text>
+              <Text style={{ color: TG.textSecondary, fontSize: 14, marginBottom: 16 }}>
+                This will permanently delete your account and all your data. This cannot be undone. Enter your password to confirm.
+              </Text>
+              <TextInput
+                style={styles.modalInput}
+                value={deletePassword}
+                onChangeText={setDeletePassword}
+                placeholder="Enter your password"
+                placeholderTextColor={TG.textHint}
+                secureTextEntry
+                autoCapitalize="none"
+              />
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={styles.cancelBtn}
+                  activeOpacity={0.7}
+                  onPress={() => { setDeleteModal(false); setDeletePassword(''); }}
+                >
+                  <Text style={styles.cancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.submitBtn, { backgroundColor: TG.red }, (deleteLoading || !deletePassword.trim()) && { opacity: 0.5 }]}
+                  activeOpacity={0.7}
+                  onPress={handleConfirmDelete}
+                  disabled={deleteLoading || !deletePassword.trim()}
+                >
+                  {deleteLoading ? (
+                    <ActivityIndicator size="small" color={TG.textWhite} />
+                  ) : (
+                    <Text style={styles.submitBtnText}>Delete Account</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       {/* Verification Request Modal */}
       <Modal visible={verifyModal} animationType="slide" transparent>
@@ -386,8 +447,19 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     backgroundColor: TG.bg,
     gap: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: TG.separatorLight,
   },
   logoutText: { fontSize: 15, color: TG.red, fontWeight: '500' },
+  deleteRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: TG.bg,
+    gap: 12,
+  },
+  deleteText: { fontSize: 15, color: TG.red, fontWeight: '500' },
 
   // Verification Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.17)', justifyContent: 'flex-end' },

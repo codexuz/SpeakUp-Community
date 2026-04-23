@@ -1,6 +1,8 @@
 import { useAlert } from '@/components/CustomAlert';
+import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
 import { useCachedFetch } from '@/hooks/useCachedFetch';
+import { useDeleteAccount } from '@/hooks/useDeleteAccount';
 import { apiFetchAchievements, apiFetchProgress, apiFetchReputation, apiGetUserProfile, apiLogout } from '@/lib/api';
 import type { Achievement, UserProgress, UserReputation } from '@/lib/types';
 import { useAuth } from '@/store/auth';
@@ -21,19 +23,25 @@ import {
   Send,
   Shield,
   Star,
+  Trash2,
   User as UserIcon,
   Zap,
 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Dimensions,
   Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -83,6 +91,7 @@ const COLORS = {
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
   const router = useRouter();
+  const toast = useToast();
   const { alert } = useAlert();
   const { linked: telegramLinked, deepLink: telegramDeepLink, checkLink: checkTelegramLink } = useTelegram();
   
@@ -91,6 +100,9 @@ export default function ProfileScreen() {
   const [progress, setProgress] = useState<UserProgress | null>(null);
   const [reputation, setReputation] = useState<UserReputation | null>(null);
   const [achievements, setAchievements] = useState<Achievement[]>([]);
+  const [deleteModal, setDeleteModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const { deleteAccount, loading: deleteLoading } = useDeleteAccount();
 
   const { data: profileData, refresh } = useCachedFetch<{
     stats: { followers: number; following: number };
@@ -159,6 +171,14 @@ export default function ProfileScreen() {
       ],
       'warning',
     );
+  };
+
+  const handleConfirmDelete = async () => {
+    try {
+      await deleteAccount(deletePassword.trim());
+    } catch (e: any) {
+      toast.error('Error', e.message);
+    }
   };
 
   return (
@@ -405,10 +425,61 @@ export default function ProfileScreen() {
               </View>
               <Text style={[styles.menuItemText, { color: TG.red }]}>Log Out</Text>
             </TouchableOpacity>
+
+            <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 0 }]} activeOpacity={0.7} onPress={() => setDeleteModal(true)}>
+              <View style={[styles.menuItemIcon, { backgroundColor: TG.redLight }]}>
+                <Trash2 size={18} color={TG.red} />
+              </View>
+              <Text style={[styles.menuItemText, { color: TG.red }]}>Delete Account</Text>
+            </TouchableOpacity>
           </View>
 
         </View>
       </ScrollView>
+
+      {/* Delete Account Modal */}
+      <Modal visible={deleteModal} animationType="slide" transparent>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+          <View style={styles.deleteModalOverlay}>
+            <View style={styles.deleteModalContent}>
+              <Text style={styles.deleteModalTitle}>Delete Account</Text>
+              <Text style={{ color: TG.textSecondary, fontSize: 14, marginBottom: 16 }}>
+                This will permanently delete your account and all your data. This cannot be undone. Enter your password to confirm.
+              </Text>
+              <TextInput
+                style={styles.deleteModalInput}
+                value={deletePassword}
+                onChangeText={setDeletePassword}
+                placeholder="Enter your password"
+                placeholderTextColor={TG.textHint}
+                secureTextEntry
+                autoCapitalize="none"
+              />
+              <View style={styles.deleteModalActions}>
+                <TouchableOpacity
+                  style={styles.deleteModalCancelBtn}
+                  activeOpacity={0.7}
+                  onPress={() => { setDeleteModal(false); setDeletePassword(''); }}
+                >
+                  <Text style={styles.deleteModalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.deleteModalConfirmBtn, (deleteLoading || !deletePassword.trim()) && { opacity: 0.5 }]}
+                  activeOpacity={0.7}
+                  onPress={handleConfirmDelete}
+                  disabled={deleteLoading || !deletePassword.trim()}
+                >
+                  {deleteLoading ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.deleteModalConfirmText}>Delete Account</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -662,4 +733,37 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   menuItemText: { flex: 1, fontSize: 16, fontWeight: '600', color: COLORS.text },
+
+  // Delete Account Modal
+  deleteModalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.17)', justifyContent: 'flex-end' },
+  deleteModalContent: { backgroundColor: TG.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 },
+  deleteModalTitle: { fontSize: 18, fontWeight: '700', color: TG.textPrimary, marginBottom: 20 },
+  deleteModalInput: {
+    backgroundColor: TG.bgSecondary,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: TG.textPrimary,
+    borderWidth: 0.5,
+    borderColor: TG.separator,
+    marginBottom: 16,
+  },
+  deleteModalActions: { flexDirection: 'row', gap: 12, marginTop: 4 },
+  deleteModalCancelBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderRadius: 12,
+    backgroundColor: TG.bgSecondary,
+  },
+  deleteModalCancelText: { color: TG.textSecondary, fontWeight: '600' },
+  deleteModalConfirmBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderRadius: 12,
+    backgroundColor: TG.red,
+  },
+  deleteModalConfirmText: { color: '#fff', fontWeight: '600' },
 });

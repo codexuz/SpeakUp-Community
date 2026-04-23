@@ -1,22 +1,28 @@
 import { useAlert } from '@/components/CustomAlert';
+import { useToast } from '@/components/Toast';
 import { TG } from '@/constants/theme';
 import { useCachedFetch } from '@/hooks/useCachedFetch';
+import { useDeleteAccount } from '@/hooks/useDeleteAccount';
 import { apiGetUserProfile, apiLogout } from '@/lib/api';
 import { useAuth } from '@/store/auth';
 import { useTelegram } from '@/store/telegram';
 import * as Linking from 'expo-linking';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { ChevronRight, Edit2, LogOut, MapPin, Monitor, Phone, Send, Shield, User as UserIcon } from 'lucide-react-native';
+import { ChevronRight, Edit2, LogOut, MapPin, Monitor, Phone, Send, Shield, Trash2, User as UserIcon } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
   const router = useRouter();
+  const toast = useToast();
   const { alert } = useAlert();
   const { linked: telegramLinked, deepLink: telegramDeepLink, checkLink: checkTelegramLink } = useTelegram();
   const [stats, setStats] = useState({ followers: 0, following: 0 });
+  const [deleteModal, setDeleteModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const { deleteAccount, loading: deleteLoading } = useDeleteAccount();
 
   const { data: profileData } = useCachedFetch<{ stats: { followers: number; following: number } }>({
     cacheKey: `admin_profile_${user?.id}`,
@@ -52,6 +58,15 @@ export default function ProfileScreen() {
         },
       },
     ], 'warning');
+  };
+
+
+  const handleConfirmDelete = async () => {
+    try {
+      await deleteAccount(deletePassword.trim());
+    } catch (e: any) {
+      toast.error('Error', e.message);
+    }
   };
 
 
@@ -156,7 +171,56 @@ export default function ProfileScreen() {
           <LogOut size={18} color={TG.red} />
           <Text style={styles.logoutText}>Log Out</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity style={styles.deleteRow} onPress={() => setDeleteModal(true)} activeOpacity={0.7}>
+          <Trash2 size={18} color={TG.red} />
+          <Text style={styles.deleteText}>Delete Account</Text>
+        </TouchableOpacity>
       </ScrollView>
+
+      {/* Delete Account Modal */}
+      <Modal visible={deleteModal} animationType="slide" transparent>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Delete Account</Text>
+              <Text style={{ color: TG.textSecondary, fontSize: 14, marginBottom: 16 }}>
+                This will permanently delete your account and all your data. This cannot be undone. Enter your password to confirm.
+              </Text>
+              <TextInput
+                style={styles.modalInput}
+                value={deletePassword}
+                onChangeText={setDeletePassword}
+                placeholder="Enter your password"
+                placeholderTextColor={TG.textHint}
+                secureTextEntry
+                autoCapitalize="none"
+              />
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={styles.cancelBtn}
+                  activeOpacity={0.7}
+                  onPress={() => { setDeleteModal(false); setDeletePassword(''); }}
+                >
+                  <Text style={styles.cancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.submitBtn, (deleteLoading || !deletePassword.trim()) && { opacity: 0.5 }]}
+                  activeOpacity={0.7}
+                  onPress={handleConfirmDelete}
+                  disabled={deleteLoading || !deletePassword.trim()}
+                >
+                  {deleteLoading ? (
+                    <ActivityIndicator size="small" color={TG.textWhite} />
+                  ) : (
+                    <Text style={styles.submitBtnText}>Delete Account</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -250,6 +314,48 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     backgroundColor: TG.bg,
     gap: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: TG.separatorLight,
   },
   logoutText: { fontSize: 15, color: TG.red, fontWeight: '500' },
+  deleteRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: TG.bg,
+    gap: 12,
+  },
+  deleteText: { fontSize: 15, color: TG.red, fontWeight: '500' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.17)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: TG.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: TG.textPrimary, marginBottom: 20 },
+  modalInput: {
+    backgroundColor: TG.bgSecondary,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: TG.textPrimary,
+    borderWidth: 0.5,
+    borderColor: TG.separator,
+    marginBottom: 16,
+  },
+  modalActions: { flexDirection: 'row', gap: 12, marginTop: 4 },
+  cancelBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderRadius: 12,
+    backgroundColor: TG.bgSecondary,
+  },
+  cancelBtnText: { color: TG.textSecondary, fontWeight: '600' },
+  submitBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderRadius: 12,
+    backgroundColor: TG.red,
+  },
+  submitBtnText: { color: TG.textWhite, fontWeight: '600' },
 });

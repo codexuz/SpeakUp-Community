@@ -117,6 +117,13 @@ export async function apiLogout() {
   return request<any>('/auth/logout', { method: 'POST' });
 }
 
+export async function apiDeleteAccount(password: string) {
+  return request<any>('/auth/account', {
+    method: 'DELETE',
+    body: JSON.stringify({ password }),
+  });
+}
+
 // =============================================
 // Telegram Link
 // =============================================
