@@ -94,7 +94,6 @@
         }
       ],
       "expo-video",
-      "expo-in-app-updates",
       "react-native-enriched-markdown"
     ],
     "experiments": {
