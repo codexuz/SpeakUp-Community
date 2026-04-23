@@ -10,9 +10,9 @@ import { useAuth } from '@/store/auth';
 
 function handleNotificationNavigation(data: any, router: ReturnType<typeof useRouter>) {
   if (data.type === 'writing-ai-feedback' && data.responseId) {
-    router.push(`/ai-feedback/${data.responseId}` as any);
+    router.push(`/writing/ai-feedback/${data.responseId}` as any);
   } else if (data.type === 'writing-review' && data.sessionId) {
-    router.push(`/session/${data.sessionId}` as any);
+    router.push(`/writing/review/${data.sessionId}` as any);
   }
 }
 
@@ -62,6 +62,7 @@ export function useNotifications() {
         const response = await Notifications.getLastNotificationResponseAsync();
         if (isActive && response) {
           setInitialNotification(response.notification);
+          handleNotificationNavigation(response.notification.request.content.data, router);
         }
       } catch (error) {
         console.error('Failed to set up notifications:', error);

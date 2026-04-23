@@ -1,0 +1,15 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["APPLE_TEAM_ID.uz.speakup.edumo"],
+        "components": [
+          { "/": "/*", "comment": "Match all paths" }
+        ]
+      }
+    ]
+  },
+  "webcredentials": {
+    "apps": ["APPLE_TEAM_ID.uz.speakup.edumo"]
+  }
+}
