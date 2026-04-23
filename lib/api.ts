@@ -118,7 +118,7 @@ export async function apiLogout() {
 }
 
 export async function apiDeleteAccount(password: string) {
-  return request<any>('/auth/account', {
+  return request<any>('/users/me', {
     method: 'DELETE',
     body: JSON.stringify({ password }),
   });

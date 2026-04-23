@@ -83,7 +83,8 @@ function RootNavigator() {
         <Stack.Screen name="review/[id]/edit" options={{ headerShown: false }} />
         <Stack.Screen name="community/[id]" options={{ headerShown: false }} />
         <Stack.Screen name="comment/[id]" options={{ headerShown: false }} />
-        <Stack.Screen name="user/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="user/[id]/index" options={{ headerShown: false }} />
+        <Stack.Screen name="user/[id]/delete" options={{ headerShown: false }} />
         <Stack.Screen name="followers/[userId]/index" options={{ headerShown: false }} />
         <Stack.Screen name="followings/[userId]/index" options={{ headerShown: false }} />
         <Stack.Screen name="group/[id]/index" options={{ headerShown: false }} />
