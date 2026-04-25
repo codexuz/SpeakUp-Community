@@ -2,7 +2,7 @@
   "expo": {
     "name": "SpeakUp",
     "slug": "SpeakUp",
-    "version": "2.2.6",
+    "version": "2.2.7",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "uz.speakup.edumo",
@@ -41,7 +41,7 @@
         "android.permission.MODIFY_AUDIO_SETTINGS"
       ],
       "package": "uz.speakup.edumo",
-      "versionCode": 26,
+      "versionCode": 27,
       "intentFilters": [
         {
           "action": "VIEW",
