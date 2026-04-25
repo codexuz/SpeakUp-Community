@@ -114,6 +114,12 @@ export default function LectureViewerScreen() {
     );
   }
 
+  const hasVideo = !!(lecture.videoUrl || (lecture.contentType === 'video' && lecture.mediaUrl));
+  const hasAudio = !!(lecture.audioUrl || (lecture.contentType === 'audio' && lecture.mediaUrl));
+  const hasText = !!lecture.textBody;
+  const videoSrc = lecture.videoUrl || lecture.mediaUrl;
+  const audioSrc = lecture.audioUrl || lecture.mediaUrl;
+
   const renderContentIcon = () => {
     switch (lecture.contentType) {
       case 'text': return <FileText size={16} color={TG.accent} />;
@@ -122,56 +128,69 @@ export default function LectureViewerScreen() {
     }
   };
 
-  const renderTextContent = () => (
+  const renderMixedContent = () => (
     <ScrollView
       ref={scrollRef}
       style={styles.scrollBody}
       contentContainerStyle={styles.scrollContent}
-      onScroll={handleScroll}
+      onScroll={hasText ? handleScroll : undefined}
       scrollEventThrottle={200}
     >
-      <Markdown style={markdownStyles}>
-        {lecture.textBody || '*No content yet*'}
-      </Markdown>
-      {renderAttachments()}
-      {renderCompleteButton()}
-      <View style={{ height: 40 }} />
-    </ScrollView>
-  );
-
-  const renderAudioContent = () => (
-    <ScrollView style={styles.scrollBody} contentContainerStyle={styles.scrollContent}>
-      <View style={styles.audioCard}>
-        <View style={styles.audioIconBig}>
-          <Mic size={32} color="#E17055" />
+      {/* ── Video section ── */}
+      {hasVideo && videoSrc && (
+        <View style={styles.sectionWrap}>
+          <View style={styles.sectionLabel}>
+            <Film size={14} color="#6C5CE7" />
+            <Text style={styles.sectionLabelText}>Video</Text>
+          </View>
+          <VideoLecturePlayer url={videoSrc} onProgress={(pct) => sendProgress(pct)} />
         </View>
-        <Text style={styles.audioTitle}>{lecture.title}</Text>
-        {lecture.durationSec ? (
-          <Text style={styles.audioDuration}>
-            {Math.floor(lecture.durationSec / 60)}:{String(lecture.durationSec % 60).padStart(2, '0')}
-          </Text>
-        ) : null}
-      </View>
-      {(lecture.audioUrl || lecture.mediaUrl) ? (
-        <View style={styles.playerWrap}>
-          <WaveformPlayer uri={(lecture.audioUrl || lecture.mediaUrl)!} />
-        </View>
-      ) : (
-        <Text style={styles.noMediaText}>No audio available</Text>
       )}
-      {renderAttachments()}
-      {renderCompleteButton()}
-      <View style={{ height: 40 }} />
-    </ScrollView>
-  );
 
-  const renderVideoContent = () => (
-    <ScrollView style={styles.scrollBody} contentContainerStyle={styles.scrollContent}>
-      {(lecture.videoUrl || lecture.mediaUrl) ? (
-        <VideoLecturePlayer url={(lecture.videoUrl || lecture.mediaUrl)!} onProgress={(pct) => sendProgress(pct)} />
-      ) : (
-        <Text style={styles.noMediaText}>No video available</Text>
+      {/* ── Audio section ── */}
+      {hasAudio && audioSrc && (
+        <View style={styles.sectionWrap}>
+          <View style={styles.sectionLabel}>
+            <Mic size={14} color="#E17055" />
+            <Text style={styles.sectionLabelText}>Audio</Text>
+          </View>
+          <View style={styles.audioCard}>
+            <View style={styles.audioIconBig}>
+              <Mic size={32} color="#E17055" />
+            </View>
+            <Text style={styles.audioTitle}>{lecture.title}</Text>
+            {lecture.durationSec ? (
+              <Text style={styles.audioDuration}>
+                {Math.floor(lecture.durationSec / 60)}:{String(lecture.durationSec % 60).padStart(2, '0')}
+              </Text>
+            ) : null}
+          </View>
+          <View style={styles.playerWrap}>
+            <WaveformPlayer uri={audioSrc} />
+          </View>
+        </View>
       )}
+
+      {/* ── Text / Markdown section ── */}
+      {hasText && (
+        <View style={styles.sectionWrap}>
+          {(hasVideo || hasAudio) && (
+            <View style={styles.sectionLabel}>
+              <FileText size={14} color={TG.accent} />
+              <Text style={styles.sectionLabelText}>Reading Material</Text>
+            </View>
+          )}
+          <Markdown style={markdownStyles}>
+            {lecture.textBody!}
+          </Markdown>
+        </View>
+      )}
+
+      {/* ── Fallback when nothing is available ── */}
+      {!hasVideo && !hasAudio && !hasText && (
+        <Text style={styles.noMediaText}>No content available</Text>
+      )}
+
       {renderAttachments()}
       {renderCompleteButton()}
       <View style={{ height: 40 }} />
@@ -239,9 +258,7 @@ export default function LectureViewerScreen() {
         </View>
       </View>
 
-      {lecture.contentType === 'text' && renderTextContent()}
-      {lecture.contentType === 'audio' && renderAudioContent()}
-      {lecture.contentType === 'video' && renderVideoContent()}
+      {renderMixedContent()}
     </SafeAreaView>
   );
 }
@@ -336,6 +353,19 @@ const styles = StyleSheet.create({
 
   scrollBody: { flex: 1, backgroundColor: TG.bgSecondary },
   scrollContent: { padding: 16, paddingBottom: 40 },
+
+  // Mixed content sections
+  sectionWrap: { marginBottom: 16 },
+  sectionLabel: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+    marginBottom: 10,
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: TG.separator,
+  },
+  sectionLabelText: { fontSize: 13, fontWeight: '700', color: TG.textSecondary, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
 
   // Audio
   audioCard: {
