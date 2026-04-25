@@ -1131,7 +1131,10 @@ export async function apiCreateLecture(data: {
   title: string;
   order?: number;
   textBody?: string | null;
+  /** @deprecated Use audioUrl/videoUrl instead */
   mediaUrl?: string | null;
+  audioUrl?: string | null;
+  videoUrl?: string | null;
   thumbnailUrl?: string | null;
   durationSec?: number | null;
 }) {
@@ -1145,6 +1148,9 @@ export async function apiCreateLectureMultipart(data: {
   order?: number;
   textBody?: string | null;
   durationSec?: number | null;
+  audioUri?: string;
+  videoUri?: string;
+  /** @deprecated Use audioUri/videoUri instead */
   mediaUri?: string;
   thumbnailUri?: string;
   attachmentUris?: { uri: string; name: string; type: string }[];
@@ -1163,7 +1169,22 @@ export async function apiCreateLectureMultipart(data: {
   if (data.order != null) formData.append('order', String(data.order));
   if (data.textBody) formData.append('textBody', data.textBody);
   if (data.durationSec != null) formData.append('durationSec', String(data.durationSec));
-  if (data.mediaUri) {
+  if (data.audioUri) {
+    formData.append('audio', {
+      uri: data.audioUri,
+      name: `audio_${Date.now()}.mp3`,
+      type: 'audio/mpeg',
+    } as any);
+  }
+  if (data.videoUri) {
+    formData.append('video', {
+      uri: data.videoUri,
+      name: `video_${Date.now()}.mp4`,
+      type: 'video/mp4',
+    } as any);
+  }
+  // Backward compat: fall back to generic 'media' field
+  if (data.mediaUri && !data.audioUri && !data.videoUri) {
     formData.append('media', {
       uri: data.mediaUri,
       name: `media_${Date.now()}.${data.contentType === 'audio' ? 'mp3' : 'mp4'}`,
@@ -1196,7 +1217,10 @@ export async function apiUpdateLecture(id: string, data: Partial<{
   title: string;
   order: number;
   textBody: string | null;
+  /** @deprecated Use audioUrl/videoUrl instead */
   mediaUrl: string | null;
+  audioUrl: string | null;
+  videoUrl: string | null;
   thumbnailUrl: string | null;
   durationSec: number | null;
 }>) {

@@ -152,9 +152,9 @@ export default function LectureViewerScreen() {
           </Text>
         ) : null}
       </View>
-      {lecture.mediaUrl ? (
+      {(lecture.audioUrl || lecture.mediaUrl) ? (
         <View style={styles.playerWrap}>
-          <WaveformPlayer uri={lecture.mediaUrl} />
+          <WaveformPlayer uri={(lecture.audioUrl || lecture.mediaUrl)!} />
         </View>
       ) : (
         <Text style={styles.noMediaText}>No audio available</Text>
@@ -167,8 +167,8 @@ export default function LectureViewerScreen() {
 
   const renderVideoContent = () => (
     <ScrollView style={styles.scrollBody} contentContainerStyle={styles.scrollContent}>
-      {lecture.mediaUrl ? (
-        <VideoLecturePlayer url={lecture.mediaUrl} onProgress={(pct) => sendProgress(pct)} />
+      {(lecture.videoUrl || lecture.mediaUrl) ? (
+        <VideoLecturePlayer url={(lecture.videoUrl || lecture.mediaUrl)!} onProgress={(pct) => sendProgress(pct)} />
       ) : (
         <Text style={styles.noMediaText}>No video available</Text>
       )}

@@ -306,7 +306,8 @@ export default function LessonBuilderScreen() {
     contentType: 'text' as LectureContentType,
     title: '',
     textBody: '',
-    mediaUrl: '',
+    audioUrl: '',
+    videoUrl: '',
     thumbnailUrl: '',
     durationSec: '',
   });
@@ -336,7 +337,7 @@ export default function LessonBuilderScreen() {
   }, [lesson]);
 
   const resetLectureForm = () => {
-    setLectureForm({ contentType: 'text', title: '', textBody: '', mediaUrl: '', thumbnailUrl: '', durationSec: '' });
+    setLectureForm({ contentType: 'text', title: '', textBody: '', audioUrl: '', videoUrl: '', thumbnailUrl: '', durationSec: '' });
     // Clear the editor content after modal opens
     setTimeout(() => lectureEditorRef.current?.setValue(''), 100);
   };
@@ -353,7 +354,8 @@ export default function LessonBuilderScreen() {
       contentType: lec.contentType,
       title: lec.title,
       textBody: lec.textBody || '',
-      mediaUrl: lec.mediaUrl || '',
+      audioUrl: lec.audioUrl || '',
+      videoUrl: lec.videoUrl || '',
       thumbnailUrl: lec.thumbnailUrl || '',
       durationSec: lec.durationSec ? String(lec.durationSec) : '',
     });
@@ -372,7 +374,8 @@ export default function LessonBuilderScreen() {
         contentType: lectureForm.contentType,
         title: lectureForm.title.trim(),
         textBody: lectureForm.textBody.trim() || null,
-        mediaUrl: lectureForm.mediaUrl.trim() || null,
+        audioUrl: lectureForm.audioUrl.trim() || null,
+        videoUrl: lectureForm.videoUrl.trim() || null,
         thumbnailUrl: lectureForm.thumbnailUrl.trim() || null,
         durationSec: lectureForm.durationSec ? parseInt(lectureForm.durationSec, 10) : null,
       };
@@ -2018,16 +2021,34 @@ export default function LessonBuilderScreen() {
 
               {(lectureForm.contentType === 'audio' || lectureForm.contentType === 'video') && (
                 <>
-                  <Text style={s.label}>Media URL</Text>
-                  <TextInput
-                    style={s.input}
-                    value={lectureForm.mediaUrl}
-                    onChangeText={(v) => setLectureForm((p) => ({ ...p, mediaUrl: v }))}
-                    placeholder={`https://cdn.example.com/${lectureForm.contentType === 'audio' ? 'audio.mp3' : 'video.mp4'}`}
-                    placeholderTextColor={TG.textHint}
-                    autoCapitalize="none"
-                    keyboardType="url"
-                  />
+                  {lectureForm.contentType === 'audio' && (
+                    <>
+                      <Text style={s.label}>Audio URL</Text>
+                      <TextInput
+                        style={s.input}
+                        value={lectureForm.audioUrl}
+                        onChangeText={(v) => setLectureForm((p) => ({ ...p, audioUrl: v }))}
+                        placeholder="https://cdn.example.com/audio.mp3"
+                        placeholderTextColor={TG.textHint}
+                        autoCapitalize="none"
+                        keyboardType="url"
+                      />
+                    </>
+                  )}
+                  {lectureForm.contentType === 'video' && (
+                    <>
+                      <Text style={s.label}>Video URL</Text>
+                      <TextInput
+                        style={s.input}
+                        value={lectureForm.videoUrl}
+                        onChangeText={(v) => setLectureForm((p) => ({ ...p, videoUrl: v }))}
+                        placeholder="https://cdn.example.com/video.mp4"
+                        placeholderTextColor={TG.textHint}
+                        autoCapitalize="none"
+                        keyboardType="url"
+                      />
+                    </>
+                  )}
                   <Text style={s.label}>Thumbnail URL (optional)</Text>
                   <TextInput
                     style={s.input}

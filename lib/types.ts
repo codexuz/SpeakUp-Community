@@ -259,7 +259,10 @@ export interface Lecture {
   title: string;
   order: number;
   textBody: string | null;
+  /** @deprecated Use audioUrl/videoUrl instead. Kept for backward compatibility. */
   mediaUrl: string | null;
+  audioUrl: string | null;
+  videoUrl: string | null;
   thumbnailUrl: string | null;
   durationSec: number | null;
   createdAt: string;
