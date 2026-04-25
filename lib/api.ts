@@ -1279,6 +1279,7 @@ export async function apiCreateExercise(data: {
   targetText?: string | null;
   audioUrl?: string | null;
   imageUrl?: string | null;
+  passage?: string | null;
   hints?: string[] | null;
   explanation?: string | null;
   difficulty?: number;
@@ -1287,6 +1288,7 @@ export async function apiCreateExercise(data: {
   matchPairs?: { leftText: string; rightText: string; leftAudio?: string | null; rightAudio?: string | null; order: number }[];
   wordBankItems?: { text: string; correctPosition: number; isDistractor: boolean }[];
   conversationLines?: { speaker: string; text: string; audioUrl?: string | null; isUserTurn: boolean; acceptedAnswers?: string[] | null; order: number }[];
+  questions?: { type: string; questionText: string; correctAnswer?: string | null; options?: { text: string; isCorrect: boolean }[] | null; explanation?: string | null; order: number }[];
 }) {
   return request<Exercise>('/courses/admin/exercises', { method: 'POST', body: JSON.stringify(data) });
 }
@@ -1300,6 +1302,7 @@ export async function apiUpdateExercise(id: string, data: Partial<{
   targetText: string | null;
   audioUrl: string | null;
   imageUrl: string | null;
+  passage: string | null;
   hints: string[] | null;
   explanation: string | null;
   difficulty: number;
@@ -1308,6 +1311,7 @@ export async function apiUpdateExercise(id: string, data: Partial<{
   matchPairs: { leftText: string; rightText: string; leftAudio?: string | null; rightAudio?: string | null; order: number }[];
   wordBankItems: { text: string; correctPosition: number; isDistractor: boolean }[];
   conversationLines: { speaker: string; text: string; audioUrl?: string | null; isUserTurn: boolean; acceptedAnswers?: string[] | null; order: number }[];
+  questions: { type: string; questionText: string; correctAnswer?: string | null; options?: { text: string; isCorrect: boolean }[] | null; explanation?: string | null; order: number }[];
 }>) {
   return request<Exercise>(`/courses/admin/exercises/${id}`, { method: 'PUT', body: JSON.stringify(data) });
 }

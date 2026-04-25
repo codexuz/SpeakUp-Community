@@ -94,6 +94,14 @@ const EXERCISE_TYPE_GROUPS = [
       { key: 'completeConversation' as ExerciseType, icon: '💬', label: 'Complete Conversation', desc: 'Fill dialogue gaps' },
     ],
   },
+  {
+    label: 'Comprehension',
+    color: '#00CEC9',
+    types: [
+      { key: 'reading' as ExerciseType, icon: '📖', label: 'Reading', desc: 'Read a passage & answer questions' },
+      { key: 'listening' as ExerciseType, icon: '🎧', label: 'Listening', desc: 'Listen to audio & answer questions' },
+    ],
+  },
 ];
 
 const ALL_TYPES = EXERCISE_TYPE_GROUPS.flatMap((g) => g.types);
@@ -120,7 +128,7 @@ const DIFFICULTY_OPTIONS = [
 const VOICES: TTSVoice[] = ['erin', 'george', 'lisa', 'emily', 'nick'];
 
 // Exercise types that require audio
-const AUDIO_TYPES: ExerciseType[] = ['listenRepeat', 'listenAndChoose', 'tapWhatYouHear', 'pronunciation', 'speakTheAnswer'];
+const AUDIO_TYPES: ExerciseType[] = ['listenRepeat', 'listenAndChoose', 'tapWhatYouHear', 'pronunciation', 'speakTheAnswer', 'listening'];
 
 // ─── Quick Templates ───────────────────────────────────────────
 
@@ -227,6 +235,7 @@ const QUICK_TEMPLATES: QuickTemplate[] = [
 interface OptionForm { text: string; isCorrect: boolean; imageUrl: string; }
 interface PairForm { leftText: string; rightText: string; }
 interface ConvoLineForm { speaker: string; text: string; isUserTurn: boolean; acceptedAnswers: string; }
+interface QuestionForm { type: 'multipleChoice' | 'fillInBlank'; questionText: string; correctAnswer: string; options: { text: string; isCorrect: boolean }[]; explanation: string; }
 
 function getDefaultFormState() {
   return {
@@ -237,6 +246,7 @@ function getDefaultFormState() {
     targetText: '',
     audioUrl: '',
     imageUrl: '',
+    passage: '',
     explanation: '',
     difficulty: 1,
     xpReward: 10,
@@ -246,6 +256,7 @@ function getDefaultFormState() {
     wordBankSentence: '',
     distractors: [] as string[],
     conversationLines: [{ speaker: 'Bot', text: '', isUserTurn: false, acceptedAnswers: '' }] as ConvoLineForm[],
+    questions: [] as QuestionForm[],
   };
 }
 
@@ -431,6 +442,7 @@ export default function LessonBuilderScreen() {
       case 'text': return <FileText size={16} color={TG.accent} />;
       case 'audio': return <Mic size={16} color="#E17055" />;
       case 'video': return <Film size={16} color="#6C5CE7" />;
+      case 'mixed': return <Layers size={16} color="#00CEC9" />;
     }
   };
 
@@ -500,6 +512,7 @@ export default function LessonBuilderScreen() {
     f.targetText = ex.targetText || '';
     f.audioUrl = ex.audioUrl || '';
     f.imageUrl = ex.imageUrl || '';
+    f.passage = ex.passage || '';
     f.explanation = ex.explanation || '';
     f.difficulty = ex.difficulty || 1;
     f.xpReward = ex.xpReward || 10;
@@ -522,6 +535,15 @@ export default function LessonBuilderScreen() {
         text: l.text,
         isUserTurn: l.isUserTurn,
         acceptedAnswers: l.acceptedAnswers?.join(', ') || '',
+      }));
+    }
+    if (ex.questions?.length) {
+      f.questions = ex.questions.map((q) => ({
+        type: q.type as 'multipleChoice' | 'fillInBlank',
+        questionText: q.questionText,
+        correctAnswer: q.correctAnswer || '',
+        options: q.options || [{ text: '', isCorrect: true }, { text: '', isCorrect: false }],
+        explanation: q.explanation || '',
       }));
     }
     setForm(f);
@@ -620,6 +642,7 @@ export default function LessonBuilderScreen() {
       correctAnswer: form.correctAnswer.trim() || null,
       sentenceTemplate: form.sentenceTemplate.trim() || null,
       targetText: form.targetText.trim() || null,
+      passage: form.passage.trim() || null,
     };
 
     const t = form.type;
@@ -660,6 +683,21 @@ export default function LessonBuilderScreen() {
           : null,
         order: i,
       }));
+    }
+
+    if (t === 'reading' || t === 'listening') {
+      base.questions = form.questions
+        .filter((q) => q.questionText.trim())
+        .map((q, i) => ({
+          type: q.type,
+          questionText: q.questionText.trim(),
+          correctAnswer: q.type === 'fillInBlank' ? (q.correctAnswer.trim() || null) : null,
+          options: q.type === 'multipleChoice'
+            ? q.options.filter((o) => o.text.trim()).map((o) => ({ text: o.text.trim(), isCorrect: o.isCorrect }))
+            : null,
+          explanation: q.explanation.trim() || null,
+          order: i,
+        }));
     }
 
     return base;
@@ -708,6 +746,10 @@ export default function LessonBuilderScreen() {
       errors.push('Sentence needs at least 3 words');
     if (t === 'completeConversation' && !form.conversationLines.some((l) => l.isUserTurn))
       errors.push('At least 1 user turn required');
+    if (t === 'reading' && !form.passage.trim())
+      errors.push('Passage text is required for reading exercises');
+    if ((t === 'reading' || t === 'listening') && form.questions.filter((q) => q.questionText.trim()).length < 1)
+      errors.push('At least 1 question is required');
 
     return errors;
   };
@@ -751,6 +793,38 @@ export default function LessonBuilderScreen() {
   const updateHint = (i: number, val: string) => { const next = [...form.hints]; next[i] = val; updateForm({ hints: next }); };
   const removeHint = (i: number) => updateForm({ hints: form.hints.filter((_, idx) => idx !== i) });
 
+  const addQuestion = (type: 'multipleChoice' | 'fillInBlank' = 'multipleChoice') => updateForm({
+    questions: [...form.questions, {
+      type,
+      questionText: '',
+      correctAnswer: '',
+      options: [{ text: '', isCorrect: true }, { text: '', isCorrect: false }],
+      explanation: '',
+    }],
+  });
+  const removeQuestion = (i: number) => updateForm({ questions: form.questions.filter((_, idx) => idx !== i) });
+  const updateQuestion = (i: number, patch: Partial<QuestionForm>) => {
+    const next = [...form.questions]; next[i] = { ...next[i], ...patch }; updateForm({ questions: next });
+  };
+  const addQuestionOption = (qi: number) => {
+    const next = [...form.questions];
+    next[qi] = { ...next[qi], options: [...next[qi].options, { text: '', isCorrect: false }] };
+    updateForm({ questions: next });
+  };
+  const removeQuestionOption = (qi: number, oi: number) => {
+    const next = [...form.questions];
+    next[qi] = { ...next[qi], options: next[qi].options.filter((_, idx) => idx !== oi) };
+    updateForm({ questions: next });
+  };
+  const updateQuestionOption = (qi: number, oi: number, patch: Partial<{ text: string; isCorrect: boolean }>) => {
+    const next = [...form.questions];
+    const opts = [...next[qi].options];
+    opts[oi] = { ...opts[oi], ...patch };
+    if (patch.isCorrect) opts.forEach((o, idx) => { if (idx !== oi) o.isCorrect = false; });
+    next[qi] = { ...next[qi], options: opts };
+    updateForm({ questions: next });
+  };
+
   // ─── Render: Loading / Error ─────────────────────────────
 
   if (loading) {
@@ -793,7 +867,7 @@ export default function LessonBuilderScreen() {
         {lectures.map((lec, idx) => (
           <View key={lec.id} style={s.lectureCard}>
             <View style={s.lectureCardLeft}>
-              <View style={[s.lectureIconBox, { backgroundColor: lec.contentType === 'text' ? TG.accent + '15' : lec.contentType === 'audio' ? '#E1705515' : '#6C5CE715' }]}>
+              <View style={[s.lectureIconBox, { backgroundColor: lec.contentType === 'text' ? TG.accent + '15' : lec.contentType === 'audio' ? '#E1705515' : lec.contentType === 'video' ? '#6C5CE715' : '#00CEC915' }]}>
                 {getLectureContentIcon(lec.contentType)}
               </View>
               <View style={{ flex: 1 }}>
@@ -1202,6 +1276,28 @@ export default function LessonBuilderScreen() {
       return (
         <View style={s.previewAnswerRow}>
           <Text style={s.previewAnswerText}>🎯 {item.targetText}</Text>
+        </View>
+      );
+    }
+
+    if ((item.type === 'reading' || item.type === 'listening') && item.questions && item.questions.length > 0) {
+      return (
+        <View style={s.previewContainer}>
+          {item.passage && (
+            <Text style={[s.previewOptionText, { marginBottom: 6, fontStyle: 'italic' }]} numberOfLines={2}>
+              📄 {item.passage}
+            </Text>
+          )}
+          {item.questions.slice(0, 3).map((q, i) => (
+            <View key={q.id || i} style={[s.previewOption, { borderLeftColor: '#00CEC9', borderLeftWidth: 2 }]}>
+              <Text style={s.previewOptionText} numberOfLines={1}>
+                {q.type === 'multipleChoice' ? '📋' : '✏️'} {q.questionText}
+              </Text>
+            </View>
+          ))}
+          {item.questions.length > 3 && (
+            <Text style={s.previewMore}>+{item.questions.length - 3} more questions</Text>
+          )}
         </View>
       );
     }
@@ -1680,6 +1776,136 @@ export default function LessonBuilderScreen() {
             </TouchableOpacity>
           </>
         )}
+
+        {t === 'reading' && (
+          <>
+            <Text style={s.label}>Passage <Text style={s.required}>*</Text></Text>
+            <Text style={s.fieldDesc}>The reading passage students will read</Text>
+            <TextInput
+              style={[s.input, s.inputMulti, { minHeight: 120 }]}
+              value={form.passage}
+              onChangeText={(v) => updateForm({ passage: v })}
+              placeholder="Enter the reading passage text here..."
+              placeholderTextColor={TG.textHint}
+              multiline
+              textAlignVertical="top"
+            />
+          </>
+        )}
+
+        {(t === 'reading' || t === 'listening') && (
+          <>
+            <View style={s.sectionHeader}>
+              <Text style={s.label}>Questions <Text style={s.required}>*</Text></Text>
+              <Text style={s.optionHint}>{form.questions.length} question{form.questions.length !== 1 ? 's' : ''}</Text>
+            </View>
+            <Text style={s.fieldDesc}>Add sub-questions for the {t === 'reading' ? 'passage' : 'audio clip'}</Text>
+
+            {form.questions.map((q, qi) => (
+              <View key={qi} style={[s.convoCard, { borderLeftColor: '#00CEC9' }]}>
+                <View style={s.convoLineNumber}>
+                  <Text style={s.convoLineNumberText}>Q{qi + 1}</Text>
+                </View>
+                <View style={s.convoContent}>
+                  <View style={s.convoHeader}>
+                    <TouchableOpacity
+                      style={[s.userToggle, q.type === 'multipleChoice' && s.userToggleActive]}
+                      onPress={() => updateQuestion(qi, {
+                        type: 'multipleChoice',
+                        options: q.options.length >= 2 ? q.options : [{ text: '', isCorrect: true }, { text: '', isCorrect: false }],
+                      })}
+                    >
+                      <Text style={[s.userToggleText, q.type === 'multipleChoice' && s.userToggleTextActive]}>📋 MCQ</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[s.userToggle, q.type === 'fillInBlank' && s.userToggleActive]}
+                      onPress={() => updateQuestion(qi, { type: 'fillInBlank' })}
+                    >
+                      <Text style={[s.userToggleText, q.type === 'fillInBlank' && s.userToggleTextActive]}>✏️ Fill-in</Text>
+                    </TouchableOpacity>
+                    {form.questions.length > 1 && (
+                      <TouchableOpacity onPress={() => removeQuestion(qi)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <X size={16} color={TG.textHint} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  <TextInput
+                    style={[s.input, { marginTop: 8 }]}
+                    value={q.questionText}
+                    onChangeText={(v) => updateQuestion(qi, { questionText: v })}
+                    placeholder="Question text..."
+                    placeholderTextColor={TG.textHint}
+                    multiline
+                  />
+
+                  {q.type === 'multipleChoice' && (
+                    <>
+                      <Text style={s.fieldDescSmall}>Options (tap circle to mark correct)</Text>
+                      {q.options.map((opt, oi) => (
+                        <View key={oi} style={s.optionCard}>
+                          <TouchableOpacity
+                            style={[s.correctToggle, opt.isCorrect && s.correctToggleActive]}
+                            onPress={() => updateQuestionOption(qi, oi, { isCorrect: !opt.isCorrect })}
+                          >
+                            {opt.isCorrect && <Check size={14} color="#fff" />}
+                          </TouchableOpacity>
+                          <TextInput
+                            style={[s.input, { flex: 1, marginBottom: 0 }]}
+                            value={opt.text}
+                            onChangeText={(v) => updateQuestionOption(qi, oi, { text: v })}
+                            placeholder={`Option ${oi + 1}`}
+                            placeholderTextColor={TG.textHint}
+                          />
+                          {q.options.length > 2 && (
+                            <TouchableOpacity onPress={() => removeQuestionOption(qi, oi)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={s.removeItemBtn}>
+                              <X size={16} color={TG.textHint} />
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      ))}
+                      {q.options.length < 6 && (
+                        <TouchableOpacity style={s.addRowBtn} onPress={() => addQuestionOption(qi)}>
+                          <Plus size={14} color={TG.accent} /><Text style={s.addRowText}>Add Option</Text>
+                        </TouchableOpacity>
+                      )}
+                    </>
+                  )}
+
+                  {q.type === 'fillInBlank' && (
+                    <>
+                      <Text style={s.fieldDescSmall}>Correct Answer</Text>
+                      <TextInput
+                        style={[s.input, { marginTop: 4 }]}
+                        value={q.correctAnswer}
+                        onChangeText={(v) => updateQuestion(qi, { correctAnswer: v })}
+                        placeholder="Expected answer..."
+                        placeholderTextColor={TG.textHint}
+                      />
+                    </>
+                  )}
+
+                  <TextInput
+                    style={[s.input, { marginTop: 8 }]}
+                    value={q.explanation}
+                    onChangeText={(v) => updateQuestion(qi, { explanation: v })}
+                    placeholder="Explanation (optional)"
+                    placeholderTextColor={TG.textHint}
+                  />
+                </View>
+              </View>
+            ))}
+
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity style={[s.addRowBtn, { flex: 1 }]} onPress={() => addQuestion('multipleChoice')}>
+                <Plus size={14} color={TG.accent} /><Text style={s.addRowText}>Add MCQ</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[s.addRowBtn, { flex: 1 }]} onPress={() => addQuestion('fillInBlank')}>
+                <Plus size={14} color={TG.accent} /><Text style={s.addRowText}>Add Fill-in</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
       </>
     );
   };
@@ -1946,7 +2172,7 @@ export default function LessonBuilderScreen() {
             <ScrollView style={s.modalScroll} contentContainerStyle={s.modalContent} keyboardShouldPersistTaps="handled">
               <Text style={s.label}>Content Type</Text>
               <View style={s.lectureTypeRow}>
-                {(['text', 'audio', 'video'] as LectureContentType[]).map((ct) => (
+                {(['text', 'audio', 'video', 'mixed'] as LectureContentType[]).map((ct) => (
                   <TouchableOpacity
                     key={ct}
                     style={[s.lectureTypeBtn, lectureForm.contentType === ct && s.lectureTypeBtnActive]}
@@ -1954,7 +2180,8 @@ export default function LessonBuilderScreen() {
                   >
                     {ct === 'text' ? <FileText size={18} color={lectureForm.contentType === ct ? TG.accent : TG.textHint} /> :
                      ct === 'audio' ? <Mic size={18} color={lectureForm.contentType === ct ? '#E17055' : TG.textHint} /> :
-                     <Film size={18} color={lectureForm.contentType === ct ? '#6C5CE7' : TG.textHint} />}
+                     ct === 'video' ? <Film size={18} color={lectureForm.contentType === ct ? '#6C5CE7' : TG.textHint} /> :
+                     <Layers size={18} color={lectureForm.contentType === ct ? '#00CEC9' : TG.textHint} />}
                     <Text style={[s.lectureTypeBtnText, lectureForm.contentType === ct && s.lectureTypeBtnTextActive]}>
                       {ct.charAt(0).toUpperCase() + ct.slice(1)}
                     </Text>
@@ -1971,7 +2198,7 @@ export default function LessonBuilderScreen() {
                 placeholderTextColor={TG.textHint}
               />
 
-              {lectureForm.contentType === 'text' && (
+              {(lectureForm.contentType === 'text' || lectureForm.contentType === 'mixed') && (
                 <>
                   <Text style={s.label}>Content (Markdown)</Text>
                   <View style={s.enrichedEditorContainer}>
@@ -2019,9 +2246,9 @@ export default function LessonBuilderScreen() {
                 </>
               )}
 
-              {(lectureForm.contentType === 'audio' || lectureForm.contentType === 'video') && (
+              {(lectureForm.contentType === 'audio' || lectureForm.contentType === 'video' || lectureForm.contentType === 'mixed') && (
                 <>
-                  {lectureForm.contentType === 'audio' && (
+                  {(lectureForm.contentType === 'audio' || lectureForm.contentType === 'mixed') && (
                     <>
                       <Text style={s.label}>Audio URL</Text>
                       <TextInput
@@ -2035,7 +2262,7 @@ export default function LessonBuilderScreen() {
                       />
                     </>
                   )}
-                  {lectureForm.contentType === 'video' && (
+                  {(lectureForm.contentType === 'video' || lectureForm.contentType === 'mixed') && (
                     <>
                       <Text style={s.label}>Video URL</Text>
                       <TextInput

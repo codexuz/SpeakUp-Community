@@ -62,6 +62,8 @@ const TYPE_META: Record<ExerciseType, { icon: string; label: string }> = {
   translateSentence: { icon: '🌐', label: 'Translate Sentence' },
   completeConversation: { icon: '💬', label: 'Complete Conversation' },
   roleplay: { icon: '🎭', label: 'Roleplay' },
+  reading: { icon: '📖', label: 'Reading' },
+  listening: { icon: '🎧', label: 'Listening' },
 };
 
 // ─── Answer validation ──────────────────────────────────────
@@ -70,8 +72,20 @@ function normalizeText(s: string) {
   return s.toLowerCase().trim().replace(/[.,!?;:'"]/g, '').replace(/\s+/g, ' ');
 }
 
-function validateAnswer(exercise: Exercise, userAnswer: string, selectedOption?: string, reorderResult?: string[], matchedPairs?: Record<string, string>, conversationAnswers?: Record<number, string>): boolean {
+function validateAnswer(exercise: Exercise, userAnswer: string, selectedOption?: string, reorderResult?: string[], matchedPairs?: Record<string, string>, conversationAnswers?: Record<number, string>, questionAnswers?: Record<string, string>): boolean {
   const t = exercise.type;
+
+  if (t === 'reading' || t === 'listening') {
+    if (!exercise.questions || !questionAnswers) return false;
+    return exercise.questions.every((q) => {
+      const ans = questionAnswers[q.id] || '';
+      if (q.type === 'multipleChoice') {
+        const correctOpt = q.options?.find((o) => o.isCorrect);
+        return correctOpt ? normalizeText(ans) === normalizeText(correctOpt.text) : false;
+      }
+      return q.correctAnswer ? normalizeText(ans) === normalizeText(q.correctAnswer) : false;
+    });
+  }
 
   if (['multipleChoice', 'listenAndChoose', 'tapWhatYouHear'].includes(t)) {
     if (!selectedOption) return false;
@@ -149,6 +163,7 @@ export default function LessonPlayerScreen() {
   const [matchedPairs, setMatchedPairs] = useState<Record<string, Record<string, string>>>({});
   const [matchSelection, setMatchSelection] = useState<{ side: 'left' | 'right'; text: string } | null>(null);
   const [conversationAnswers, setConversationAnswers] = useState<Record<string, Record<number, string>>>({});
+  const [questionAnswers, setQuestionAnswers] = useState<Record<string, Record<string, string>>>({});
 
   // UI state
   const [revealed, setRevealed] = useState(false);
@@ -481,6 +496,13 @@ export default function LessonPlayerScreen() {
     }));
   };
 
+  const handleQuestionAnswer = (exId: string, qId: string, text: string) => {
+    setQuestionAnswers((p) => ({
+      ...p,
+      [exId]: { ...(p[exId] || {}), [qId]: text },
+    }));
+  };
+
   // ─── Check / next ────────────────────────────────────────
 
   const isCurrentAnswered = (): boolean => {
@@ -499,6 +521,10 @@ export default function LessonPlayerScreen() {
       const lines = currentExercise.conversationLines || [];
       return convoStep >= lines.length;
     }
+    if (type === 'reading' || type === 'listening') {
+      const answers = questionAnswers[eid] || {};
+      return (currentExercise.questions || []).every((q) => !!answers[q.id]?.trim());
+    }
     return true;
   };
 
@@ -513,6 +539,7 @@ export default function LessonPlayerScreen() {
       reorderWords[ex.id],
       matchedPairs[ex.id],
       conversationAnswers[ex.id],
+      questionAnswers[ex.id]
     );
 
     setRevealed(true);
@@ -550,7 +577,10 @@ export default function LessonPlayerScreen() {
       try {
         await apiSubmitAttempt(session.id, {
           exerciseId: ex.id,
-          userAnswer: { value: textAnswers[ex.id] || selectedOptions[ex.id] || (reorderWords[ex.id] || []).join(' ') || '' },
+          userAnswer: { 
+            value: textAnswers[ex.id] || selectedOptions[ex.id] || (reorderWords[ex.id] || []).join(' ') || '',
+            questions: questionAnswers[ex.id],
+          },
           isCorrect: correct,
           timeTakenMs: 0,
         });
@@ -596,6 +626,7 @@ export default function LessonPlayerScreen() {
     setReorderWords({});
     setMatchedPairs({});
     setConversationAnswers({});
+    setQuestionAnswers({});
     setRevealed(false);
     setIsCorrectResult(null);
     setCompleted(false);
@@ -808,6 +839,19 @@ export default function LessonPlayerScreen() {
                 {Object.values(userConvo).map((ans, i) => (
                   <Text key={i} style={styles.resultAnswer}>{ans}</Text>
                 ))}
+              </View>
+            )}
+
+            {/* Reading / Listening answers */}
+            {(reviewEx.type === 'reading' || reviewEx.type === 'listening') && reviewEx.questions && (
+              <View style={[styles.resultBanner, styles.resultWrong]}>
+                <Text style={styles.resultText}>Your Answers</Text>
+                {reviewEx.questions.map((q, i) => {
+                  const ans = questionAnswers[reviewEx.id]?.[q.id] || '(No answer)';
+                  return (
+                    <Text key={q.id} style={styles.resultAnswer}>Q{i + 1}: {ans}</Text>
+                  );
+                })}
               </View>
             )}
 
@@ -1268,6 +1312,95 @@ export default function LessonPlayerScreen() {
                   >
                     <Text style={[styles.matchCardText, isUsed && styles.matchCardTextMatched]}>{pair.rightText}</Text>
                   </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
+        {/* ── Reading & Listening ────────────── */}
+        {(ex.type === 'reading' || ex.type === 'listening') && (
+          <View style={styles.comprehensionContainer}>
+            {ex.type === 'listening' && ex.audioUrl && (
+              <TouchableOpacity
+                style={styles.audioPlayBtnLg}
+                activeOpacity={0.8}
+                onPress={() => playExerciseAudio(ex.audioUrl!)}
+              >
+                <Volume2 size={40} color="#1CB0F6" />
+              </TouchableOpacity>
+            )}
+            {ex.type === 'reading' && ex.passage && (
+              <View style={styles.passageCard}>
+                <Text style={styles.passageText}>{ex.passage}</Text>
+              </View>
+            )}
+
+            <View style={styles.questionsList}>
+              {ex.questions?.sort((a, b) => a.order - b.order).map((q, qi) => {
+                const qAns = questionAnswers[ex.id]?.[q.id] || '';
+                const isCorrect = revealed && (
+                  q.type === 'multipleChoice'
+                    ? normalizeText(qAns) === normalizeText(q.options?.find((o) => o.isCorrect)?.text || '')
+                    : normalizeText(qAns) === normalizeText(q.correctAnswer || '')
+                );
+                
+                return (
+                  <View key={q.id} style={styles.questionBlock}>
+                    <Text style={styles.questionText}>{qi + 1}. {q.questionText}</Text>
+                    {q.type === 'multipleChoice' ? (
+                      <View style={styles.optionsContainer}>
+                        {q.options?.map((opt) => {
+                          const isSelected = qAns === opt.text;
+                          const correctOpt = revealed && opt.isCorrect;
+                          return (
+                            <TouchableOpacity
+                              key={opt.text}
+                              style={[
+                                styles.optionBtn,
+                                isSelected && !revealed && styles.optionSelected,
+                                correctOpt && styles.optionCorrect,
+                                revealed && isSelected && !opt.isCorrect && styles.optionWrong
+                              ]}
+                              activeOpacity={0.7}
+                              onPress={() => !revealed && handleQuestionAnswer(ex.id, q.id, opt.text)}
+                            >
+                              <Text style={[
+                                styles.optionText,
+                                isSelected && !revealed && styles.optionTextSelected,
+                                correctOpt && styles.optionTextCorrect
+                              ]}>
+                                {opt.text}
+                              </Text>
+                              {correctOpt && <Check size={16} color={TG.scoreGreen} />}
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    ) : (
+                      <View style={styles.fibQuestionContainer}>
+                        <TextInput
+                          style={[
+                            styles.textInput,
+                            revealed && (isCorrect ? styles.inputCorrect : styles.inputWrong)
+                          ]}
+                          value={qAns}
+                          onChangeText={(v) => !revealed && handleQuestionAnswer(ex.id, q.id, v)}
+                          placeholder="Type your answer"
+                          placeholderTextColor={TG.textHint}
+                          editable={!revealed}
+                        />
+                        {revealed && !isCorrect && q.correctAnswer && (
+                          <Text style={styles.fibQuestionCorrectLabel}>Answer: {q.correctAnswer}</Text>
+                        )}
+                      </View>
+                    )}
+                    {revealed && q.explanation && (
+                      <View style={styles.explanationBox}>
+                        <Text style={styles.explanationText}>💡 {q.explanation}</Text>
+                      </View>
+                    )}
+                  </View>
                 );
               })}
             </View>
@@ -2209,12 +2342,28 @@ const styles = StyleSheet.create({
   },
   completeBtnPrimary: {
     backgroundColor: '#58CC02',
+    marginBottom: 12,
   },
   completeBtnSecondary: {
-    backgroundColor: '#F7F7F7',
+    backgroundColor: 'transparent',
   },
   completeBtnText: { fontSize: 16, fontWeight: '800', color: '#fff', letterSpacing: 1 },
-  completeBtnSecondaryText: { color: '#AFAFAF' },
+  completeBtnSecondaryText: {
+    color: '#AFB4B8',
+  },
+
+  // Reading & Listening
+  comprehensionContainer: { gap: 24, paddingBottom: 24 },
+  audioPlayBtnLg: { alignSelf: 'center', backgroundColor: '#E3F2FD', width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
+  passageCard: { backgroundColor: '#fff', borderRadius: 16, padding: 20, borderWidth: 2, borderColor: '#E5E5E5', marginBottom: 16 },
+  passageText: { fontSize: 17, color: TG.textPrimary, lineHeight: 26, fontWeight: '500' },
+  questionsList: { gap: 32 },
+  questionBlock: { gap: 12 },
+  questionText: { fontSize: 18, fontWeight: '700', color: TG.textPrimary },
+  fibQuestionContainer: { gap: 8 },
+  fibQuestionInput: { backgroundColor: '#fff', borderRadius: 16, padding: 16, fontSize: 18, color: TG.textPrimary, borderWidth: 2, borderColor: '#E5E5E5', fontWeight: '600' },
+  fibQuestionCorrectLabel: { fontSize: 15, fontWeight: '700', color: '#58CC02', marginLeft: 8 },
+
   // Result (legacy review mode)
   resultBanner: { marginTop: 20, borderRadius: 14, padding: 16 },
   resultCorrect: { backgroundColor: TG.scoreGreen + '15' },

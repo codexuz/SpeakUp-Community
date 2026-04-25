@@ -182,7 +182,7 @@ export interface ChallengeSubmission {
 
 export type LessonType = 'practice' | 'lecture' | 'mixed';
 
-export type LectureContentType = 'text' | 'audio' | 'video';
+export type LectureContentType = 'text' | 'audio' | 'video' | 'mixed';
 
 export type ExerciseType =
   | 'listenRepeat'
@@ -196,7 +196,11 @@ export type ExerciseType =
   | 'reorderWords'
   | 'translateSentence'
   | 'tapWhatYouHear'
-  | 'completeConversation';
+  | 'completeConversation'
+  | 'reading'
+  | 'listening';
+
+export type ExerciseQuestionType = 'multipleChoice' | 'fillInBlank';
 
 export interface Course {
   id: string;
@@ -306,6 +310,17 @@ export interface ExerciseConversationLine {
   order: number;
 }
 
+export interface ExerciseQuestion {
+  id: string;
+  exerciseId: string;
+  type: ExerciseQuestionType;
+  questionText: string;
+  correctAnswer: string | null;
+  options: { text: string; isCorrect: boolean }[] | null;
+  explanation: string | null;
+  order: number;
+}
+
 export interface Exercise {
   id: string;
   lessonId: string;
@@ -318,6 +333,7 @@ export interface Exercise {
   targetText: string | null;
   audioUrl: string | null;
   imageUrl: string | null;
+  passage: string | null;
   hints: string[] | null;
   explanation: string | null;
   difficulty: number;
@@ -326,6 +342,7 @@ export interface Exercise {
   matchPairs: ExerciseMatchPair[];
   wordBankItems: ExerciseWordBankItem[];
   conversationLines: ExerciseConversationLine[];
+  questions: ExerciseQuestion[];
 }
 
 export interface ExerciseSession {
