@@ -1,6 +1,7 @@
 import { TG } from '@/constants/theme';
 import { apiCompleteSession, apiFetchLesson, apiStartLessonSession, apiSubmitAttempt } from '@/lib/api';
 import type { Exercise, ExerciseSession, ExerciseType, LessonDetail } from '@/lib/types';
+import { cacheAudioUri } from '@/hooks/useCachedAudioUri';
 import { getStoredAuthToken } from '@/store/auth';
 import { AudioModule, createAudioPlayer, RecordingPresets, useAudioPlayer, useAudioRecorder } from 'expo-audio';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -193,9 +194,10 @@ export default function LessonPlayerScreen() {
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const convoScrollRef = useRef<ScrollView>(null);
 
-  const playExerciseAudio = useCallback((url: string) => {
+  const playExerciseAudio = useCallback(async (url: string) => {
     try { exerciseAudioRef.current?.remove(); } catch {}
-    const player = createAudioPlayer(url);
+    const cachedUrl = await cacheAudioUri(url);
+    const player = createAudioPlayer(cachedUrl);
     exerciseAudioRef.current = player;
     player.play();
   }, []);
@@ -339,9 +341,9 @@ export default function LessonPlayerScreen() {
     const line = lines[convoStep];
     if (!line.isUserTurn) {
       const delay = convoStep === 0 ? 400 : 800;
-      const timer = setTimeout(() => {
+      const timer = setTimeout(async () => {
         setConvoStep((p) => p + 1);
-        if (line.audioUrl) playExerciseAudio(line.audioUrl);
+        if (line.audioUrl) await playExerciseAudio(line.audioUrl);
         setTimeout(() => convoScrollRef.current?.scrollToEnd({ animated: true }), 100);
       }, delay);
       return () => clearTimeout(timer);

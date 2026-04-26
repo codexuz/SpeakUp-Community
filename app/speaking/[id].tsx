@@ -1,9 +1,11 @@
 import { TG } from '@/constants/theme';
 import { apiSubmitSpeaking } from '@/lib/api';
 import { fetchQuestionsByTestId, Question } from '@/lib/data';
+import { cacheAudioUri } from '@/hooks/useCachedAudioUri';
 import { useAuth } from '@/store/auth';
 import { AudioModule, createAudioPlayer, RecordingPresets, useAudioRecorder } from 'expo-audio';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as Speech from 'expo-speech';
 import {
   ArrowLeft,
   BookOpen,
@@ -218,31 +220,47 @@ export default function SpeakingScreen() {
       // Play the question audio_url, then move to prep
       try { audioPlayerRef.current?.remove(); } catch {}
       if (question.audio_url) {
-        const player = createAudioPlayer(question.audio_url);
-        audioPlayerRef.current = player;
-        const sub = player.addListener('playbackStatusUpdate', (status: any) => {
-          if (status.didJustFinish || (status.currentTime > 0 && status.playing === false && status.currentTime >= (status.duration || 0) - 0.1)) {
+        let isEffectMounted = true;
+        (async () => {
+          const cachedUrl = await cacheAudioUri(question.audio_url!);
+          if (!isEffectMounted || phase !== 'audio') return;
+          const player = createAudioPlayer(cachedUrl);
+          audioPlayerRef.current = player;
+          const sub = player.addListener('playbackStatusUpdate', (status: any) => {
+            if (status.didJustFinish || (status.currentTime > 0 && status.playing === false && status.currentTime >= (status.duration || 0) - 0.1)) {
+              sub?.remove();
+              try { player.remove(); } catch {}
+              audioPlayerRef.current = null;
+              setPhase('prep');
+            }
+          });
+          player.play();
+          // Fallback: if audio is short or status doesn't fire, move after a max wait
+          const fallback = setTimeout(() => {
             sub?.remove();
             try { player.remove(); } catch {}
             audioPlayerRef.current = null;
-            setPhase('prep');
-          }
-        });
-        player.play();
-        // Fallback: if audio is short or status doesn't fire, move after a max wait
-        const fallback = setTimeout(() => {
-          sub?.remove();
-          try { player.remove(); } catch {}
-          audioPlayerRef.current = null;
-          setPhase(prev => prev === 'audio' ? 'prep' : prev);
-        }, 30000);
+            setPhase(prev => prev === 'audio' ? 'prep' : prev);
+          }, 30000);
+          return () => {
+            clearTimeout(fallback);
+            sub?.remove();
+          };
+        })();
         return () => {
-          clearTimeout(fallback);
-          sub?.remove();
+          isEffectMounted = false;
         };
       } else {
-        // No audio_url, skip to prep immediately
-        setPhase('prep');
+        // No audio_url, use text-to-speech
+        Speech.speak(question.q_text, {
+          onDone: () => setPhase('prep'),
+          onError: () => setPhase('prep'),
+          onStopped: () => setPhase('prep'),
+        });
+        
+        return () => {
+          Speech.stop();
+        };
       }
     } else if (phase === 'prep') {
       if (prepTimerEnabled) {

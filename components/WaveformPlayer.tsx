@@ -1,3 +1,4 @@
+import { useCachedAudioUri } from '@/hooks/useCachedAudioUri';
 import { TG } from '@/constants/theme';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { Pause, Play } from 'lucide-react-native';
@@ -63,7 +64,8 @@ export default function WaveformPlayer({
   onPlaybackStart,
   onPlaybackEnd,
 }: WaveformPlayerProps) {
-  const player = useAudioPlayer(uri ?? undefined);
+  const cachedUri = useCachedAudioUri(uri);
+  const player = useAudioPlayer(cachedUri ?? undefined);
   const status = useAudioPlayerStatus(player);
   const bars = useMemo(() => generateBars(uri || 'default'), [uri]);
 
