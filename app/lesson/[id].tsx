@@ -1,8 +1,9 @@
 import { TG } from '@/constants/theme';
+import { cacheAudioUri } from '@/hooks/useCachedAudioUri';
 import { apiCompleteSession, apiFetchLesson, apiStartLessonSession, apiSubmitAttempt } from '@/lib/api';
 import type { Exercise, ExerciseSession, ExerciseType, LessonDetail } from '@/lib/types';
-import { cacheAudioUri } from '@/hooks/useCachedAudioUri';
 import { getStoredAuthToken } from '@/store/auth';
+import DuoDragDrop, { DuoDragDropRef } from '@jamsch/react-native-duo-drag-drop';
 import { AudioModule, createAudioPlayer, RecordingPresets, useAudioPlayer, useAudioRecorder } from 'expo-audio';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
@@ -39,6 +40,7 @@ import {
   View
 } from 'react-native';
 import { Confetti } from 'react-native-fast-confetti';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 const correctSound = require('@/assets/audios/correct.mp3');
@@ -193,6 +195,7 @@ export default function LessonPlayerScreen() {
   const exerciseAudioRef = useRef<any>(null);
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const convoScrollRef = useRef<ScrollView>(null);
+  const reorderDragDropRef = useRef<DuoDragDropRef>(null);
 
   const playExerciseAudio = useCallback(async (url: string) => {
     try { exerciseAudioRef.current?.remove(); } catch {}
@@ -466,6 +469,13 @@ export default function LessonPlayerScreen() {
 
   const handleOptionSelect = (exId: string, opt: string) => {
     setSelectedOptions((p) => ({ ...p, [exId]: opt }));
+  };
+
+  const handleReorderDrop = (exId: string) => {
+    if (reorderDragDropRef.current) {
+      const answered = reorderDragDropRef.current.getAnsweredWords();
+      setReorderWords((p) => ({ ...p, [exId]: answered }));
+    }
   };
 
   const handleReorder = (exId: string, word: string) => {
@@ -1244,36 +1254,30 @@ export default function LessonPlayerScreen() {
 
         {/* ── Reorder words / Translate sentence ── */}
         {(ex.type === 'reorderWords' || ex.type === 'translateSentence') && (
-          <View>
-            <View style={[styles.reorderAnswer, revealed && (isCorrectResult ? styles.reorderCorrect : styles.reorderWrong)]}>
-              {(reorderWords[ex.id] || []).map((word, i) => (
-                <TouchableOpacity
-                  key={`ans-${i}`}
-                  style={styles.reorderWordActive}
-                  onPress={() => !revealed && handleReorder(ex.id, word)}
-                >
-                  <Text style={styles.reorderWordActiveText}>{word}</Text>
-                </TouchableOpacity>
-              ))}
-              {(reorderWords[ex.id] || []).length === 0 && (
-                <Text style={styles.reorderPlaceholder}>Tap words to build sentence...</Text>
-              )}
-            </View>
-            <View style={styles.reorderPool}>
-              {wordBank.map((item, i) => {
-                const used = (reorderWords[ex.id] || []).includes(item.text);
-                return (
-                  <TouchableOpacity
-                    key={`pool-${i}`}
-                    style={[styles.reorderWord, used && styles.reorderWordUsed]}
-                    onPress={() => !revealed && !used && handleReorder(ex.id, item.text)}
-                  >
-                    <Text style={[styles.reorderWordText, used && styles.reorderWordTextUsed]}>{item.text}</Text>
-                  </TouchableOpacity>
-                )
-              })}
-            </View>
-          </View>
+          <GestureHandlerRootView style={styles.reorderContainer}>
+            <DuoDragDrop
+              ref={reorderDragDropRef}
+              words={wordBank.map((item) => item.text)}
+              extraData={ex.id}
+              wordHeight={45}
+              wordGap={4}
+              lineHeight={54}
+              wordBankOffsetY={20}
+              wordBankAlignment="center"
+              gesturesDisabled={revealed}
+              onReady={() => {
+                // When ready, set initial answered words if they exist
+                if (reorderWords[ex.id]?.length) {
+                  const offsets = wordBank.map((item, idx) => {
+                    const answerIdx = reorderWords[ex.id]?.indexOf(item.text);
+                    return answerIdx !== undefined && answerIdx >= 0 ? answerIdx : -1;
+                  });
+                  reorderDragDropRef.current?.setOffsets(offsets);
+                }
+              }}
+              onDrop={() => handleReorderDrop(ex.id)}
+            />
+          </GestureHandlerRootView>
         )}
 
         {/* ── Match pairs ────────────── */}
@@ -2003,6 +2007,10 @@ const styles = StyleSheet.create({
   optionTextCorrect: { color: '#059669', fontWeight: '800' },
 
   // Reorder
+  reorderContainer: {
+    marginVertical: 16,
+    minHeight: 300,
+  },
   reorderAnswer: {
     backgroundColor: TG.bgSecondary,
     borderRadius: 16,
