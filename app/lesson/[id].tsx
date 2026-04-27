@@ -3,7 +3,6 @@ import { cacheAudioUri } from '@/hooks/useCachedAudioUri';
 import { apiCompleteSession, apiFetchLesson, apiStartLessonSession, apiSubmitAttempt } from '@/lib/api';
 import type { Exercise, ExerciseSession, ExerciseType, LessonDetail } from '@/lib/types';
 import { getStoredAuthToken } from '@/store/auth';
-import DuoDragDrop, { DuoDragDropRef } from '@jamsch/react-native-duo-drag-drop';
 import { AudioModule, createAudioPlayer, RecordingPresets, useAudioPlayer, useAudioRecorder } from 'expo-audio';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
@@ -40,8 +39,9 @@ import {
   View
 } from 'react-native';
 import { Confetti } from 'react-native-fast-confetti';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import DuoDragDrop, { DuoDragDropRef, Word } from '@jamsch/react-native-duo-drag-drop';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 const correctSound = require('@/assets/audios/correct.mp3');
 const wrongSound = require('@/assets/audios/wrong.mp3');
@@ -195,7 +195,7 @@ export default function LessonPlayerScreen() {
   const exerciseAudioRef = useRef<any>(null);
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const convoScrollRef = useRef<ScrollView>(null);
-  const reorderDragDropRef = useRef<DuoDragDropRef>(null);
+  const duoDragDropRef = useRef<DuoDragDropRef>(null);
 
   const playExerciseAudio = useCallback(async (url: string) => {
     try { exerciseAudioRef.current?.remove(); } catch {}
@@ -318,6 +318,16 @@ export default function LessonPlayerScreen() {
     const items = ex.wordBankItems || [];
     return [...items].sort(() => Math.random() - 0.5);
   }, [currentExercise?.id, currentExercise?.type]);
+
+  const uniqueWordBankStrings = useMemo(() => {
+    const counts: Record<string, number> = {};
+    return wordBank.map((item) => {
+      const w = item.text;
+      counts[w] = (counts[w] || 0) + 1;
+      return w + '\u200B'.repeat(counts[w] - 1);
+    });
+  }, [wordBank]);
+
   const totalExercises = exercises.length;
   const progress = totalExercises > 0 ? ((currentIndex + (revealed ? 1 : 0)) / totalExercises) * 100 : 0;
 
@@ -469,13 +479,6 @@ export default function LessonPlayerScreen() {
 
   const handleOptionSelect = (exId: string, opt: string) => {
     setSelectedOptions((p) => ({ ...p, [exId]: opt }));
-  };
-
-  const handleReorderDrop = (exId: string) => {
-    if (reorderDragDropRef.current) {
-      const answered = reorderDragDropRef.current.getAnsweredWords();
-      setReorderWords((p) => ({ ...p, [exId]: answered }));
-    }
   };
 
   const handleReorder = (exId: string, word: string) => {
@@ -985,8 +988,9 @@ export default function LessonPlayerScreen() {
   const meta = TYPE_META[ex.type] || { icon: '📝', label: 'Exercise' };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor={TG.headerBg} />
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="light-content" backgroundColor={TG.headerBg} />
 
       {/* ── Header ─────────────────── */}
       <View style={styles.header}>
@@ -1254,30 +1258,46 @@ export default function LessonPlayerScreen() {
 
         {/* ── Reorder words / Translate sentence ── */}
         {(ex.type === 'reorderWords' || ex.type === 'translateSentence') && (
-          <GestureHandlerRootView style={styles.reorderContainer}>
+          <View style={{ marginTop: 20, minHeight: 180 }}>
             <DuoDragDrop
-              ref={reorderDragDropRef}
-              words={wordBank.map((item) => item.text)}
-              extraData={ex.id}
-              wordHeight={45}
-              wordGap={4}
-              lineHeight={54}
-              wordBankOffsetY={20}
-              wordBankAlignment="center"
+              ref={duoDragDropRef}
+              key={ex.id}
+              words={uniqueWordBankStrings}
               gesturesDisabled={revealed}
-              onReady={() => {
-                // When ready, set initial answered words if they exist
-                if (reorderWords[ex.id]?.length) {
-                  const offsets = wordBank.map((item, idx) => {
-                    const answerIdx = reorderWords[ex.id]?.indexOf(item.text);
-                    return answerIdx !== undefined && answerIdx >= 0 ? answerIdx : -1;
-                  });
-                  reorderDragDropRef.current?.setOffsets(offsets);
-                }
+              wordBankAlignment="center"
+              onDrop={(event) => {
+                const answered = duoDragDropRef.current?.getAnsweredWords() || [];
+                setReorderWords((p) => ({ ...p, [ex.id]: answered.map(w => w.replace(/\u200B/g, '')) }));
               }}
-              onDrop={() => handleReorderDrop(ex.id)}
+              renderWord={(word, index) => {
+                let bg = 'white';
+                let border = '#E5E7EB';
+                let color = TG.textPrimary;
+                
+                if (revealed) {
+                  bg = isCorrectResult ? TG.scoreGreen : '#FF4B4B';
+                  border = bg;
+                  color = 'white';
+                }
+
+                return (
+                  <Word
+                    containerStyle={{
+                      backgroundColor: bg,
+                      borderColor: border,
+                      borderWidth: 1,
+                      borderRadius: 12,
+                    }}
+                    textStyle={{
+                      color: color,
+                      fontFamily: 'Nunito-Bold',
+                      fontSize: 16,
+                    }}
+                  />
+                );
+              }}
             />
-          </GestureHandlerRootView>
+          </View>
         )}
 
         {/* ── Match pairs ────────────── */}
@@ -1572,6 +1592,7 @@ export default function LessonPlayerScreen() {
         )}
       </View>
     </SafeAreaView>
+  </GestureHandlerRootView>
   );
 }
 
@@ -2007,10 +2028,6 @@ const styles = StyleSheet.create({
   optionTextCorrect: { color: '#059669', fontWeight: '800' },
 
   // Reorder
-  reorderContainer: {
-    marginVertical: 16,
-    minHeight: 300,
-  },
   reorderAnswer: {
     backgroundColor: TG.bgSecondary,
     borderRadius: 16,
